@@ -25,6 +25,9 @@ public final class ChunkMesher {
 
     private static final int VERTICAL_RANGE_BELOW = 96;
     private static final int VERTICAL_RANGE_ABOVE = 192;
+    private static final int LOD_LEVEL_FULL = 0;
+    private static final int LOD_LEVEL_HEIGHTFIELD_2X2 = 1;
+    private static final int LOD_CELL_SIZE = 2;
     private static final boolean NATIVE_LITTLE_ENDIAN = ByteOrder.nativeOrder() == ByteOrder.LITTLE_ENDIAN;
     private static final int EMPTY_MASK = 0;
 
@@ -140,6 +143,10 @@ public final class ChunkMesher {
     }
 
     public ChunkMeshData buildChunkMesh(ChunkSnapshot snapshot, DirectByteBufferPool bufferPool) {
+        return buildChunkMesh(snapshot, bufferPool, LOD_LEVEL_FULL);
+    }
+
+    public ChunkMeshData buildChunkMesh(ChunkSnapshot snapshot, DirectByteBufferPool bufferPool, int lodLevel) {
         try {
             MeshBuildScratch scratch = gpuScratch.get();
             PackedVertexBuilder vertices = scratch.vertices;
@@ -155,15 +162,19 @@ public final class ChunkMesher {
             int snapshotHeight = snapshot.height();
 
             if (snapshotHeight > 0) {
-                int[] horizontalMask = scratch.horizontalMask();
-                int[] verticalMask = scratch.verticalMask(snapshotHeight);
+                if (lodLevel <= LOD_LEVEL_FULL) {
+                    int[] horizontalMask = scratch.horizontalMask();
+                    int[] verticalMask = scratch.verticalMask(snapshotHeight);
 
-                buildTopBottomGreedy(snapshot, expandedHeight, chunkBaseX, chunkBaseZ, vertices, indices, bounds, horizontalMask, true);
-                buildTopBottomGreedy(snapshot, expandedHeight, chunkBaseX, chunkBaseZ, vertices, indices, bounds, horizontalMask, false);
-                buildNorthSouthGreedy(snapshot, expandedHeight, chunkBaseX, chunkBaseZ, vertices, indices, bounds, verticalMask, true);
-                buildNorthSouthGreedy(snapshot, expandedHeight, chunkBaseX, chunkBaseZ, vertices, indices, bounds, verticalMask, false);
-                buildWestEastGreedy(snapshot, expandedHeight, chunkBaseX, chunkBaseZ, vertices, indices, bounds, verticalMask, true);
-                buildWestEastGreedy(snapshot, expandedHeight, chunkBaseX, chunkBaseZ, vertices, indices, bounds, verticalMask, false);
+                    buildTopBottomGreedy(snapshot, expandedHeight, chunkBaseX, chunkBaseZ, vertices, indices, bounds, horizontalMask, true);
+                    buildTopBottomGreedy(snapshot, expandedHeight, chunkBaseX, chunkBaseZ, vertices, indices, bounds, horizontalMask, false);
+                    buildNorthSouthGreedy(snapshot, expandedHeight, chunkBaseX, chunkBaseZ, vertices, indices, bounds, verticalMask, true);
+                    buildNorthSouthGreedy(snapshot, expandedHeight, chunkBaseX, chunkBaseZ, vertices, indices, bounds, verticalMask, false);
+                    buildWestEastGreedy(snapshot, expandedHeight, chunkBaseX, chunkBaseZ, vertices, indices, bounds, verticalMask, true);
+                    buildWestEastGreedy(snapshot, expandedHeight, chunkBaseX, chunkBaseZ, vertices, indices, bounds, verticalMask, false);
+                } else {
+                    buildHeightfieldLodMesh2x2(snapshot, expandedHeight, chunkBaseX, chunkBaseZ, vertices, indices, bounds, scratch);
+                }
             }
 
             if (indices.size() == 0) {
@@ -174,6 +185,7 @@ public final class ChunkMesher {
                 return new ChunkMeshData(
                     snapshot.pos(),
                     snapshot.version(),
+                    lodLevel,
                     null,
                     0,
                     null,
@@ -212,6 +224,7 @@ public final class ChunkMesher {
             return new ChunkMeshData(
                 snapshot.pos(),
                 snapshot.version(),
+                lodLevel,
                 vertexBytes,
                 vertexByteCount,
                 indexBytes,
@@ -227,6 +240,178 @@ public final class ChunkMesher {
             );
         } finally {
             snapshot.releaseBlocks(snapshotBlockPool);
+        }
+    }
+
+    private static void buildHeightfieldLodMesh2x2(
+        ChunkSnapshot snapshot,
+        int expandedHeight,
+        int chunkBaseX,
+        int chunkBaseZ,
+        PackedVertexBuilder vertices,
+        IntArrayBuilder indices,
+        BoundsAccumulator bounds,
+        MeshBuildScratch scratch
+    ) {
+        int[] columnHeights = scratch.lodColumnHeights();
+        Block[] columnBlocks = scratch.lodColumnBlocks();
+        int columnCount = Section.SIZE * Section.SIZE;
+        Arrays.fill(columnHeights, 0, columnCount, Integer.MIN_VALUE);
+        Arrays.fill(columnBlocks, 0, columnCount, null);
+
+        for (int localZ = 0; localZ < Section.SIZE; localZ++) {
+            int exZ = localZ + 1;
+            for (int localX = 0; localX < Section.SIZE; localX++) {
+                int exX = localX + 1;
+                int columnIndex = localZ * Section.SIZE + localX;
+                for (int localY = snapshot.height() - 1; localY >= 0; localY--) {
+                    int exY = localY + 1;
+                    Block block = snapshot.blockAtExpanded(exX, exY, exZ, expandedHeight);
+                    if (!isSolid(block)) {
+                        continue;
+                    }
+                    columnHeights[columnIndex] = snapshot.minY() + localY;
+                    columnBlocks[columnIndex] = block;
+                    break;
+                }
+            }
+        }
+
+        int coarseWidth = Math.max(1, Section.SIZE / LOD_CELL_SIZE);
+        int coarseHeight = coarseWidth;
+        int[] cellHeights = scratch.lodCellHeights(coarseWidth * coarseHeight);
+        Block[] cellBlocks = scratch.lodCellBlocks(coarseWidth * coarseHeight);
+        Arrays.fill(cellHeights, 0, coarseWidth * coarseHeight, Integer.MIN_VALUE);
+        Arrays.fill(cellBlocks, 0, coarseWidth * coarseHeight, null);
+
+        for (int cellZ = 0; cellZ < coarseHeight; cellZ++) {
+            for (int cellX = 0; cellX < coarseWidth; cellX++) {
+                int bestHeight = Integer.MIN_VALUE;
+                Block bestBlock = null;
+                int startX = cellX * LOD_CELL_SIZE;
+                int startZ = cellZ * LOD_CELL_SIZE;
+                for (int dz = 0; dz < LOD_CELL_SIZE; dz++) {
+                    for (int dx = 0; dx < LOD_CELL_SIZE; dx++) {
+                        int localX = startX + dx;
+                        int localZ = startZ + dz;
+                        if (localX >= Section.SIZE || localZ >= Section.SIZE) {
+                            continue;
+                        }
+                        int columnIndex = localZ * Section.SIZE + localX;
+                        int topY = columnHeights[columnIndex];
+                        if (topY > bestHeight) {
+                            bestHeight = topY;
+                            bestBlock = columnBlocks[columnIndex];
+                        }
+                    }
+                }
+                int cellIndex = cellZ * coarseWidth + cellX;
+                cellHeights[cellIndex] = bestHeight;
+                cellBlocks[cellIndex] = bestBlock;
+            }
+        }
+
+        for (int cellZ = 0; cellZ < coarseHeight; cellZ++) {
+            for (int cellX = 0; cellX < coarseWidth; cellX++) {
+                int cellIndex = cellZ * coarseWidth + cellX;
+                int topY = cellHeights[cellIndex];
+                Block block = cellBlocks[cellIndex];
+                if (topY == Integer.MIN_VALUE || !isSolid(block)) {
+                    continue;
+                }
+
+                float x0 = chunkBaseX + (cellX * LOD_CELL_SIZE);
+                float z0 = chunkBaseZ + (cellZ * LOD_CELL_SIZE);
+                float x1 = x0 + LOD_CELL_SIZE;
+                float z1 = z0 + LOD_CELL_SIZE;
+                float topPlaneY = topY + 1.0f;
+                appendQuad(
+                    vertices, indices, bounds, gpuPackedColor(block, FaceDirection.UP),
+                    x0, topPlaneY, z0,
+                    x1, topPlaneY, z0,
+                    x1, topPlaneY, z1,
+                    x0, topPlaneY, z1
+                );
+
+                if (cellX + 1 < coarseWidth) {
+                    int neighborHeight = cellHeights[cellIndex + 1];
+                    if (neighborHeight < topY) {
+                        float y0 = neighborHeight + 1.0f;
+                        float y1 = topY + 1.0f;
+                        float x = x1;
+                        appendQuad(
+                            vertices, indices, bounds, gpuPackedColor(block, FaceDirection.EAST),
+                            x, y0, z1,
+                            x, y1, z1,
+                            x, y1, z0,
+                            x, y0, z0
+                        );
+                    }
+                }
+                if (cellZ + 1 < coarseHeight) {
+                    int neighborHeight = cellHeights[cellIndex + coarseWidth];
+                    if (neighborHeight < topY) {
+                        float y0 = neighborHeight + 1.0f;
+                        float y1 = topY + 1.0f;
+                        float z = z1;
+                        appendQuad(
+                            vertices, indices, bounds, gpuPackedColor(block, FaceDirection.SOUTH),
+                            x0, y0, z,
+                            x0, y1, z,
+                            x1, y1, z,
+                            x1, y0, z
+                        );
+                    }
+                }
+                if (cellX == 0) {
+                    float y0 = snapshot.minY();
+                    float y1 = topY + 1.0f;
+                    float x = x0;
+                    appendQuad(
+                        vertices, indices, bounds, gpuPackedColor(block, FaceDirection.WEST),
+                        x, y0, z0,
+                        x, y1, z0,
+                        x, y1, z1,
+                        x, y0, z1
+                    );
+                }
+                if (cellZ == 0) {
+                    float y0 = snapshot.minY();
+                    float y1 = topY + 1.0f;
+                    float z = z0;
+                    appendQuad(
+                        vertices, indices, bounds, gpuPackedColor(block, FaceDirection.NORTH),
+                        x1, y0, z,
+                        x1, y1, z,
+                        x0, y1, z,
+                        x0, y0, z
+                    );
+                }
+                if (cellX == coarseWidth - 1) {
+                    float y0 = snapshot.minY();
+                    float y1 = topY + 1.0f;
+                    float x = x1;
+                    appendQuad(
+                        vertices, indices, bounds, gpuPackedColor(block, FaceDirection.EAST),
+                        x, y0, z1,
+                        x, y1, z1,
+                        x, y1, z0,
+                        x, y0, z0
+                    );
+                }
+                if (cellZ == coarseHeight - 1) {
+                    float y0 = snapshot.minY();
+                    float y1 = topY + 1.0f;
+                    float z = z1;
+                    appendQuad(
+                        vertices, indices, bounds, gpuPackedColor(block, FaceDirection.SOUTH),
+                        x0, y0, z,
+                        x0, y1, z,
+                        x1, y1, z,
+                        x1, y0, z
+                    );
+                }
+            }
         }
     }
 
@@ -678,6 +863,7 @@ public final class ChunkMesher {
     public static final class ChunkMeshData {
         private final ChunkPos pos;
         private final long version;
+        private final int lodLevel;
         private final ByteBuffer vertexBytes;
         private final int vertexByteCount;
         private final ByteBuffer indexBytes;
@@ -694,6 +880,7 @@ public final class ChunkMesher {
         public ChunkMeshData(
             ChunkPos pos,
             long version,
+            int lodLevel,
             ByteBuffer vertexBytes,
             int vertexByteCount,
             ByteBuffer indexBytes,
@@ -709,6 +896,7 @@ public final class ChunkMesher {
         ) {
             this.pos = pos;
             this.version = version;
+            this.lodLevel = lodLevel;
             this.vertexBytes = vertexBytes;
             this.vertexByteCount = vertexByteCount;
             this.indexBytes = indexBytes;
@@ -733,6 +921,10 @@ public final class ChunkMesher {
 
         public ByteBuffer vertexBytes() {
             return vertexBytes;
+        }
+
+        public int lodLevel() {
+            return lodLevel;
         }
 
         public int vertexByteCount() {
@@ -906,6 +1098,10 @@ public final class ChunkMesher {
         private final Section[] snapshotNeighborSections = new Section[9];
         private int[] horizontalMask = new int[Section.SIZE * Section.SIZE];
         private int[] verticalMask = new int[Section.SIZE * Section.SIZE];
+        private int[] lodColumnHeights = new int[Section.SIZE * Section.SIZE];
+        private Block[] lodColumnBlocks = new Block[Section.SIZE * Section.SIZE];
+        private int[] lodCellHeights = new int[(Section.SIZE / LOD_CELL_SIZE) * (Section.SIZE / LOD_CELL_SIZE)];
+        private Block[] lodCellBlocks = new Block[(Section.SIZE / LOD_CELL_SIZE) * (Section.SIZE / LOD_CELL_SIZE)];
 
         private int[] horizontalMask() {
             if (horizontalMask.length < Section.SIZE * Section.SIZE) {
@@ -920,6 +1116,36 @@ public final class ChunkMesher {
                 verticalMask = new int[required];
             }
             return verticalMask;
+        }
+
+        private int[] lodColumnHeights() {
+            int required = Section.SIZE * Section.SIZE;
+            if (lodColumnHeights.length < required) {
+                lodColumnHeights = new int[required];
+            }
+            return lodColumnHeights;
+        }
+
+        private Block[] lodColumnBlocks() {
+            int required = Section.SIZE * Section.SIZE;
+            if (lodColumnBlocks.length < required) {
+                lodColumnBlocks = new Block[required];
+            }
+            return lodColumnBlocks;
+        }
+
+        private int[] lodCellHeights(int required) {
+            if (lodCellHeights.length < required) {
+                lodCellHeights = new int[required];
+            }
+            return lodCellHeights;
+        }
+
+        private Block[] lodCellBlocks(int required) {
+            if (lodCellBlocks.length < required) {
+                lodCellBlocks = new Block[required];
+            }
+            return lodCellBlocks;
         }
     }
 

@@ -127,6 +127,7 @@ public final class GpuClientRuntime implements AutoCloseable {
                     windowHandle,
                     title + " | GPU FPS " + frames
                         + " | faces " + stats.drawnFaces()
+                        + " | " + renderer.latestTitleStats()
                         + " | " + gameClient.networkStatusLine()
                 );
                 frames = 0;

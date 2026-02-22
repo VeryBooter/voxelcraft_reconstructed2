@@ -31,12 +31,22 @@ application {
     mainClass.set("dev.voxelcraft.client.ClientMain")
 }
 
+fun JavaExec.forwardVoxelcraftSystemProperties() {
+    System.getProperties()
+        .stringPropertyNames()
+        .asSequence()
+        .filter { it.startsWith("voxelcraft.") }
+        .sorted()
+        .forEach { key -> systemProperty(key, System.getProperty(key)) }
+}
+
 fun registerClientRunTask(name: String, renderMode: String, headless: Boolean = false) {
     tasks.register<JavaExec>(name) {
         group = "application"
         description = "Runs client in $renderMode mode"
         classpath = sourceSets.main.get().runtimeClasspath
         mainClass.set(application.mainClass)
+        forwardVoxelcraftSystemProperties()
         if (headless) {
             jvmArgs("-Djava.awt.headless=true")
         } else if (renderMode == "software") {
@@ -61,6 +71,7 @@ tasks.register<JavaExec>("runAccelerated") {
     description = "Runs GPU client with vsync disabled for performance testing"
     classpath = sourceSets.main.get().runtimeClasspath
     mainClass.set(application.mainClass)
+    forwardVoxelcraftSystemProperties()
     jvmArgs("-Dvoxelcraft.vsync=0")
     args("--render", "gpu")
 
@@ -75,6 +86,7 @@ tasks.register<JavaExec>("runSoftwareLocal") {
     description = "Runs software client and connects to local server 127.0.0.1:25565"
     classpath = sourceSets.main.get().runtimeClasspath
     mainClass.set(application.mainClass)
+    forwardVoxelcraftSystemProperties()
     jvmArgs("-Dsun.java2d.opengl=true", "-Dsun.java2d.metal=true")
     args("--render", "software", "--connect", "127.0.0.1:25565")
 }
@@ -84,6 +96,7 @@ tasks.register<JavaExec>("runGpuLocal") {
     description = "Runs GPU client and connects to local server 127.0.0.1:25565"
     classpath = sourceSets.main.get().runtimeClasspath
     mainClass.set(application.mainClass)
+    forwardVoxelcraftSystemProperties()
     args("--render", "gpu", "--connect", "127.0.0.1:25565")
 }
 
@@ -92,6 +105,7 @@ tasks.register<JavaExec>("runAcceleratedLocal") {
     description = "Runs accelerated GPU client and connects to local server 127.0.0.1:25565"
     classpath = sourceSets.main.get().runtimeClasspath
     mainClass.set(application.mainClass)
+    forwardVoxelcraftSystemProperties()
     jvmArgs("-Dvoxelcraft.vsync=0")
     args("--render", "gpu", "--connect", "127.0.0.1:25565")
 }

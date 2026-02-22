@@ -1,4 +1,6 @@
 .gradle
+.gradle-wrapper/
+.gradle-user-home/
 **/build/
 !**/src/**/build/
 

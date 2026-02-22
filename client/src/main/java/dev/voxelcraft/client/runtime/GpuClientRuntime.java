@@ -141,6 +141,8 @@ public final class GpuClientRuntime implements AutoCloseable {
             return;
         }
 
+        renderer.close();
+
         if (windowHandle != NULL) {
             glfwDestroyWindow(windowHandle);
             windowHandle = NULL;
@@ -171,7 +173,7 @@ public final class GpuClientRuntime implements AutoCloseable {
         }
 
         glfwMakeContextCurrent(windowHandle);
-        glfwSwapInterval(1);
+        glfwSwapInterval(resolveSwapInterval());
         glfwShowWindow(windowHandle);
         glfwSetInputMode(windowHandle, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
@@ -179,6 +181,20 @@ public final class GpuClientRuntime implements AutoCloseable {
         firstMouseSample = true;
         installInputCallbacks();
         initialized = true;
+    }
+
+    private static int resolveSwapInterval() {
+        String configured = System.getProperty("voxelcraft.vsync");
+        if (configured != null) {
+            try {
+                int parsed = Integer.parseInt(configured.trim());
+                if (parsed >= 0 && parsed <= 2) {
+                    return parsed;
+                }
+            } catch (NumberFormatException ignored) {
+            }
+        }
+        return 1;
     }
 
     private void installInputCallbacks() {

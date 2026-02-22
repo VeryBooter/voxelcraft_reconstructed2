@@ -4,8 +4,10 @@ import dev.voxelcraft.core.block.Block;
 import dev.voxelcraft.core.block.Blocks;
 import dev.voxelcraft.core.world.BlockPos;
 import dev.voxelcraft.core.world.Chunk;
+import dev.voxelcraft.core.world.ChunkPos;
 import dev.voxelcraft.core.world.World;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 
 public final class ClientWorldView {
@@ -27,16 +29,36 @@ public final class ClientWorldView {
         return snapshot;
     }
 
+    public List<Chunk> loadedChunksSnapshot() {
+        List<Chunk> snapshot = new ArrayList<>();
+        copyLoadedChunksInto(snapshot);
+        return snapshot;
+    }
+
+    public void copyLoadedChunksInto(List<Chunk> out) {
+        out.clear();
+        Collection<Chunk> loaded = world.loadedChunks();
+        out.addAll(loaded);
+    }
+
+    public Chunk getChunk(int chunkX, int chunkZ) {
+        return world.chunkManager().getChunk(chunkX, chunkZ);
+    }
+
+    public Chunk getChunk(ChunkPos pos) {
+        return getChunk(pos.x(), pos.z());
+    }
+
     public Block getBlock(int x, int y, int z) {
-        return world.getBlock(new BlockPos(x, y, z));
+        return world.getBlock(x, y, z);
     }
 
     public Block peekBlock(int x, int y, int z) {
-        return world.peekBlock(new BlockPos(x, y, z));
+        return world.peekBlock(x, y, z);
     }
 
     public boolean setBlock(int x, int y, int z, Block block) {
-        return world.setBlock(new BlockPos(x, y, z), block);
+        return world.setBlock(x, y, z, block);
     }
 
     public boolean setBlock(BlockPos pos, Block block) {

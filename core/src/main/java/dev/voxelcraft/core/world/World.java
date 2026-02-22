@@ -52,53 +52,68 @@ public final class World {
 
     public Block getBlock(BlockPos pos) {
         Objects.requireNonNull(pos, "pos");
-        if (!isWithinWorldY(pos.y())) {
+        return getBlock(pos.x(), pos.y(), pos.z());
+    }
+
+    public Block getBlock(int x, int y, int z) {
+        if (!isWithinWorldY(y)) {
             return Blocks.AIR;
         }
         Chunk chunk = ensureChunkGenerated(
-            Math.floorDiv(pos.x(), Section.SIZE),
-            Math.floorDiv(pos.z(), Section.SIZE)
+            Math.floorDiv(x, Section.SIZE),
+            Math.floorDiv(z, Section.SIZE)
         );
 
-        int localX = Math.floorMod(pos.x(), Section.SIZE);
-        int localZ = Math.floorMod(pos.z(), Section.SIZE);
-        return chunk.getBlock(localX, pos.y(), localZ);
+        int localX = Math.floorMod(x, Section.SIZE);
+        int localZ = Math.floorMod(z, Section.SIZE);
+        return chunk.getBlock(localX, y, localZ);
     }
 
     public Block peekBlock(BlockPos pos) {
         Objects.requireNonNull(pos, "pos");
-        if (!isWithinWorldY(pos.y())) {
+        return peekBlock(pos.x(), pos.y(), pos.z());
+    }
+
+    public Block peekBlock(int x, int y, int z) {
+        if (!isWithinWorldY(y)) {
             return Blocks.AIR;
         }
 
-        int chunkX = Math.floorDiv(pos.x(), Section.SIZE);
-        int chunkZ = Math.floorDiv(pos.z(), Section.SIZE);
+        int chunkX = Math.floorDiv(x, Section.SIZE);
+        int chunkZ = Math.floorDiv(z, Section.SIZE);
         Chunk chunk = chunkManager.getChunk(chunkX, chunkZ);
         if (chunk == null) {
             return Blocks.AIR;
         }
 
-        int localX = Math.floorMod(pos.x(), Section.SIZE);
-        int localZ = Math.floorMod(pos.z(), Section.SIZE);
-        return chunk.getBlock(localX, pos.y(), localZ);
+        int localX = Math.floorMod(x, Section.SIZE);
+        int localZ = Math.floorMod(z, Section.SIZE);
+        return chunk.getBlock(localX, y, localZ);
     }
 
     public boolean setBlock(BlockPos pos, Block block) {
         Objects.requireNonNull(pos, "pos");
         Objects.requireNonNull(block, "block");
-        if (!isWithinWorldY(pos.y())) {
+        return setBlock(pos.x(), pos.y(), pos.z(), block);
+    }
+
+    public boolean setBlock(int x, int y, int z, Block block) {
+        Objects.requireNonNull(block, "block");
+        if (!isWithinWorldY(y)) {
             return false;
         }
-        if (getBlock(pos) == block) {
-            return false;
-        }
+        int chunkX = Math.floorDiv(x, Section.SIZE);
+        int chunkZ = Math.floorDiv(z, Section.SIZE);
         Chunk chunk = ensureChunkGenerated(
-            Math.floorDiv(pos.x(), Section.SIZE),
-            Math.floorDiv(pos.z(), Section.SIZE)
+            chunkX,
+            chunkZ
         );
-        int localX = Math.floorMod(pos.x(), Section.SIZE);
-        int localZ = Math.floorMod(pos.z(), Section.SIZE);
-        chunk.setBlock(localX, pos.y(), localZ, block);
+        int localX = Math.floorMod(x, Section.SIZE);
+        int localZ = Math.floorMod(z, Section.SIZE);
+        if (chunk.getBlock(localX, y, localZ) == block) {
+            return false;
+        }
+        chunk.setBlock(localX, y, localZ, block);
         blockUpdateVersion++;
         return true;
     }

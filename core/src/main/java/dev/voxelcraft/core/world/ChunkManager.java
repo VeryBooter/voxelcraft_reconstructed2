@@ -9,15 +9,21 @@ import java.util.Map;
 import java.util.Objects;
 
 public final class ChunkManager {
-    private final Map<ChunkPos, Chunk> chunks = new HashMap<>();
+    private final Map<Long, Chunk> chunks = new HashMap<>();
 
     public Chunk getOrCreateChunk(int chunkX, int chunkZ) {
-        ChunkPos pos = new ChunkPos(chunkX, chunkZ);
-        return chunks.computeIfAbsent(pos, Chunk::new);
+        long key = chunkKey(chunkX, chunkZ);
+        Chunk chunk = chunks.get(key);
+        if (chunk != null) {
+            return chunk;
+        }
+        Chunk created = new Chunk(new ChunkPos(chunkX, chunkZ));
+        chunks.put(key, created);
+        return created;
     }
 
     public Chunk getChunk(int chunkX, int chunkZ) {
-        return chunks.get(new ChunkPos(chunkX, chunkZ));
+        return chunks.get(chunkKey(chunkX, chunkZ));
     }
 
     public Block getBlock(BlockPos pos) {
@@ -48,5 +54,9 @@ public final class ChunkManager {
 
     public Collection<Chunk> chunks() {
         return Collections.unmodifiableCollection(chunks.values());
+    }
+
+    private static long chunkKey(int chunkX, int chunkZ) {
+        return (((long) chunkX) << 32) | (chunkZ & 0xffff_ffffL);
     }
 }

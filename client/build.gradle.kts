@@ -56,7 +56,19 @@ registerClientRunTask("runAuto", "auto")
 registerClientRunTask("runSoftware", "software")
 registerClientRunTask("runGpu", "gpu")
 registerClientRunTask("runHeadless", "software", headless = true)
-registerClientRunTask("runAccelerated", "gpu")
+tasks.register<JavaExec>("runAccelerated") {
+    group = "application"
+    description = "Runs GPU client with vsync disabled for performance testing"
+    classpath = sourceSets.main.get().runtimeClasspath
+    mainClass.set(application.mainClass)
+    jvmArgs("-Dvoxelcraft.vsync=0")
+    args("--render", "gpu")
+
+    val connectAddress = providers.gradleProperty("connect").orNull
+    if (!connectAddress.isNullOrBlank()) {
+        args("--connect", connectAddress)
+    }
+}
 
 tasks.register<JavaExec>("runSoftwareLocal") {
     group = "application"
@@ -80,5 +92,6 @@ tasks.register<JavaExec>("runAcceleratedLocal") {
     description = "Runs accelerated GPU client and connects to local server 127.0.0.1:25565"
     classpath = sourceSets.main.get().runtimeClasspath
     mainClass.set(application.mainClass)
+    jvmArgs("-Dvoxelcraft.vsync=0")
     args("--render", "gpu", "--connect", "127.0.0.1:25565")
 }

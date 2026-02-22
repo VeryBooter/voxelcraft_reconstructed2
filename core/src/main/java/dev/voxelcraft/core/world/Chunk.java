@@ -15,6 +15,7 @@ public final class Chunk {
 
     private final ChunkPos pos;
     private final Map<Integer, Section> sections = new HashMap<>();
+    private long version;
 
     public Chunk(ChunkPos pos) {
         this.pos = Objects.requireNonNull(pos, "pos");
@@ -22,6 +23,10 @@ public final class Chunk {
 
     public ChunkPos pos() {
         return pos;
+    }
+
+    public long version() {
+        return version;
     }
 
     public Block getBlock(int localX, int y, int localZ) {
@@ -39,6 +44,10 @@ public final class Chunk {
         return section.getBlock(localX, localY, localZ);
     }
 
+    public Section sectionOrNull(int sectionY) {
+        return sections.get(sectionY);
+    }
+
     public void setBlock(int localX, int y, int localZ, Block block) {
         if (y < World.MIN_Y || y > World.MAX_Y) {
             return;
@@ -47,7 +56,11 @@ public final class Chunk {
         int sectionY = Math.floorDiv(y, Section.SIZE);
         int localY = Math.floorMod(y, Section.SIZE);
         Section section = sections.computeIfAbsent(sectionY, unused -> new Section());
+        Block previous = section.getBlock(localX, localY, localZ);
         section.setBlock(localX, localY, localZ, block);
+        if (previous != block) {
+            version++;
+        }
     }
 
     public void fillSection(int sectionY, Block block) {
@@ -55,7 +68,11 @@ public final class Chunk {
             throw new NullPointerException("block");
         }
         Section section = sections.computeIfAbsent(sectionY, unused -> new Section());
+        Block previous = section.uniformBlock();
         section.fill(block);
+        if (previous != block) {
+            version++;
+        }
     }
 
     public void forEachNonAir(NonAirBlockConsumer consumer) {

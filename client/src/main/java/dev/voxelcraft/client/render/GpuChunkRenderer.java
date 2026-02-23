@@ -38,9 +38,11 @@ import static org.lwjgl.opengl.GL11.GL_BACK;
 import static org.lwjgl.opengl.GL11.GL_COLOR_ARRAY;
 import static org.lwjgl.opengl.GL11.GL_COLOR_BUFFER_BIT;
 import static org.lwjgl.opengl.GL11.GL_CULL_FACE;
+import static org.lwjgl.opengl.GL11.GL_CW;
 import static org.lwjgl.opengl.GL11.GL_DEPTH_BUFFER_BIT;
 import static org.lwjgl.opengl.GL11.GL_DEPTH_TEST;
 import static org.lwjgl.opengl.GL11.GL_FLOAT;
+import static org.lwjgl.opengl.GL11.GL_CCW;
 import static org.lwjgl.opengl.GL11.GL_MODELVIEW;
 import static org.lwjgl.opengl.GL11.GL_PROJECTION;
 import static org.lwjgl.opengl.GL11.GL_TRIANGLES;
@@ -51,6 +53,7 @@ import static org.lwjgl.opengl.GL11.glClear;
 import static org.lwjgl.opengl.GL11.glClearColor;
 import static org.lwjgl.opengl.GL11.glColorPointer;
 import static org.lwjgl.opengl.GL11.glCullFace;
+import static org.lwjgl.opengl.GL11.glFrontFace;
 import static org.lwjgl.opengl.GL11.glDisableClientState;
 import static org.lwjgl.opengl.GL11.glDrawElements;
 import static org.lwjgl.opengl.GL11.glEnable;
@@ -256,6 +259,9 @@ public final class GpuChunkRenderer implements AutoCloseable {
         glEnable(GL_DEPTH_TEST);
         glEnable(GL_CULL_FACE);
         glCullFace(GL_BACK);
+        // We use a Z reflection in the view transform to match the engine's +Z-forward camera convention.
+        // Reflection flips winding, so front-face must be switched to CW for correct culling.
+        glFrontFace(GL_CW);
 
         configureProjection(safeWidth, safeHeight);
         configureCamera(player);
@@ -292,6 +298,7 @@ public final class GpuChunkRenderer implements AutoCloseable {
         emitPerfLine(frameStats, frameSet.chunks().size());
 
         int approxFaces = frameStats.totalTriangles / 2;
+        glFrontFace(GL_CCW);
         return new RenderStats(approxFaces, frameStats.visibleChunks, approxFaces);
     }
 
@@ -1205,8 +1212,9 @@ public final class GpuChunkRenderer implements AutoCloseable {
     }
 
     private static void configureCamera(PlayerController player) {
-        glRotatef(player.pitch(), 1.0f, 0.0f, 0.0f);
-        glRotatef(180.0f - player.yaw(), 0.0f, 1.0f, 0.0f);
+        glScaled(1.0, 1.0, -1.0);
+        glRotatef(-player.pitch(), 1.0f, 0.0f, 0.0f);
+        glRotatef(-player.yaw(), 0.0f, 1.0f, 0.0f);
         glTranslated(-player.eyeX(), -player.eyeY(), -player.eyeZ());
     }
 

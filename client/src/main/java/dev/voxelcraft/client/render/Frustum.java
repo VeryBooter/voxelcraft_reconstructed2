@@ -101,14 +101,59 @@ public final class Frustum {
             return true;
         }
 
-        return isPointVisibleNoRadius(minX, minY, minZ)
-            || isPointVisibleNoRadius(maxX, minY, minZ)
-            || isPointVisibleNoRadius(minX, maxY, minZ)
-            || isPointVisibleNoRadius(maxX, maxY, minZ)
-            || isPointVisibleNoRadius(minX, minY, maxZ)
-            || isPointVisibleNoRadius(maxX, minY, maxZ)
-            || isPointVisibleNoRadius(minX, maxY, maxZ)
-            || isPointVisibleNoRadius(maxX, maxY, maxZ);
+        // Conservative frustum-vs-AABB test in camera space using center/extents.
+        // This avoids the false negatives of the old "any corner visible" test.
+        double centerX = (minX + maxX) * 0.5;
+        double centerY = (minY + maxY) * 0.5;
+        double centerZ = (minZ + maxZ) * 0.5;
+        double halfX = (maxX - minX) * 0.5;
+        double halfY = (maxY - minY) * 0.5;
+        double halfZ = (maxZ - minZ) * 0.5;
+
+        double dx = centerX - cameraX;
+        double dy = centerY - cameraY;
+        double dz = centerZ - cameraZ;
+
+        double x1 = dx * cosYaw - dz * sinYaw;
+        double z1 = dx * sinYaw + dz * cosYaw;
+
+        double y2 = dy * cosPitch - z1 * sinPitch;
+        double z2 = dy * sinPitch + z1 * cosPitch;
+
+        // Extents projected onto camera axes (rows of the world->camera rotation).
+        double radiusX = Math.abs(cosYaw) * halfX + Math.abs(sinYaw) * halfZ;
+        double radiusY =
+            Math.abs(sinPitch * sinYaw) * halfX
+                + Math.abs(cosPitch) * halfY
+                + Math.abs(sinPitch * cosYaw) * halfZ;
+        double radiusZ =
+            Math.abs(cosPitch * sinYaw) * halfX
+                + Math.abs(sinPitch) * halfY
+                + Math.abs(cosPitch * cosYaw) * halfZ;
+
+        double zMin = z2 - radiusZ;
+        double zMax = z2 + radiusZ;
+        if (zMax < nearPlane || zMin > farPlane) {
+            return false;
+        }
+
+        double horizontalSlop = radiusX + radiusZ * tanHalfHorizontalFov;
+        double verticalSlop = radiusY + radiusZ * tanHalfVerticalFov;
+
+        if (x1 - z2 * tanHalfHorizontalFov > horizontalSlop) {
+            return false;
+        }
+        if (-x1 - z2 * tanHalfHorizontalFov > horizontalSlop) {
+            return false;
+        }
+        if (y2 - z2 * tanHalfVerticalFov > verticalSlop) {
+            return false;
+        }
+        if (-y2 - z2 * tanHalfVerticalFov > verticalSlop) {
+            return false;
+        }
+
+        return true;
     }
 
     private boolean isPointVisibleNoRadius(double worldX, double worldY, double worldZ) {

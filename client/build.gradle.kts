@@ -58,7 +58,7 @@ fun registerClientRunTask(name: String, renderMode: String, headless: Boolean = 
         if (headless) {
             jvmArgs("-Djava.awt.headless=true")
         } else {
-            if (isMac) {
+            if (isMac && (renderMode == "gpu" || renderMode == "auto")) {
                 jvmArgs("-XstartOnFirstThread")
             }
             if (renderMode == "software") {

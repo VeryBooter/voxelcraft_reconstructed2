@@ -344,6 +344,9 @@ public final class GameClient implements AutoCloseable {
     private void initializeSpawn() {
         int spawnBlockX = 0;
         int spawnBlockZ = 0;
+        // Budgeted local chunk generation now only queues work, so force the center chunk to exist
+        // before scanning for surface height; otherwise spawn may be computed against an empty world.
+        worldView.world().getOrGenerateChunk(0, 0);
         int surfaceY = findSurfaceY(spawnBlockX, spawnBlockZ);
         double spawnY = Math.max(surfaceY + 1.0, 6.0);
         playerController.setSpawn(spawnBlockX + 0.5, spawnY, spawnBlockZ + 0.5);

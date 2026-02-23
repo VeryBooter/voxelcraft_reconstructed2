@@ -40,6 +40,12 @@ fun JavaExec.forwardVoxelcraftSystemProperties() {
         .forEach { key -> systemProperty(key, System.getProperty(key)) }
 }
 
+fun JavaExec.configureOptionalDiagnosticsJvmArgs() {
+    if (System.getProperty("voxelcraft.gcLog")?.trim()?.lowercase() in setOf("1", "true", "yes", "on")) {
+        jvmArgs("-Xlog:gc*,safepoint")
+    }
+}
+
 fun registerClientRunTask(name: String, renderMode: String, headless: Boolean = false) {
     tasks.register<JavaExec>(name) {
         group = "application"
@@ -47,6 +53,7 @@ fun registerClientRunTask(name: String, renderMode: String, headless: Boolean = 
         classpath = sourceSets.main.get().runtimeClasspath
         mainClass.set(application.mainClass)
         forwardVoxelcraftSystemProperties()
+        configureOptionalDiagnosticsJvmArgs()
         if (headless) {
             jvmArgs("-Djava.awt.headless=true")
         } else if (renderMode == "software") {
@@ -72,6 +79,7 @@ tasks.register<JavaExec>("runAccelerated") {
     classpath = sourceSets.main.get().runtimeClasspath
     mainClass.set(application.mainClass)
     forwardVoxelcraftSystemProperties()
+    configureOptionalDiagnosticsJvmArgs()
     jvmArgs("-Dvoxelcraft.vsync=0")
     args("--render", "gpu")
 
@@ -87,6 +95,7 @@ tasks.register<JavaExec>("runSoftwareLocal") {
     classpath = sourceSets.main.get().runtimeClasspath
     mainClass.set(application.mainClass)
     forwardVoxelcraftSystemProperties()
+    configureOptionalDiagnosticsJvmArgs()
     jvmArgs("-Dsun.java2d.opengl=true", "-Dsun.java2d.metal=true")
     args("--render", "software", "--connect", "127.0.0.1:25565")
 }
@@ -97,6 +106,7 @@ tasks.register<JavaExec>("runGpuLocal") {
     classpath = sourceSets.main.get().runtimeClasspath
     mainClass.set(application.mainClass)
     forwardVoxelcraftSystemProperties()
+    configureOptionalDiagnosticsJvmArgs()
     args("--render", "gpu", "--connect", "127.0.0.1:25565")
 }
 
@@ -106,6 +116,7 @@ tasks.register<JavaExec>("runAcceleratedLocal") {
     classpath = sourceSets.main.get().runtimeClasspath
     mainClass.set(application.mainClass)
     forwardVoxelcraftSystemProperties()
+    configureOptionalDiagnosticsJvmArgs()
     jvmArgs("-Dvoxelcraft.vsync=0")
     args("--render", "gpu", "--connect", "127.0.0.1:25565")
 }

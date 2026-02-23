@@ -26,6 +26,17 @@ public final class ChunkManager {
         return chunks.get(chunkKey(chunkX, chunkZ));
     }
 
+    public Chunk installChunkIfAbsent(Chunk chunk) {
+        Objects.requireNonNull(chunk, "chunk");
+        long key = chunkKey(chunk.pos().x(), chunk.pos().z());
+        Chunk existing = chunks.get(key);
+        if (existing != null) {
+            return existing;
+        }
+        chunks.put(key, chunk);
+        return chunk;
+    }
+
     public Block getBlock(BlockPos pos) {
         Objects.requireNonNull(pos, "pos");
         int chunkX = Math.floorDiv(pos.x(), Section.SIZE);

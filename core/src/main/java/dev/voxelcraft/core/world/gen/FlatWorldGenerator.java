@@ -11,7 +11,6 @@ public final class FlatWorldGenerator implements WorldGenerator {
     private static final int MIN_SURFACE_Y = 1;
     private static final int MAX_SURFACE_Y = 24;
     private static final int SEA_LEVEL = 4;
-    private static final int TRANSITION_START_Y = -16;
 
     private final PerlinNoise perlinNoise;
     private final long seed;
@@ -29,7 +28,6 @@ public final class FlatWorldGenerator implements WorldGenerator {
     public void generate(Chunk chunk) {
         int chunkBaseX = chunk.pos().x() * Section.SIZE;
         int chunkBaseZ = chunk.pos().z() * Section.SIZE;
-        fillDeepStoneSections(chunk);
 
         for (int localX = 0; localX < Section.SIZE; localX++) {
             for (int localZ = 0; localZ < Section.SIZE; localZ++) {
@@ -37,7 +35,7 @@ public final class FlatWorldGenerator implements WorldGenerator {
                 int worldZ = chunkBaseZ + localZ;
                 int surfaceY = surfaceHeight(worldX, worldZ);
                 Block surfaceBlock = chooseSurfaceBlock(surfaceY, worldX, worldZ);
-                int columnStartY = Math.max(TRANSITION_START_Y, World.MIN_Y);
+                int columnStartY = Math.max(World.DEFAULT_SOLID_BELOW_Y, World.MIN_Y);
                 for (int y = columnStartY; y <= surfaceY; y++) {
                     int depthFromSurface = surfaceY - y;
                     chunk.setBlock(localX, y, localZ, blockForDepth(depthFromSurface, surfaceBlock));
@@ -137,14 +135,6 @@ public final class FlatWorldGenerator implements WorldGenerator {
             return;
         }
         chunk.setBlock(localX, y, localZ, block);
-    }
-
-    private static void fillDeepStoneSections(Chunk chunk) {
-        int minSectionY = Math.floorDiv(World.MIN_Y, Section.SIZE);
-        int maxSolidSectionY = Math.floorDiv(TRANSITION_START_Y - 1, Section.SIZE);
-        for (int sectionY = minSectionY; sectionY <= maxSolidSectionY; sectionY++) {
-            chunk.fillSection(sectionY, Blocks.STONE);
-        }
     }
 
     private long mixSeed(int x, int z) {

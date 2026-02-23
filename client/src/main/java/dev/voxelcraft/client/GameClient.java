@@ -27,6 +27,7 @@ public final class GameClient implements AutoCloseable {
     private static final double NETWORK_STATE_SEND_INTERVAL_SECONDS = 0.05;
     private static final int NETWORK_CHUNK_RADIUS = 3;
     private static final int LOCAL_CHUNK_RADIUS = 3;
+    private static final int LOCAL_CHUNK_GENERATION_BUDGET_PER_TICK = 2;
 
     private final Game game = new Game();
     private final PlayerController playerController = new PlayerController();
@@ -60,6 +61,8 @@ public final class GameClient implements AutoCloseable {
     private int lastRequestedChunkZ = Integer.MIN_VALUE;
     private boolean breakButtonDownLastTick;
     private boolean placeButtonDownLastTick;
+    private long lastEnsureLocalChunksNanos;
+    private long lastChunkGenerationDrainNanos;
 
     public GameClient() {
         initializeSpawn();
@@ -91,7 +94,12 @@ public final class GameClient implements AutoCloseable {
         handleBlockSelection(input);
         playerController.tick(worldView, input, deltaSeconds);
 
+        long ensureStarted = System.nanoTime();
         ensureLocalChunksAroundPlayer();
+        lastEnsureLocalChunksNanos = System.nanoTime() - ensureStarted;
+        long chunkDrainStarted = System.nanoTime();
+        worldView.drainChunkGenerationBudget(LOCAL_CHUNK_GENERATION_BUDGET_PER_TICK);
+        lastChunkGenerationDrainNanos = System.nanoTime() - chunkDrainStarted;
         requestChunksIfNeeded(false);
 
         targetedBlock = raycastFromPlayer(INTERACTION_REACH);
@@ -147,12 +155,49 @@ public final class GameClient implements AutoCloseable {
         return selectedBlock;
     }
 
+    public long lastEnsureLocalChunksNanos() {
+        return lastEnsureLocalChunksNanos;
+    }
+
+    public long lastChunkGenerationDrainNanos() {
+        return lastChunkGenerationDrainNanos;
+    }
+
+    public long lastChunkGenSubmitNanos() {
+        return worldView.lastChunkGenSubmitNanos();
+    }
+
+    public long lastChunkInstallNanos() {
+        return worldView.lastChunkInstallNanos();
+    }
+
+    public int lastChunkGenSubmittedCount() {
+        return worldView.lastChunkGenSubmittedCount();
+    }
+
+    public int lastChunkInstalledCount() {
+        return worldView.lastChunkInstalledCount();
+    }
+
+    public int chunkGenerationJobsInFlight() {
+        return worldView.chunkGenerationJobsInFlight();
+    }
+
+    public int readyGeneratedChunkCount() {
+        return worldView.readyGeneratedChunkCount();
+    }
+
+    public int pendingChunkGenerationCount() {
+        return worldView.pendingChunkGenerationCount();
+    }
+
     @Override
     public void close() {
         if (networkClient != null) {
             networkClient.close();
             networkClient = null;
         }
+        worldView.close();
     }
 
     private void requestChunksIfNeeded(boolean force) {

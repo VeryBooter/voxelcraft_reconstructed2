@@ -59,16 +59,39 @@ public final class Frustum {
         return new CameraPoint(x1, y2, z2);
     }
 
+    public void toCameraSpace(double worldX, double worldY, double worldZ, MutableCameraPoint out) {
+        double dx = worldX - cameraX;
+        double dy = worldY - cameraY;
+        double dz = worldZ - cameraZ;
+
+        double x1 = dx * cosYaw - dz * sinYaw;
+        double z1 = dx * sinYaw + dz * cosYaw;
+
+        double y2 = dy * cosNegPitch - z1 * sinNegPitch;
+        double z2 = dy * sinNegPitch + z1 * cosNegPitch;
+
+        out.set(x1, y2, z2);
+    }
+
     public boolean isPointVisible(double worldX, double worldY, double worldZ, double radius) {
-        CameraPoint cameraPoint = toCameraSpace(worldX, worldY, worldZ);
-        if (cameraPoint.z < nearPlane - radius || cameraPoint.z > farPlane + radius) {
+        double dx = worldX - cameraX;
+        double dy = worldY - cameraY;
+        double dz = worldZ - cameraZ;
+
+        double x1 = dx * cosYaw - dz * sinYaw;
+        double z1 = dx * sinYaw + dz * cosYaw;
+
+        double y2 = dy * cosNegPitch - z1 * sinNegPitch;
+        double z2 = dy * sinNegPitch + z1 * cosNegPitch;
+
+        if (z2 < nearPlane - radius || z2 > farPlane + radius) {
             return false;
         }
 
-        double horizontalLimit = (cameraPoint.z + radius) * tanHalfHorizontalFov;
-        double verticalLimit = (cameraPoint.z + radius) * tanHalfVerticalFov;
-        return Math.abs(cameraPoint.x) <= horizontalLimit
-            && Math.abs(cameraPoint.y) <= verticalLimit;
+        double horizontalLimit = (z2 + radius) * tanHalfHorizontalFov;
+        double verticalLimit = (z2 + radius) * tanHalfVerticalFov;
+        return Math.abs(x1) <= horizontalLimit
+            && Math.abs(y2) <= verticalLimit;
     }
 
     public boolean isAabbVisible(double minX, double minY, double minZ, double maxX, double maxY, double maxZ) {
@@ -78,14 +101,35 @@ public final class Frustum {
             return true;
         }
 
-        return isPointVisible(minX, minY, minZ, 0.0)
-            || isPointVisible(maxX, minY, minZ, 0.0)
-            || isPointVisible(minX, maxY, minZ, 0.0)
-            || isPointVisible(maxX, maxY, minZ, 0.0)
-            || isPointVisible(minX, minY, maxZ, 0.0)
-            || isPointVisible(maxX, minY, maxZ, 0.0)
-            || isPointVisible(minX, maxY, maxZ, 0.0)
-            || isPointVisible(maxX, maxY, maxZ, 0.0);
+        return isPointVisibleNoRadius(minX, minY, minZ)
+            || isPointVisibleNoRadius(maxX, minY, minZ)
+            || isPointVisibleNoRadius(minX, maxY, minZ)
+            || isPointVisibleNoRadius(maxX, maxY, minZ)
+            || isPointVisibleNoRadius(minX, minY, maxZ)
+            || isPointVisibleNoRadius(maxX, minY, maxZ)
+            || isPointVisibleNoRadius(minX, maxY, maxZ)
+            || isPointVisibleNoRadius(maxX, maxY, maxZ);
+    }
+
+    private boolean isPointVisibleNoRadius(double worldX, double worldY, double worldZ) {
+        double dx = worldX - cameraX;
+        double dy = worldY - cameraY;
+        double dz = worldZ - cameraZ;
+
+        double x1 = dx * cosYaw - dz * sinYaw;
+        double z1 = dx * sinYaw + dz * cosYaw;
+
+        double y2 = dy * cosNegPitch - z1 * sinNegPitch;
+        double z2 = dy * sinNegPitch + z1 * cosNegPitch;
+
+        if (z2 < nearPlane || z2 > farPlane) {
+            return false;
+        }
+
+        double horizontalLimit = z2 * tanHalfHorizontalFov;
+        double verticalLimit = z2 * tanHalfVerticalFov;
+        return Math.abs(x1) <= horizontalLimit
+            && Math.abs(y2) <= verticalLimit;
     }
 
     public double nearPlane() {
@@ -93,5 +137,29 @@ public final class Frustum {
     }
 
     public record CameraPoint(double x, double y, double z) {
+    }
+
+    public static final class MutableCameraPoint {
+        private double x;
+        private double y;
+        private double z;
+
+        private void set(double x, double y, double z) {
+            this.x = x;
+            this.y = y;
+            this.z = z;
+        }
+
+        public double x() {
+            return x;
+        }
+
+        public double y() {
+            return y;
+        }
+
+        public double z() {
+            return z;
+        }
     }
 }

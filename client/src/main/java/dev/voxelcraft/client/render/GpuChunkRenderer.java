@@ -30,6 +30,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import org.lwjgl.opengl.GL;
 import org.lwjgl.opengl.GLCapabilities;
+import org.lwjgl.opengl.ARBMultiDrawIndirect;
+import org.lwjgl.opengl.GL43;
 
 import static org.lwjgl.opengl.GL11.GL_BACK;
 import static org.lwjgl.opengl.GL11.GL_COLOR_ARRAY;
@@ -67,6 +69,7 @@ import static org.lwjgl.opengl.GL11.glDepthMask;
 import static org.lwjgl.opengl.GL11.glDisable;
 import static org.lwjgl.opengl.GL15.GL_ARRAY_BUFFER;
 import static org.lwjgl.opengl.GL15.GL_ELEMENT_ARRAY_BUFFER;
+import static org.lwjgl.opengl.GL15.GL_DYNAMIC_DRAW;
 import static org.lwjgl.opengl.GL15.GL_QUERY_RESULT;
 import static org.lwjgl.opengl.GL15.GL_QUERY_RESULT_AVAILABLE;
 import static org.lwjgl.opengl.GL15.GL_SAMPLES_PASSED;
@@ -81,6 +84,7 @@ import static org.lwjgl.opengl.GL15.glDeleteBuffers;
 import static org.lwjgl.opengl.GL15.glGenBuffers;
 import static org.lwjgl.opengl.GL15.glGenQueries;
 import static org.lwjgl.opengl.GL15.glGetQueryObjecti;
+import static org.lwjgl.opengl.GL40.GL_DRAW_INDIRECT_BUFFER;
 
 public final class GpuChunkRenderer implements AutoCloseable {
     private static final float VERTICAL_FOV_DEGREES = 75.0f;
@@ -106,8 +110,11 @@ public final class GpuChunkRenderer implements AutoCloseable {
     private static final int OCCLUSION_HIDDEN_HYSTERESIS_FRAMES = 2;
     private static final int OCCLUSION_RESAMPLE_INTERVAL_FRAMES = 10;
     private static final int OCCLUSION_MAX_QUERIES_PER_FRAME = 96;
+    private static final int DEFAULT_OCCLUSION_RESULT_POLL_BUDGET = 192;
     private static final int DEFAULT_LOD_START_CHUNK_DISTANCE = 4;
     private static final int DEFAULT_LOD_HYSTERESIS_CHUNKS = 1;
+    private static final int DEFAULT_SHARED_ARENA_VERTEX_MB = 128;
+    private static final int DEFAULT_SHARED_ARENA_INDEX_MB = 64;
     private static final int VERTEX_STRIDE_BYTES = ChunkMesher.GPU_VERTEX_STRIDE_BYTES;
     private static final long POSITION_OFFSET_BYTES = 0L;
     private static final long COLOR_OFFSET_BYTES = ChunkMesher.GPU_COLOR_OFFSET_BYTES;
@@ -134,6 +141,7 @@ public final class GpuChunkRenderer implements AutoCloseable {
     private final HashSet<ChunkPos> scratchActiveChunkPositions = new HashSet<>();
     private final ArrayList<ChunkPos> scratchPruneRemovals = new ArrayList<>();
     private final ArrayList<GpuChunk> scratchOcclusionCandidates = new ArrayList<>();
+    private final ArrayList<GpuChunk> scratchMdiChunks = new ArrayList<>();
     private final HashMap<ChunkPos, Long> recentlyVisibleFrame = new HashMap<>();
     private final HashMap<ChunkPos, Integer> lodSelectionCache = new HashMap<>();
     private final double[] frameTimeWindowMs = new double[512];
@@ -153,17 +161,41 @@ public final class GpuChunkRenderer implements AutoCloseable {
     private int perfVisibleLatencySamples;
     private long perfOcclusionQueries;
     private long perfOcclusionCulledChunks;
+    private long perfOcclusionQueryPolls;
+    private long perfOcclusionQueryDeferredPolls;
+    private long perfOcclusionQueryReadStalls;
+    private long perfMdiBatches;
+    private long perfMdiChunks;
+    private long perfMdiFallbackChunks;
+    private long perfDrawElementsChunks;
+    private long perfSharedArenaDrawChunks;
+    private long perfLocalDrawChunks;
+    private long perfMdiCommandBytes;
+    private long perfMdiCommandBufferReallocs;
+    private long perfMdiCommandBufferOrphans;
+    private long perfSharedArenaAllocFailures;
+    private long perfSharedArenaFallbackUploads;
     private int adaptiveUploadsPerFrame = DEFAULT_UPLOADS_PER_FRAME;
     private int adaptiveMeshSubmitsPerFrame = DEFAULT_MESH_SUBMITS_PER_FRAME;
     private double renderCpuMsEma = -1.0;
     private int frameTimeWindowIndex;
     private int frameTimeWindowCount;
     private long frameSequence;
+    private long lastMeshingSubmitNanos;
+    private long lastUploadQueueDrainNanos;
+    private long lastDrawLoopNanos;
     private boolean glCapabilitiesLogged;
+    private boolean supportsMdiCore43;
+    private boolean supportsMdiArb;
     private boolean supportsMdi;
     private boolean supportsOcclusionQuery;
     private boolean supportsPersistentMapping;
     private OcclusionBoxMesh occlusionBoxMesh;
+    private SharedChunkBufferArena sharedChunkBufferArena;
+    private int mdiIndirectBufferId;
+    private int mdiIndirectBufferCapacityBytes;
+    private ByteBuffer mdiCommandUploadBytes;
+    private int[] mdiCommandScratch = new int[5 * 64];
     private volatile String latestTitleStats = "gpu init";
 
     public GpuChunkRenderer() {
@@ -222,11 +254,18 @@ public final class GpuChunkRenderer implements AutoCloseable {
         );
 
         ChunkFrameSet frameSet = collectChunksInRange(worldView, player);
+        long meshingSubmitStarted = System.nanoTime();
         submitMeshJobsForDirtyChunks(worldView, frameSet.chunks(), player);
+        lastMeshingSubmitNanos = System.nanoTime() - meshingSubmitStarted;
+
+        long uploadDrainStarted = System.nanoTime();
         processUploadQueue(worldView, player, adaptiveUploadsPerFrame, features.uploadTimeBudgetMs());
+        lastUploadQueueDrainNanos = System.nanoTime() - uploadDrainStarted;
         pruneGpuChunks(frameSet.positions());
 
+        long drawLoopStarted = System.nanoTime();
         FrameStats frameStats = renderVisibleChunks(frameSet.chunks(), ambient);
+        lastDrawLoopNanos = System.nanoTime() - drawLoopStarted;
         long renderCpuNanos = System.nanoTime() - renderStarted;
         recordFrameTime(renderCpuNanos);
         updateAdaptiveBudgets(renderCpuNanos);
@@ -240,7 +279,7 @@ public final class GpuChunkRenderer implements AutoCloseable {
     public void close() {
         meshPool.shutdownNow();
         for (GpuChunk gpuChunk : gpuChunks.values()) {
-            gpuChunk.dispose();
+            gpuChunk.dispose(sharedChunkBufferArena);
         }
         gpuChunks.clear();
         QueuedMeshUpload pending;
@@ -254,6 +293,16 @@ public final class GpuChunkRenderer implements AutoCloseable {
             occlusionBoxMesh.dispose();
             occlusionBoxMesh = null;
         }
+        if (sharedChunkBufferArena != null) {
+            sharedChunkBufferArena.dispose();
+            sharedChunkBufferArena = null;
+        }
+        if (mdiIndirectBufferId != 0) {
+            glDeleteBuffers(mdiIndirectBufferId);
+            mdiIndirectBufferId = 0;
+            mdiIndirectBufferCapacityBytes = 0;
+        }
+        mdiCommandUploadBytes = null;
         uploadBufferPool.clear();
     }
 
@@ -411,7 +460,14 @@ public final class GpuChunkRenderer implements AutoCloseable {
 
     private UploadStats uploadChunkMesh(ChunkMeshData meshData, long submittedNanos) {
         GpuChunk gpuChunk = gpuChunks.computeIfAbsent(meshData.pos(), unused -> new GpuChunk(meshData.pos()));
-        return gpuChunk.upload(meshData, submittedNanos, features.orphaningUpload());
+        UploadStats stats = gpuChunk.upload(meshData, submittedNanos, features.orphaningUpload(), sharedChunkBufferArena);
+        if (gpuChunk.lastUploadSharedArenaAllocFailure) {
+            perfSharedArenaAllocFailures++;
+        }
+        if (gpuChunk.lastUploadSharedArenaFallback) {
+            perfSharedArenaFallbackUploads++;
+        }
+        return stats;
     }
 
     private void pruneGpuChunks(Set<ChunkPos> activePositions) {
@@ -429,7 +485,7 @@ public final class GpuChunkRenderer implements AutoCloseable {
         for (ChunkPos pos : scratchPruneRemovals) {
             GpuChunk removed = gpuChunks.remove(pos);
             if (removed != null) {
-                removed.dispose();
+                removed.dispose(sharedChunkBufferArena);
             }
             inFlightVersion.remove(pos);
             recentlyVisibleFrame.remove(pos);
@@ -446,8 +502,12 @@ public final class GpuChunkRenderer implements AutoCloseable {
         int stateChanges = 4; // enable/disable client states (vertex+color)
         int boundArrayBuffer = 0;
         int boundElementBuffer = 0;
+        int boundIndirectBuffer = 0;
         boolean occlusionEnabled = features.occlusionQuery() && supportsOcclusionQuery && occlusionBoxMesh != null;
+        boolean mdiEnabled = features.mdi() && supportsMdi && sharedChunkBufferArena != null;
+        int occlusionResultPollBudget = occlusionEnabled ? Math.max(0, features.occlusionResultPollBudget()) : 0;
         scratchOcclusionCandidates.clear();
+        scratchMdiChunks.clear();
 
         glEnableClientState(GL_VERTEX_ARRAY);
         glEnableClientState(GL_COLOR_ARRAY);
@@ -469,7 +529,17 @@ public final class GpuChunkRenderer implements AutoCloseable {
                 continue;
             }
 
-            gpuChunk.pollOcclusionQueryResult();
+            if (gpuChunk.hasPendingOcclusionQuery()) {
+                if (occlusionResultPollBudget > 0) {
+                    occlusionResultPollBudget--;
+                    perfOcclusionQueryPolls++;
+                    if (gpuChunk.pollOcclusionQueryResult()) {
+                        perfOcclusionQueryReadStalls++;
+                    }
+                } else {
+                    perfOcclusionQueryDeferredPolls++;
+                }
+            }
             if (occlusionEnabled) {
                 scratchOcclusionCandidates.add(gpuChunk);
                 if (!gpuChunk.shouldDrawBasedOnOcclusion(frameSequence)) {
@@ -490,19 +560,72 @@ public final class GpuChunkRenderer implements AutoCloseable {
                 gpuChunk.lastVisibleLatencyRecordedVersion = gpuChunk.versionUploaded;
             }
 
-            if (boundArrayBuffer != gpuChunk.vboId) {
-                glBindBuffer(GL_ARRAY_BUFFER, gpuChunk.vboId);
-                boundArrayBuffer = gpuChunk.vboId;
+            if (mdiEnabled && gpuChunk.usesSharedArena && sharedChunkBufferArena != null) {
+                scratchMdiChunks.add(gpuChunk);
+                continue;
+            }
+
+            if (mdiEnabled) {
+                perfMdiFallbackChunks++;
+            }
+            perfDrawElementsChunks++;
+            if (gpuChunk.usesSharedArena) {
+                perfSharedArenaDrawChunks++;
+            } else {
+                perfLocalDrawChunks++;
+            }
+
+            int drawArrayBuffer = gpuChunk.usesSharedArena && sharedChunkBufferArena != null
+                ? sharedChunkBufferArena.vboId()
+                : gpuChunk.vboId;
+            int drawElementBuffer = gpuChunk.usesSharedArena && sharedChunkBufferArena != null
+                ? sharedChunkBufferArena.iboId()
+                : gpuChunk.iboId;
+            if (boundArrayBuffer != drawArrayBuffer) {
+                glBindBuffer(GL_ARRAY_BUFFER, drawArrayBuffer);
+                boundArrayBuffer = drawArrayBuffer;
                 stateChanges++;
             }
-            if (boundElementBuffer != gpuChunk.iboId) {
-                glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, gpuChunk.iboId);
-                boundElementBuffer = gpuChunk.iboId;
+            if (boundElementBuffer != drawElementBuffer) {
+                glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, drawElementBuffer);
+                boundElementBuffer = drawElementBuffer;
+                stateChanges++;
+            }
+            long vertexBaseOffset = gpuChunk.usesSharedArena ? gpuChunk.sharedVertexOffsetBytes : 0L;
+            long indexBaseOffset = gpuChunk.usesSharedArena ? gpuChunk.sharedIndexOffsetBytes : 0L;
+            glVertexPointer(3, GL_FLOAT, VERTEX_STRIDE_BYTES, vertexBaseOffset + POSITION_OFFSET_BYTES);
+            glColorPointer(4, GL_UNSIGNED_BYTE, VERTEX_STRIDE_BYTES, vertexBaseOffset + COLOR_OFFSET_BYTES);
+            glDrawElements(GL_TRIANGLES, gpuChunk.indexCount, GL_UNSIGNED_INT, indexBaseOffset);
+            drawCalls++;
+        }
+
+        if (mdiEnabled && !scratchMdiChunks.isEmpty()) {
+            int sharedVbo = sharedChunkBufferArena.vboId();
+            int sharedIbo = sharedChunkBufferArena.iboId();
+            if (boundArrayBuffer != sharedVbo) {
+                glBindBuffer(GL_ARRAY_BUFFER, sharedVbo);
+                boundArrayBuffer = sharedVbo;
+                stateChanges++;
+            }
+            if (boundElementBuffer != sharedIbo) {
+                glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, sharedIbo);
+                boundElementBuffer = sharedIbo;
+                stateChanges++;
+            }
+            if (mdiIndirectBufferId == 0) {
+                mdiIndirectBufferId = glGenBuffers();
+            }
+            if (boundIndirectBuffer != mdiIndirectBufferId) {
+                glBindBuffer(GL_DRAW_INDIRECT_BUFFER, mdiIndirectBufferId);
+                boundIndirectBuffer = mdiIndirectBufferId;
                 stateChanges++;
             }
             glVertexPointer(3, GL_FLOAT, VERTEX_STRIDE_BYTES, POSITION_OFFSET_BYTES);
             glColorPointer(4, GL_UNSIGNED_BYTE, VERTEX_STRIDE_BYTES, COLOR_OFFSET_BYTES);
-            glDrawElements(GL_TRIANGLES, gpuChunk.indexCount, GL_UNSIGNED_INT, 0L);
+            uploadMdiCommandsAndDraw(scratchMdiChunks);
+            perfMdiBatches++;
+            perfMdiChunks += scratchMdiChunks.size();
+            perfSharedArenaDrawChunks += scratchMdiChunks.size();
             drawCalls++;
         }
 
@@ -512,6 +635,10 @@ public final class GpuChunkRenderer implements AutoCloseable {
         }
         if (boundElementBuffer != 0) {
             glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+            stateChanges++;
+        }
+        if (boundIndirectBuffer != 0) {
+            glBindBuffer(GL_DRAW_INDIRECT_BUFFER, 0);
             stateChanges++;
         }
         glDisableClientState(GL_COLOR_ARRAY);
@@ -577,6 +704,69 @@ public final class GpuChunkRenderer implements AutoCloseable {
         return stateChanges;
     }
 
+    private void uploadMdiCommandsAndDraw(List<GpuChunk> chunks) {
+        int drawCount = chunks.size();
+        if (drawCount <= 0 || mdiIndirectBufferId == 0) {
+            return;
+        }
+        int commandInts = drawCount * 5;
+        ensureMdiCommandScratchCapacity(commandInts);
+
+        int write = 0;
+        for (GpuChunk chunk : chunks) {
+            mdiCommandScratch[write++] = chunk.indexCount;
+            mdiCommandScratch[write++] = 1; // instanceCount
+            mdiCommandScratch[write++] = (int) (chunk.sharedIndexOffsetBytes / Integer.BYTES); // firstIndex (uint indices)
+            mdiCommandScratch[write++] = (int) (chunk.sharedVertexOffsetBytes / VERTEX_STRIDE_BYTES); // baseVertex
+            mdiCommandScratch[write++] = 0; // baseInstance
+        }
+
+        int commandBytes = commandInts * Integer.BYTES;
+        ensureMdiUploadBufferCapacity(commandBytes);
+        IntBuffer commandIntsBuffer = mdiCommandUploadBytes.asIntBuffer();
+        commandIntsBuffer.clear();
+        commandIntsBuffer.put(mdiCommandScratch, 0, commandInts);
+        mdiCommandUploadBytes.position(0);
+        mdiCommandUploadBytes.limit(commandBytes);
+
+        glBindBuffer(GL_DRAW_INDIRECT_BUFFER, mdiIndirectBufferId);
+        if (commandBytes > mdiIndirectBufferCapacityBytes) {
+            glBufferData(GL_DRAW_INDIRECT_BUFFER, (long) commandBytes, GL_DYNAMIC_DRAW);
+            mdiIndirectBufferCapacityBytes = commandBytes;
+            perfMdiCommandBufferReallocs++;
+        } else if (features.orphaningUpload()) {
+            glBufferData(GL_DRAW_INDIRECT_BUFFER, (long) mdiIndirectBufferCapacityBytes, GL_DYNAMIC_DRAW);
+            perfMdiCommandBufferOrphans++;
+        }
+        glBufferSubData(GL_DRAW_INDIRECT_BUFFER, 0L, mdiCommandUploadBytes);
+        perfMdiCommandBytes += commandBytes;
+
+        if (supportsMdiCore43) {
+            GL43.glMultiDrawElementsIndirect(GL_TRIANGLES, GL_UNSIGNED_INT, 0L, drawCount, 0);
+        } else {
+            ARBMultiDrawIndirect.glMultiDrawElementsIndirect(GL_TRIANGLES, GL_UNSIGNED_INT, 0L, drawCount, 0);
+        }
+    }
+
+    private void ensureMdiCommandScratchCapacity(int requiredInts) {
+        if (mdiCommandScratch.length >= requiredInts) {
+            return;
+        }
+        int newCapacity = Math.max(64, mdiCommandScratch.length);
+        while (newCapacity < requiredInts) {
+            newCapacity *= 2;
+        }
+        mdiCommandScratch = Arrays.copyOf(mdiCommandScratch, newCapacity);
+    }
+
+    private void ensureMdiUploadBufferCapacity(int requiredBytes) {
+        if (mdiCommandUploadBytes != null && mdiCommandUploadBytes.capacity() >= requiredBytes) {
+            return;
+        }
+        int newCapacity = Math.max(20 * 64, requiredBytes);
+        mdiCommandUploadBytes = ByteBuffer.allocateDirect(newCapacity).order(ByteOrder.nativeOrder());
+    }
+
     private void emitPerfLine(FrameStats frameStats, int chunksInRange) {
         long now = System.nanoTime();
         perfFrames++;
@@ -591,7 +781,7 @@ public final class GpuChunkRenderer implements AutoCloseable {
             ? 0.0
             : (perfVisibleLatencyNanosTotal / (double) perfVisibleLatencySamples) / 1_000_000.0;
         latestTitleStats = String.format(
-            "p95 %.1fms p99 %.1fms uq %d ub %d mb %d lod %d oq %d oc %d",
+            "p95 %.1fms p99 %.1fms uq %d ub %d mb %d lod %d oq %d oc %d qp %d/%d qs %d mdi %d/%d fb %d",
             percentiles.p95Ms(),
             percentiles.p99Ms(),
             uploadQueue.size(),
@@ -599,10 +789,16 @@ public final class GpuChunkRenderer implements AutoCloseable {
             adaptiveMeshSubmitsPerFrame,
             frameStats.lodVisibleChunks,
             perfOcclusionQueries,
-            perfOcclusionCulledChunks
+            perfOcclusionCulledChunks,
+            perfOcclusionQueryPolls,
+            perfOcclusionQueryDeferredPolls,
+            perfOcclusionQueryReadStalls,
+            perfMdiBatches,
+            perfMdiChunks,
+            perfMdiFallbackChunks
         );
         System.out.printf(
-            "[gpu-perf] fps=%.1f drawCalls=%d stateChanges=%d visibleChunks=%d lodVisibleChunks=%d triangles=%d uploadQueueSize=%d meshingJobsInFlight=%d totalChunksInRange=%d uploadBudget=%d uploadBudgetMs=%.2f meshSubmitBudget=%d renderCpuMsEma=%.2f p50=%.2fms p95=%.2fms p99=%.2fms meshingQueueTopPriority=%.2f uploadQueueTopPriority=%.2f avgLatencyToVisibleMesh=%.2fms occlusionQueries=%d occlusionCulled=%d uploadJobs=%d uploadMB=%.2f droppedUploads=%d bufferReallocs=%d bufferOrphans=%d subDatas=%d%n",
+            "[gpu-perf] fps=%.1f drawCalls=%d stateChanges=%d visibleChunks=%d lodVisibleChunks=%d triangles=%d uploadQueueSize=%d meshingJobsInFlight=%d totalChunksInRange=%d uploadBudget=%d uploadBudgetMs=%.2f meshSubmitBudget=%d renderCpuMsEma=%.2f p50=%.2fms p95=%.2fms p99=%.2fms meshingQueueTopPriority=%.2f uploadQueueTopPriority=%.2f avgLatencyToVisibleMesh=%.2fms occlusionQueries=%d occlusionCulled=%d queryPolls=%d queryPollDeferred=%d queryReadStalls=%d mdiBatches=%d mdiChunks=%d mdiFallbackChunks=%d drawElementsChunks=%d sharedArenaDrawChunks=%d localDrawChunks=%d mdiCmdMB=%.3f mdiCmdReallocs=%d mdiCmdOrphans=%d sharedArenaAllocFailures=%d sharedArenaFallbackUploads=%d sharedArenaVertexUsedMB=%.2f sharedArenaIndexUsedMB=%.2f uploadJobs=%d uploadMB=%.2f droppedUploads=%d bufferReallocs=%d bufferOrphans=%d subDatas=%d%n",
             fps,
             frameStats.drawCalls,
             frameStats.stateChanges,
@@ -624,6 +820,22 @@ public final class GpuChunkRenderer implements AutoCloseable {
             avgLatencyMs,
             perfOcclusionQueries,
             perfOcclusionCulledChunks,
+            perfOcclusionQueryPolls,
+            perfOcclusionQueryDeferredPolls,
+            perfOcclusionQueryReadStalls,
+            perfMdiBatches,
+            perfMdiChunks,
+            perfMdiFallbackChunks,
+            perfDrawElementsChunks,
+            perfSharedArenaDrawChunks,
+            perfLocalDrawChunks,
+            perfMdiCommandBytes / (1024.0 * 1024.0),
+            perfMdiCommandBufferReallocs,
+            perfMdiCommandBufferOrphans,
+            perfSharedArenaAllocFailures,
+            perfSharedArenaFallbackUploads,
+            sharedChunkBufferArena == null ? 0.0 : sharedChunkBufferArena.usedVertexBytes() / (1024.0 * 1024.0),
+            sharedChunkBufferArena == null ? 0.0 : sharedChunkBufferArena.usedIndexBytes() / (1024.0 * 1024.0),
             perfUploadJobs,
             perfUploadBytes / (1024.0 * 1024.0),
             perfUploadDropped,
@@ -645,11 +857,37 @@ public final class GpuChunkRenderer implements AutoCloseable {
         perfVisibleLatencySamples = 0;
         perfOcclusionQueries = 0L;
         perfOcclusionCulledChunks = 0L;
+        perfOcclusionQueryPolls = 0L;
+        perfOcclusionQueryDeferredPolls = 0L;
+        perfOcclusionQueryReadStalls = 0L;
+        perfMdiBatches = 0L;
+        perfMdiChunks = 0L;
+        perfMdiFallbackChunks = 0L;
+        perfDrawElementsChunks = 0L;
+        perfSharedArenaDrawChunks = 0L;
+        perfLocalDrawChunks = 0L;
+        perfMdiCommandBytes = 0L;
+        perfMdiCommandBufferReallocs = 0L;
+        perfMdiCommandBufferOrphans = 0L;
+        perfSharedArenaAllocFailures = 0L;
+        perfSharedArenaFallbackUploads = 0L;
         perfWindowStartNanos = now;
     }
 
     public String latestTitleStats() {
         return latestTitleStats;
+    }
+
+    public long lastMeshingSubmitNanos() {
+        return lastMeshingSubmitNanos;
+    }
+
+    public long lastUploadQueueDrainNanos() {
+        return lastUploadQueueDrainNanos;
+    }
+
+    public long lastDrawLoopNanos() {
+        return lastDrawLoopNanos;
     }
 
     private void updateAdaptiveBudgets(long renderCpuNanos) {
@@ -799,17 +1037,23 @@ public final class GpuChunkRenderer implements AutoCloseable {
             return;
         }
         GLCapabilities caps = GL.getCapabilities();
-        supportsMdi = caps.OpenGL43 || caps.GL_ARB_multi_draw_indirect;
+        supportsMdiCore43 = caps.OpenGL43;
+        supportsMdiArb = caps.GL_ARB_multi_draw_indirect;
+        supportsMdi = supportsMdiCore43 || supportsMdiArb;
         supportsOcclusionQuery = caps.OpenGL15 || caps.GL_ARB_occlusion_query;
         supportsPersistentMapping = caps.OpenGL44 || caps.GL_ARB_buffer_storage;
         glCapabilitiesLogged = true;
 
+        boolean mdiEnabled = features.mdi() && supportsMdi && features.sharedChunkArena();
         System.out.printf(
-            "[gpu-cap] mdiSupported=%s mdiEnabled=%s occlusionSupported=%s occlusionEnabled=%s persistentMappingSupported=%s persistentMappingEnabled=%s priorityBiasEnabled=%s adaptiveUploadBudget=%s adaptiveMeshSubmitBudget=%s orphaningUpload=%s lodEnabled=%s lodStartChunks=%d lodHysteresis=%d%n",
+            "[gpu-cap] mdiSupported=%s mdiCore43=%s mdiArb=%s mdiEnabled=%s occlusionSupported=%s occlusionEnabled=%s occlusionPollBudget=%d persistentMappingSupported=%s persistentMappingEnabled=%s priorityBiasEnabled=%s adaptiveUploadBudget=%s adaptiveMeshSubmitBudget=%s orphaningUpload=%s lodEnabled=%s lodStartChunks=%d lodHysteresis=%d sharedChunkArena=%s sharedArenaVertexMB=%d sharedArenaIndexMB=%d%n",
             supportsMdi,
-            features.mdi() && supportsMdi,
+            supportsMdiCore43,
+            supportsMdiArb,
+            mdiEnabled,
             supportsOcclusionQuery,
             features.occlusionQuery() && supportsOcclusionQuery,
+            features.occlusionResultPollBudget(),
             supportsPersistentMapping,
             features.persistentMapping() && supportsPersistentMapping,
             features.priorityForwardBias() || features.priorityRecentlyVisibleBias(),
@@ -818,10 +1062,16 @@ public final class GpuChunkRenderer implements AutoCloseable {
             features.orphaningUpload(),
             features.lod(),
             features.lodStartChunkDistance(),
-            features.lodHysteresisChunks()
+            features.lodHysteresisChunks(),
+            features.sharedChunkArena(),
+            features.sharedChunkArenaVertexMb(),
+            features.sharedChunkArenaIndexMb()
         );
         if (features.mdi() && !supportsMdi) {
             System.out.println("[gpu-cap] MDI requested but unsupported; using drawElements fallback.");
+        }
+        if (features.mdi() && supportsMdi && !features.sharedChunkArena()) {
+            System.out.println("[gpu-cap] MDI requested but sharedChunkArena is disabled; using drawElements fallback.");
         }
         if (features.occlusionQuery() && !supportsOcclusionQuery) {
             System.out.println("[gpu-cap] Occlusion query requested but unsupported; disabled.");
@@ -831,6 +1081,12 @@ public final class GpuChunkRenderer implements AutoCloseable {
         }
         if (features.occlusionQuery() && supportsOcclusionQuery) {
             occlusionBoxMesh = new OcclusionBoxMesh();
+        }
+        if (features.sharedChunkArena()) {
+            sharedChunkBufferArena = new SharedChunkBufferArena(
+                Math.max(1, features.sharedChunkArenaVertexMb()) * 1024 * 1024,
+                Math.max(1, features.sharedChunkArenaIndexMb()) * 1024 * 1024
+            );
         }
     }
 
@@ -913,11 +1169,15 @@ public final class GpuChunkRenderer implements AutoCloseable {
         boolean orphaningUpload,
         boolean mdi,
         boolean occlusionQuery,
+        int occlusionResultPollBudget,
         boolean persistentMapping,
         double uploadTimeBudgetMs,
         boolean lod,
         int lodStartChunkDistance,
-        int lodHysteresisChunks
+        int lodHysteresisChunks,
+        boolean sharedChunkArena,
+        int sharedChunkArenaVertexMb,
+        int sharedChunkArenaIndexMb
     ) {
         private static GpuFeatureFlags load() {
             return new GpuFeatureFlags(
@@ -928,11 +1188,15 @@ public final class GpuChunkRenderer implements AutoCloseable {
                 flag("voxelcraft.gpu.orphaningUpload", true),
                 flag("voxelcraft.gpu.mdi", false),
                 flag("voxelcraft.gpu.occlusionQuery", false),
+                intFlag("voxelcraft.gpu.occlusionPollBudget", DEFAULT_OCCLUSION_RESULT_POLL_BUDGET),
                 flag("voxelcraft.gpu.persistentMapping", false),
                 doubleFlag("voxelcraft.gpu.uploadBudgetMs", DEFAULT_UPLOAD_TIME_BUDGET_MS),
                 flag("voxelcraft.gpu.lod", false),
                 intFlag("voxelcraft.gpu.lodStartChunks", DEFAULT_LOD_START_CHUNK_DISTANCE),
-                intFlag("voxelcraft.gpu.lodHysteresisChunks", DEFAULT_LOD_HYSTERESIS_CHUNKS)
+                intFlag("voxelcraft.gpu.lodHysteresisChunks", DEFAULT_LOD_HYSTERESIS_CHUNKS),
+                flag("voxelcraft.gpu.sharedChunkArena", false),
+                intFlag("voxelcraft.gpu.sharedArenaVertexMB", DEFAULT_SHARED_ARENA_VERTEX_MB),
+                intFlag("voxelcraft.gpu.sharedArenaIndexMB", DEFAULT_SHARED_ARENA_INDEX_MB)
             );
         }
 
@@ -1020,6 +1284,12 @@ public final class GpuChunkRenderer implements AutoCloseable {
         private long versionUploaded = Long.MIN_VALUE;
         private int lodLevelUploaded;
         private boolean valid;
+        private boolean usesSharedArena;
+        private long sharedVertexOffsetBytes;
+        private long sharedIndexOffsetBytes;
+        private SharedChunkBufferArena.Allocation sharedAllocation;
+        private boolean lastUploadSharedArenaAllocFailure;
+        private boolean lastUploadSharedArenaFallback;
         private boolean occlusionQueryPending;
         private boolean occlusionVisible = true;
         private int occlusionHiddenStreak;
@@ -1039,17 +1309,18 @@ public final class GpuChunkRenderer implements AutoCloseable {
             this.pos = pos;
         }
 
-        private UploadStats upload(ChunkMeshData meshData, long submittedNanos, boolean orphaningUpload) {
-            if (vboId == 0) {
-                vboId = glGenBuffers();
-            }
-            if (iboId == 0) {
-                iboId = glGenBuffers();
-            }
+        private UploadStats upload(
+            ChunkMeshData meshData,
+            long submittedNanos,
+            boolean orphaningUpload,
+            SharedChunkBufferArena sharedArena
+        ) {
             long uploadBytes = 0L;
             int bufferReallocs = 0;
             int bufferOrphans = 0;
             int bufferSubDatas = 0;
+            lastUploadSharedArenaAllocFailure = false;
+            lastUploadSharedArenaFallback = false;
             if (meshData.indexCount() > 0) {
                 ByteBuffer vertexBytes = meshData.vertexBytes();
                 ByteBuffer indexBytes = meshData.indexBytes();
@@ -1057,45 +1328,40 @@ public final class GpuChunkRenderer implements AutoCloseable {
                     throw new IllegalStateException("Non-empty mesh missing upload buffers for chunk " + pos);
                 }
 
-                vertexBytes.position(0);
-                vertexBytes.limit(meshData.vertexByteCount());
-                indexBytes.position(0);
-                indexBytes.limit(meshData.indexByteCount());
-
-                glBindBuffer(GL_ARRAY_BUFFER, vboId);
-                if (meshData.vertexByteCount() > vboCapacityBytes) {
-                    glBufferData(GL_ARRAY_BUFFER, (long) meshData.vertexByteCount(), GL_STATIC_DRAW);
-                    vboCapacityBytes = meshData.vertexByteCount();
-                    bufferReallocs++;
-                } else {
-                    if (orphaningUpload) {
-                        // orphan old storage to reduce update stalls, then subload new contents
-                        glBufferData(GL_ARRAY_BUFFER, (long) vboCapacityBytes, GL_STATIC_DRAW);
-                        bufferOrphans++;
+                if (sharedArena != null) {
+                    boolean sharedUploaded = uploadToSharedArena(sharedArena, meshData, vertexBytes, indexBytes);
+                    if (sharedUploaded) {
+                        bufferSubDatas += 2;
+                        uploadBytes += meshData.vertexByteCount();
+                        uploadBytes += meshData.indexByteCount();
+                    } else {
+                        lastUploadSharedArenaAllocFailure = true;
+                        lastUploadSharedArenaFallback = true;
                     }
-                }
-                glBufferSubData(GL_ARRAY_BUFFER, 0L, vertexBytes);
-                bufferSubDatas++;
-                uploadBytes += meshData.vertexByteCount();
-
-                glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, iboId);
-                if (meshData.indexByteCount() > iboCapacityBytes) {
-                    glBufferData(GL_ELEMENT_ARRAY_BUFFER, (long) meshData.indexByteCount(), GL_STATIC_DRAW);
-                    iboCapacityBytes = meshData.indexByteCount();
-                    bufferReallocs++;
-                } else {
-                    if (orphaningUpload) {
-                        glBufferData(GL_ELEMENT_ARRAY_BUFFER, (long) iboCapacityBytes, GL_STATIC_DRAW);
-                        bufferOrphans++;
+                    if (sharedUploaded) {
+                        freeLocalBuffers();
+                    } else {
+                        uploadBytes += uploadToLocalBuffers(meshData, vertexBytes, indexBytes, orphaningUpload);
+                        bufferReallocs += localUploadBufferReallocs;
+                        bufferOrphans += localUploadBufferOrphans;
+                        bufferSubDatas += localUploadBufferSubDatas;
                     }
+                } else {
+                    if (sharedAllocation != null) {
+                        sharedArenaFree(sharedArena);
+                    }
+                    usesSharedArena = false;
+                    uploadBytes += uploadToLocalBuffers(meshData, vertexBytes, indexBytes, orphaningUpload);
+                    bufferReallocs += localUploadBufferReallocs;
+                    bufferOrphans += localUploadBufferOrphans;
+                    bufferSubDatas += localUploadBufferSubDatas;
                 }
-                glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, 0L, indexBytes);
-                bufferSubDatas++;
-                uploadBytes += meshData.indexByteCount();
-
-                glBindBuffer(GL_ARRAY_BUFFER, 0);
-                glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
             } else {
+                if (sharedAllocation != null) {
+                    sharedArenaFree(sharedArena);
+                }
+                usesSharedArena = false;
+                freeLocalBuffers();
                 glBindBuffer(GL_ARRAY_BUFFER, 0);
                 glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
             }
@@ -1118,6 +1384,119 @@ public final class GpuChunkRenderer implements AutoCloseable {
             return new UploadStats(1, uploadBytes, bufferReallocs, bufferOrphans, bufferSubDatas);
         }
 
+        private int localUploadBufferReallocs;
+        private int localUploadBufferOrphans;
+        private int localUploadBufferSubDatas;
+
+        private long uploadToLocalBuffers(
+            ChunkMeshData meshData,
+            ByteBuffer vertexBytes,
+            ByteBuffer indexBytes,
+            boolean orphaningUpload
+        ) {
+            localUploadBufferReallocs = 0;
+            localUploadBufferOrphans = 0;
+            localUploadBufferSubDatas = 0;
+            if (vboId == 0) {
+                vboId = glGenBuffers();
+            }
+            if (iboId == 0) {
+                iboId = glGenBuffers();
+            }
+
+            vertexBytes.position(0);
+            vertexBytes.limit(meshData.vertexByteCount());
+            indexBytes.position(0);
+            indexBytes.limit(meshData.indexByteCount());
+
+            glBindBuffer(GL_ARRAY_BUFFER, vboId);
+            if (meshData.vertexByteCount() > vboCapacityBytes) {
+                glBufferData(GL_ARRAY_BUFFER, (long) meshData.vertexByteCount(), GL_STATIC_DRAW);
+                vboCapacityBytes = meshData.vertexByteCount();
+                localUploadBufferReallocs++;
+            } else if (orphaningUpload) {
+                glBufferData(GL_ARRAY_BUFFER, (long) vboCapacityBytes, GL_STATIC_DRAW);
+                localUploadBufferOrphans++;
+            }
+            glBufferSubData(GL_ARRAY_BUFFER, 0L, vertexBytes);
+            localUploadBufferSubDatas++;
+
+            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, iboId);
+            if (meshData.indexByteCount() > iboCapacityBytes) {
+                glBufferData(GL_ELEMENT_ARRAY_BUFFER, (long) meshData.indexByteCount(), GL_STATIC_DRAW);
+                iboCapacityBytes = meshData.indexByteCount();
+                localUploadBufferReallocs++;
+            } else if (orphaningUpload) {
+                glBufferData(GL_ELEMENT_ARRAY_BUFFER, (long) iboCapacityBytes, GL_STATIC_DRAW);
+                localUploadBufferOrphans++;
+            }
+            glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, 0L, indexBytes);
+            localUploadBufferSubDatas++;
+            glBindBuffer(GL_ARRAY_BUFFER, 0);
+            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+
+            usesSharedArena = false;
+            sharedVertexOffsetBytes = 0L;
+            sharedIndexOffsetBytes = 0L;
+            return (long) meshData.vertexByteCount() + meshData.indexByteCount();
+        }
+
+        private boolean uploadToSharedArena(
+            SharedChunkBufferArena sharedArena,
+            ChunkMeshData meshData,
+            ByteBuffer vertexBytes,
+            ByteBuffer indexBytes
+        ) {
+            if (sharedArena == null) {
+                return false;
+            }
+            int vertexBytesNeeded = meshData.vertexByteCount();
+            int indexBytesNeeded = meshData.indexByteCount();
+            if (sharedAllocation == null
+                || sharedAllocation.vertexCapacityBytes() < vertexBytesNeeded
+                || sharedAllocation.indexCapacityBytes() < indexBytesNeeded) {
+                if (sharedAllocation != null) {
+                    sharedArena.free(sharedAllocation);
+                    sharedAllocation = null;
+                }
+                SharedChunkBufferArena.Allocation allocation = sharedArena.allocate(vertexBytesNeeded, indexBytesNeeded);
+                if (allocation == null) {
+                    return false;
+                }
+                sharedAllocation = allocation;
+            }
+            sharedArena.upload(sharedAllocation, vertexBytes, vertexBytesNeeded, indexBytes, indexBytesNeeded);
+            usesSharedArena = true;
+            sharedVertexOffsetBytes = sharedAllocation.vertexOffsetBytes();
+            sharedIndexOffsetBytes = sharedAllocation.indexOffsetBytes();
+            return true;
+        }
+
+        private void sharedArenaFree(SharedChunkBufferArena sharedArena) {
+            if (sharedAllocation == null) {
+                return;
+            }
+            if (sharedArena != null) {
+                sharedArena.free(sharedAllocation);
+            }
+            sharedAllocation = null;
+            sharedVertexOffsetBytes = 0L;
+            sharedIndexOffsetBytes = 0L;
+        }
+
+        private void freeLocalBuffers() {
+            if (vboId != 0) {
+                glDeleteBuffers(vboId);
+                vboId = 0;
+            }
+            if (iboId != 0) {
+                glDeleteBuffers(iboId);
+                iboId = 0;
+            }
+            vboCapacityBytes = 0;
+            iboCapacityBytes = 0;
+        }
+
         private int ensureOcclusionQueryId() {
             if (occlusionQueryId == 0) {
                 occlusionQueryId = glGenQueries();
@@ -1130,12 +1509,16 @@ public final class GpuChunkRenderer implements AutoCloseable {
             occlusionLastQueryFrame = frameSequence;
         }
 
-        private void pollOcclusionQueryResult() {
+        private boolean hasPendingOcclusionQuery() {
+            return occlusionQueryPending && occlusionQueryId != 0;
+        }
+
+        private boolean pollOcclusionQueryResult() {
             if (!occlusionQueryPending || occlusionQueryId == 0) {
-                return;
+                return false;
             }
             if (glGetQueryObjecti(occlusionQueryId, GL_QUERY_RESULT_AVAILABLE) == 0) {
-                return;
+                return true;
             }
             int samples = glGetQueryObjecti(occlusionQueryId, GL_QUERY_RESULT);
             occlusionQueryPending = false;
@@ -1146,6 +1529,7 @@ public final class GpuChunkRenderer implements AutoCloseable {
                 occlusionVisible = false;
                 occlusionHiddenStreak = Math.min(255, occlusionHiddenStreak + 1);
             }
+            return false;
         }
 
         private boolean shouldDrawBasedOnOcclusion(long frameSequence) {
@@ -1172,21 +1556,14 @@ public final class GpuChunkRenderer implements AutoCloseable {
             return frameSequence - occlusionLastQueryFrame >= OCCLUSION_RESAMPLE_INTERVAL_FRAMES;
         }
 
-        private void dispose() {
-            if (vboId != 0) {
-                glDeleteBuffers(vboId);
-                vboId = 0;
-            }
-            if (iboId != 0) {
-                glDeleteBuffers(iboId);
-                iboId = 0;
-            }
+        private void dispose(SharedChunkBufferArena sharedArena) {
+            freeLocalBuffers();
+            sharedArenaFree(sharedArena);
+            usesSharedArena = false;
             if (occlusionQueryId != 0) {
                 glDeleteQueries(occlusionQueryId);
                 occlusionQueryId = 0;
             }
-            vboCapacityBytes = 0;
-            iboCapacityBytes = 0;
             indexCount = 0;
             triangleCount = 0;
             lodLevelUploaded = 0;
@@ -1248,6 +1625,185 @@ public final class GpuChunkRenderer implements AutoCloseable {
         private void dispose() {
             glDeleteBuffers(vboId);
             glDeleteBuffers(iboId);
+        }
+    }
+
+    private static final class SharedChunkBufferArena {
+        private final int vboId;
+        private final int iboId;
+        private final int vertexCapacityBytes;
+        private final int indexCapacityBytes;
+        private final ArrayList<Range> freeVertexRanges = new ArrayList<>();
+        private final ArrayList<Range> freeIndexRanges = new ArrayList<>();
+        private int usedVertexBytes;
+        private int usedIndexBytes;
+
+        private SharedChunkBufferArena(int vertexCapacityBytes, int indexCapacityBytes) {
+            this.vertexCapacityBytes = Math.max(64 * 1024, vertexCapacityBytes);
+            this.indexCapacityBytes = Math.max(64 * 1024, indexCapacityBytes);
+            this.vboId = glGenBuffers();
+            this.iboId = glGenBuffers();
+            freeVertexRanges.add(new Range(0, this.vertexCapacityBytes));
+            freeIndexRanges.add(new Range(0, this.indexCapacityBytes));
+
+            glBindBuffer(GL_ARRAY_BUFFER, vboId);
+            glBufferData(GL_ARRAY_BUFFER, (long) this.vertexCapacityBytes, GL_STATIC_DRAW);
+            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, iboId);
+            glBufferData(GL_ELEMENT_ARRAY_BUFFER, (long) this.indexCapacityBytes, GL_STATIC_DRAW);
+            glBindBuffer(GL_ARRAY_BUFFER, 0);
+            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+        }
+
+        private Allocation allocate(int vertexBytes, int indexBytes) {
+            if (vertexBytes < 0 || indexBytes < 0) {
+                return null;
+            }
+            Range vertexRange = takeRange(freeVertexRanges, align(vertexBytes, 16));
+            if (vertexRange == null) {
+                return null;
+            }
+            Range indexRange = takeRange(freeIndexRanges, align(indexBytes, 16));
+            if (indexRange == null) {
+                putRange(freeVertexRanges, vertexRange);
+                return null;
+            }
+            usedVertexBytes += vertexRange.length;
+            usedIndexBytes += indexRange.length;
+            return new Allocation(vertexRange, indexRange);
+        }
+
+        private void free(Allocation allocation) {
+            if (allocation == null) {
+                return;
+            }
+            usedVertexBytes = Math.max(0, usedVertexBytes - allocation.vertexRange.length);
+            usedIndexBytes = Math.max(0, usedIndexBytes - allocation.indexRange.length);
+            putRange(freeVertexRanges, allocation.vertexRange);
+            putRange(freeIndexRanges, allocation.indexRange);
+        }
+
+        private void upload(Allocation allocation, ByteBuffer vertexBytes, int vertexByteCount, ByteBuffer indexBytes, int indexByteCount) {
+            if (allocation == null) {
+                throw new IllegalArgumentException("allocation");
+            }
+            if (vertexBytes != null && vertexByteCount > 0) {
+                vertexBytes.position(0);
+                vertexBytes.limit(vertexByteCount);
+                glBindBuffer(GL_ARRAY_BUFFER, vboId);
+                glBufferSubData(GL_ARRAY_BUFFER, allocation.vertexOffsetBytes(), vertexBytes);
+            }
+            if (indexBytes != null && indexByteCount > 0) {
+                indexBytes.position(0);
+                indexBytes.limit(indexByteCount);
+                glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, iboId);
+                glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, allocation.indexOffsetBytes(), indexBytes);
+            }
+            glBindBuffer(GL_ARRAY_BUFFER, 0);
+            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+        }
+
+        private int vboId() {
+            return vboId;
+        }
+
+        private int iboId() {
+            return iboId;
+        }
+
+        private int usedVertexBytes() {
+            return usedVertexBytes;
+        }
+
+        private int usedIndexBytes() {
+            return usedIndexBytes;
+        }
+
+        private void dispose() {
+            glDeleteBuffers(vboId);
+            glDeleteBuffers(iboId);
+            freeVertexRanges.clear();
+            freeIndexRanges.clear();
+            usedVertexBytes = 0;
+            usedIndexBytes = 0;
+        }
+
+        private static int align(int value, int alignment) {
+            if (value <= 0) {
+                return 0;
+            }
+            int mask = alignment - 1;
+            return (value + mask) & ~mask;
+        }
+
+        private static Range takeRange(ArrayList<Range> freeRanges, int bytes) {
+            if (bytes == 0) {
+                return new Range(0, 0);
+            }
+            for (int i = 0; i < freeRanges.size(); i++) {
+                Range range = freeRanges.get(i);
+                if (range.length < bytes) {
+                    continue;
+                }
+                Range allocated = new Range(range.offset, bytes);
+                if (range.length == bytes) {
+                    freeRanges.remove(i);
+                } else {
+                    freeRanges.set(i, new Range(range.offset + bytes, range.length - bytes));
+                }
+                return allocated;
+            }
+            return null;
+        }
+
+        private static void putRange(ArrayList<Range> freeRanges, Range returned) {
+            if (returned == null || returned.length <= 0) {
+                return;
+            }
+            int insertAt = 0;
+            while (insertAt < freeRanges.size() && freeRanges.get(insertAt).offset < returned.offset) {
+                insertAt++;
+            }
+            freeRanges.add(insertAt, returned);
+            int mergeIndex = Math.max(0, insertAt - 1);
+            while (mergeIndex < freeRanges.size() - 1) {
+                Range left = freeRanges.get(mergeIndex);
+                Range right = freeRanges.get(mergeIndex + 1);
+                if (left.offset + left.length != right.offset) {
+                    mergeIndex++;
+                    continue;
+                }
+                freeRanges.set(mergeIndex, new Range(left.offset, left.length + right.length));
+                freeRanges.remove(mergeIndex + 1);
+            }
+        }
+
+        private record Range(int offset, int length) {
+        }
+
+        private static final class Allocation {
+            private final Range vertexRange;
+            private final Range indexRange;
+
+            private Allocation(Range vertexRange, Range indexRange) {
+                this.vertexRange = vertexRange;
+                this.indexRange = indexRange;
+            }
+
+            private long vertexOffsetBytes() {
+                return vertexRange.offset;
+            }
+
+            private long indexOffsetBytes() {
+                return indexRange.offset;
+            }
+
+            private int vertexCapacityBytes() {
+                return vertexRange.length;
+            }
+
+            private int indexCapacityBytes() {
+                return indexRange.length;
+            }
         }
     }
 

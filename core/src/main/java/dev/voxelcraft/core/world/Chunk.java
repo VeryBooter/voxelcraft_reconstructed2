@@ -37,7 +37,7 @@ public final class Chunk {
         int sectionY = Math.floorDiv(y, Section.SIZE);
         Section section = sections.get(sectionY);
         if (section == null) {
-            return Blocks.AIR;
+            return y < World.DEFAULT_SOLID_BELOW_Y ? Blocks.STONE : Blocks.AIR;
         }
 
         int localY = Math.floorMod(y, Section.SIZE);

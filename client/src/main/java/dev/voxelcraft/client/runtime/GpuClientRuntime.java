@@ -66,14 +66,25 @@ import static org.lwjgl.system.MemoryUtil.NULL;
 public final class GpuClientRuntime implements AutoCloseable {
     private static final int TARGET_FPS = 60;
     private static final double MIN_FRAME_SECONDS = 1.0 / TARGET_FPS;
+    private static final double HITCH_FRAME_MS = 50.0;
 
     private final String title;
     private final InputState input = new InputState();
     private final GpuChunkRenderer renderer = new GpuChunkRenderer();
+    private final double[] frameTimeWindowMs = new double[512];
+    private final double[] frameTimeSortScratchMs = new double[512];
 
     private long windowHandle;
     private boolean initialized;
     private boolean firstMouseSample = true;
+    private int frameTimeWindowIndex;
+    private int frameTimeWindowCount;
+    private long framePerfWindowStartNanos;
+    private int framePerfFrames;
+    private double framePerfWorstMs;
+    private int lastChunkPendingCount;
+    private int lastChunkReadyCount;
+    private int lastChunkGenInFlightCount;
 
     public GpuClientRuntime(String title) {
         this.title = title;
@@ -85,8 +96,12 @@ public final class GpuClientRuntime implements AutoCloseable {
         long previousNanos = System.nanoTime();
         long fpsWindowStart = previousNanos;
         int frames = 0;
+        framePerfWindowStartNanos = previousNanos;
+        framePerfFrames = 0;
+        framePerfWorstMs = 0.0;
 
         while (!glfwWindowShouldClose(windowHandle)) {
+            long frameStartedNanos = System.nanoTime();
             long now = System.nanoTime();
             double deltaSeconds = (now - previousNanos) / 1_000_000_000.0;
             previousNanos = now;
@@ -104,7 +119,9 @@ public final class GpuClientRuntime implements AutoCloseable {
                 glfwSetWindowShouldClose(windowHandle, true);
             }
 
+            long tickStartedNanos = System.nanoTime();
             gameClient.tick(input, deltaSeconds);
+            long tickNanos = System.nanoTime() - tickStartedNanos;
 
             int width;
             int height;
@@ -116,10 +133,43 @@ public final class GpuClientRuntime implements AutoCloseable {
                 height = Math.max(1, heightBuffer.get(0));
             }
 
+            long renderStartedNanos = System.nanoTime();
             RenderStats stats = renderer.render(width, height, gameClient);
+            long renderNanos = System.nanoTime() - renderStartedNanos;
+            long swapStartedNanos = System.nanoTime();
             glfwSwapBuffers(windowHandle);
+            long swapNanos = System.nanoTime() - swapStartedNanos;
 
             input.endFrame();
+            lastChunkPendingCount = gameClient.pendingChunkGenerationCount();
+            lastChunkReadyCount = gameClient.readyGeneratedChunkCount();
+            lastChunkGenInFlightCount = gameClient.chunkGenerationJobsInFlight();
+            long frameTotalNanos = System.nanoTime() - frameStartedNanos;
+            double frameMs = frameTotalNanos / 1_000_000.0;
+            recordFrameTime(frameMs);
+            emitFramePerfLineIfDue();
+            if (frameMs > HITCH_FRAME_MS) {
+                System.out.printf(
+                    "[frame-hitch] frameMs=%.2f dtMs=%.2f tickMs=%.2f ensureLocalChunksMs=%.2f chunkGenDrainMs=%.2f chunkGenSubmitMs=%.2f chunkInstallMs=%.2f chunkSubmitCount=%d chunkInstallCount=%d chunkPending=%d chunkReady=%d chunkGenInFlight=%d renderMs=%.2f meshingSubmitMs=%.2f uploadQueueDrainMs=%.2f drawLoopMs=%.2f swapBuffersMs=%.2f%n",
+                    frameMs,
+                    deltaSeconds * 1_000.0,
+                    tickNanos / 1_000_000.0,
+                    gameClient.lastEnsureLocalChunksNanos() / 1_000_000.0,
+                    gameClient.lastChunkGenerationDrainNanos() / 1_000_000.0,
+                    gameClient.lastChunkGenSubmitNanos() / 1_000_000.0,
+                    gameClient.lastChunkInstallNanos() / 1_000_000.0,
+                    gameClient.lastChunkGenSubmittedCount(),
+                    gameClient.lastChunkInstalledCount(),
+                    gameClient.pendingChunkGenerationCount(),
+                    gameClient.readyGeneratedChunkCount(),
+                    gameClient.chunkGenerationJobsInFlight(),
+                    renderNanos / 1_000_000.0,
+                    renderer.lastMeshingSubmitNanos() / 1_000_000.0,
+                    renderer.lastUploadQueueDrainNanos() / 1_000_000.0,
+                    renderer.lastDrawLoopNanos() / 1_000_000.0,
+                    swapNanos / 1_000_000.0
+                );
+            }
 
             frames++;
             if (now - fpsWindowStart >= 1_000_000_000L) {
@@ -127,6 +177,10 @@ public final class GpuClientRuntime implements AutoCloseable {
                     windowHandle,
                     title + " | GPU FPS " + frames
                         + " | faces " + stats.drawnFaces()
+                        + " | cg p/r/i "
+                        + gameClient.pendingChunkGenerationCount() + "/"
+                        + gameClient.readyGeneratedChunkCount() + "/"
+                        + gameClient.chunkGenerationJobsInFlight()
                         + " | " + renderer.latestTitleStats()
                         + " | " + gameClient.networkStatusLine()
                 );
@@ -197,6 +251,78 @@ public final class GpuClientRuntime implements AutoCloseable {
         }
         return 1;
     }
+
+    private void recordFrameTime(double frameMs) {
+        frameTimeWindowMs[frameTimeWindowIndex] = frameMs;
+        frameTimeWindowIndex = (frameTimeWindowIndex + 1) % frameTimeWindowMs.length;
+        if (frameTimeWindowCount < frameTimeWindowMs.length) {
+            frameTimeWindowCount++;
+        }
+        framePerfFrames++;
+        if (frameMs > framePerfWorstMs) {
+            framePerfWorstMs = frameMs;
+        }
+    }
+
+    private void emitFramePerfLineIfDue() {
+        long now = System.nanoTime();
+        long elapsed = now - framePerfWindowStartNanos;
+        if (elapsed < 1_000_000_000L) {
+            return;
+        }
+        FramePercentiles percentiles = framePercentiles();
+        double fps = framePerfFrames <= 0 ? 0.0 : (framePerfFrames * 1_000_000_000.0) / elapsed;
+        System.out.printf(
+            "[frame-perf] fps=%.1f p50=%.2fms p95=%.2fms p99=%.2fms worst=%.2fms windowFrames=%d chunkPending=%d chunkReady=%d chunkGenInFlight=%d%n",
+            fps,
+            percentiles.p50Ms,
+            percentiles.p95Ms,
+            percentiles.p99Ms,
+            framePerfWorstMs,
+            frameTimeWindowCount,
+            lastChunkPendingCount,
+            lastChunkReadyCount,
+            lastChunkGenInFlightCount
+        );
+        framePerfWindowStartNanos = now;
+        framePerfFrames = 0;
+        framePerfWorstMs = 0.0;
+    }
+
+    private FramePercentiles framePercentiles() {
+        if (frameTimeWindowCount == 0) {
+            return new FramePercentiles(0.0, 0.0, 0.0);
+        }
+        System.arraycopy(frameTimeWindowMs, 0, frameTimeSortScratchMs, 0, frameTimeWindowCount);
+        java.util.Arrays.sort(frameTimeSortScratchMs, 0, frameTimeWindowCount);
+        return new FramePercentiles(
+            percentile(frameTimeSortScratchMs, frameTimeWindowCount, 0.50),
+            percentile(frameTimeSortScratchMs, frameTimeWindowCount, 0.95),
+            percentile(frameTimeSortScratchMs, frameTimeWindowCount, 0.99)
+        );
+    }
+
+    private static double percentile(double[] sortedValues, int count, double quantile) {
+        if (count <= 0) {
+            return 0.0;
+        }
+        int index = (int) Math.ceil((count - 1) * quantile);
+        index = Math.max(0, Math.min(count - 1, index));
+        return sortedValues[index];
+    }
+
+    private static final class FramePercentiles {
+        private final double p50Ms;
+        private final double p95Ms;
+        private final double p99Ms;
+
+        private FramePercentiles(double p50Ms, double p95Ms, double p99Ms) {
+            this.p50Ms = p50Ms;
+            this.p95Ms = p95Ms;
+            this.p99Ms = p99Ms;
+        }
+    }
+
 
     private void installInputCallbacks() {
         glfwSetKeyCallback(windowHandle, (window, key, scancode, action, mods) -> {

@@ -11,6 +11,7 @@ import java.util.SplittableRandom;
 public final class World {
     public static final int MIN_Y = -2048;
     public static final int MAX_Y = 319;
+    public static final int DEFAULT_SOLID_BELOW_Y = -16;
 
     private final ChunkManager chunkManager = new ChunkManager();
     private final WorldGenerator worldGenerator;
@@ -132,6 +133,22 @@ public final class World {
 
     public Chunk getOrGenerateChunk(int chunkX, int chunkZ) {
         return ensureChunkGenerated(chunkX, chunkZ);
+    }
+
+    public Chunk generateChunkDetached(int chunkX, int chunkZ) {
+        Chunk detached = new Chunk(new ChunkPos(chunkX, chunkZ));
+        worldGenerator.generate(detached);
+        return detached;
+    }
+
+    public boolean installGeneratedChunkIfAbsent(Chunk chunk) {
+        Objects.requireNonNull(chunk, "chunk");
+        Chunk installed = chunkManager.installChunkIfAbsent(chunk);
+        if (installed != chunk) {
+            return false;
+        }
+        blockUpdateVersion++;
+        return true;
     }
 
     private Chunk ensureChunkGenerated(int chunkX, int chunkZ) {

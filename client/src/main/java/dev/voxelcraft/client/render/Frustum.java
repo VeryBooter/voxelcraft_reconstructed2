@@ -9,8 +9,8 @@ public final class Frustum {
     private double pitchRadians;
     private double cosYaw;
     private double sinYaw;
-    private double cosNegPitch;
-    private double sinNegPitch;
+    private double cosPitch;
+    private double sinPitch;
 
     private double nearPlane;
     private double farPlane;
@@ -35,8 +35,8 @@ public final class Frustum {
         this.pitchRadians = Math.toRadians(pitchDegrees);
         this.cosYaw = Math.cos(yawRadians);
         this.sinYaw = Math.sin(yawRadians);
-        this.cosNegPitch = Math.cos(-pitchRadians);
-        this.sinNegPitch = Math.sin(-pitchRadians);
+        this.cosPitch = Math.cos(-pitchRadians);
+        this.sinPitch = Math.sin(-pitchRadians);
         this.nearPlane = nearPlane;
         this.farPlane = farPlane;
 
@@ -53,13 +53,13 @@ public final class Frustum {
         double x1 = dx * cosYaw - dz * sinYaw;
         double z1 = dx * sinYaw + dz * cosYaw;
 
-        double y2 = dy * cosNegPitch - z1 * sinNegPitch;
-        double z2 = dy * sinNegPitch + z1 * cosNegPitch;
+        double y2 = dy * cosPitch - z1 * sinPitch;
+        double z2 = dy * sinPitch + z1 * cosPitch;
 
         return new CameraPoint(x1, y2, z2);
     }
 
-    public void toCameraSpace(double worldX, double worldY, double worldZ, MutableCameraPoint out) {
+    public void toCameraSpace(double worldX, double worldY, double worldZ, CameraPoint out) {
         double dx = worldX - cameraX;
         double dy = worldY - cameraY;
         double dz = worldZ - cameraZ;
@@ -67,8 +67,8 @@ public final class Frustum {
         double x1 = dx * cosYaw - dz * sinYaw;
         double z1 = dx * sinYaw + dz * cosYaw;
 
-        double y2 = dy * cosNegPitch - z1 * sinNegPitch;
-        double z2 = dy * sinNegPitch + z1 * cosNegPitch;
+        double y2 = dy * cosPitch - z1 * sinPitch;
+        double z2 = dy * sinPitch + z1 * cosPitch;
 
         out.set(x1, y2, z2);
     }
@@ -81,8 +81,8 @@ public final class Frustum {
         double x1 = dx * cosYaw - dz * sinYaw;
         double z1 = dx * sinYaw + dz * cosYaw;
 
-        double y2 = dy * cosNegPitch - z1 * sinNegPitch;
-        double z2 = dy * sinNegPitch + z1 * cosNegPitch;
+        double y2 = dy * cosPitch - z1 * sinPitch;
+        double z2 = dy * sinPitch + z1 * cosPitch;
 
         if (z2 < nearPlane - radius || z2 > farPlane + radius) {
             return false;
@@ -119,8 +119,8 @@ public final class Frustum {
         double x1 = dx * cosYaw - dz * sinYaw;
         double z1 = dx * sinYaw + dz * cosYaw;
 
-        double y2 = dy * cosNegPitch - z1 * sinNegPitch;
-        double z2 = dy * sinNegPitch + z1 * cosNegPitch;
+        double y2 = dy * cosPitch - z1 * sinPitch;
+        double z2 = dy * sinPitch + z1 * cosPitch;
 
         if (z2 < nearPlane || z2 > farPlane) {
             return false;
@@ -136,13 +136,19 @@ public final class Frustum {
         return nearPlane;
     }
 
-    public record CameraPoint(double x, double y, double z) {
-    }
+    public static final class CameraPoint {
+        public double x;
+        public double y;
+        public double z;
 
-    public static final class MutableCameraPoint {
-        private double x;
-        private double y;
-        private double z;
+        public CameraPoint() {
+        }
+
+        public CameraPoint(double x, double y, double z) {
+            this.x = x;
+            this.y = y;
+            this.z = z;
+        }
 
         private void set(double x, double y, double z) {
             this.x = x;

@@ -29,6 +29,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import org.lwjgl.opengl.GL;
+import org.lwjgl.opengl.GL20;
 import org.lwjgl.opengl.GLCapabilities;
 import org.lwjgl.opengl.ARBMultiDrawIndirect;
 import org.lwjgl.opengl.GL43;
@@ -118,6 +119,22 @@ public final class GpuChunkRenderer implements AutoCloseable {
     private static final int VERTEX_STRIDE_BYTES = ChunkMesher.GPU_VERTEX_STRIDE_BYTES;
     private static final long POSITION_OFFSET_BYTES = 0L;
     private static final long COLOR_OFFSET_BYTES = ChunkMesher.GPU_COLOR_OFFSET_BYTES;
+    private static final String AMBIENT_VERTEX_SHADER_SOURCE = """
+        #version 120
+        uniform float uAmbient;
+        varying vec4 vColor;
+        void main() {
+            gl_Position = ftransform();
+            vColor = gl_Color * vec4(uAmbient, uAmbient, uAmbient, 1.0);
+        }
+        """;
+    private static final String AMBIENT_FRAGMENT_SHADER_SOURCE = """
+        #version 120
+        varying vec4 vColor;
+        void main() {
+            gl_FragColor = vColor;
+        }
+        """;
 
     private final ChunkMesher mesher = new ChunkMesher();
     private final Frustum frustum = new Frustum();
@@ -196,6 +213,8 @@ public final class GpuChunkRenderer implements AutoCloseable {
     private int mdiIndirectBufferCapacityBytes;
     private ByteBuffer mdiCommandUploadBytes;
     private int[] mdiCommandScratch = new int[5 * 64];
+    private int ambientShaderProgramId;
+    private int ambientUniformLocation = -1;
     private volatile String latestTitleStats = "gpu init";
 
     public GpuChunkRenderer() {
@@ -217,6 +236,7 @@ public final class GpuChunkRenderer implements AutoCloseable {
     public RenderStats render(int width, int height, GameClient gameClient) {
         long renderStarted = System.nanoTime();
         initializeCapabilitiesIfNeeded();
+        ensureAmbientShaderProgram();
         frameSequence++;
         int safeWidth = Math.max(1, width);
         int safeHeight = Math.max(1, height);
@@ -301,6 +321,11 @@ public final class GpuChunkRenderer implements AutoCloseable {
             glDeleteBuffers(mdiIndirectBufferId);
             mdiIndirectBufferId = 0;
             mdiIndirectBufferCapacityBytes = 0;
+        }
+        if (ambientShaderProgramId != 0) {
+            GL20.glDeleteProgram(ambientShaderProgramId);
+            ambientShaderProgramId = 0;
+            ambientUniformLocation = -1;
         }
         mdiCommandUploadBytes = null;
         uploadBufferPool.clear();
@@ -509,6 +534,10 @@ public final class GpuChunkRenderer implements AutoCloseable {
         scratchOcclusionCandidates.clear();
         scratchMdiChunks.clear();
 
+        GL20.glUseProgram(ambientShaderProgramId);
+        GL20.glUniform1f(ambientUniformLocation, ambient);
+        stateChanges += 2;
+
         glEnableClientState(GL_VERTEX_ARRAY);
         glEnableClientState(GL_COLOR_ARRAY);
 
@@ -641,6 +670,8 @@ public final class GpuChunkRenderer implements AutoCloseable {
             glBindBuffer(GL_DRAW_INDIRECT_BUFFER, 0);
             stateChanges++;
         }
+        GL20.glUseProgram(0);
+        stateChanges++;
         glDisableClientState(GL_COLOR_ARRAY);
         glDisableClientState(GL_VERTEX_ARRAY);
 
@@ -1088,6 +1119,75 @@ public final class GpuChunkRenderer implements AutoCloseable {
                 Math.max(1, features.sharedChunkArenaIndexMb()) * 1024 * 1024
             );
         }
+    }
+
+    private void ensureAmbientShaderProgram() {
+        if (ambientShaderProgramId != 0) {
+            return;
+        }
+
+        int vertexShader = 0;
+        int fragmentShader = 0;
+        int program = 0;
+        try {
+            vertexShader = compileShader(GL20.GL_VERTEX_SHADER, AMBIENT_VERTEX_SHADER_SOURCE, "vertex");
+            fragmentShader = compileShader(GL20.GL_FRAGMENT_SHADER, AMBIENT_FRAGMENT_SHADER_SOURCE, "fragment");
+
+            program = GL20.glCreateProgram();
+            GL20.glAttachShader(program, vertexShader);
+            GL20.glAttachShader(program, fragmentShader);
+            GL20.glLinkProgram(program);
+
+            int linkStatus = GL20.glGetProgrami(program, GL20.GL_LINK_STATUS);
+            String programLog = GL20.glGetProgramInfoLog(program);
+            if (linkStatus == 0) {
+                if (programLog != null && !programLog.isBlank()) {
+                    System.err.println("[gpu-shader] ambient program link failed:\n" + programLog);
+                }
+                throw new IllegalStateException("Failed to link ambient shader program");
+            }
+            if (programLog != null && !programLog.isBlank()) {
+                System.out.println("[gpu-shader] ambient program link log:\n" + programLog);
+            }
+
+            int uniformLoc = GL20.glGetUniformLocation(program, "uAmbient");
+            if (uniformLoc < 0) {
+                throw new IllegalStateException("Ambient shader missing uniform uAmbient");
+            }
+
+            ambientShaderProgramId = program;
+            ambientUniformLocation = uniformLoc;
+            program = 0;
+        } finally {
+            if (program != 0) {
+                GL20.glDeleteProgram(program);
+            }
+            if (vertexShader != 0) {
+                GL20.glDeleteShader(vertexShader);
+            }
+            if (fragmentShader != 0) {
+                GL20.glDeleteShader(fragmentShader);
+            }
+        }
+    }
+
+    private static int compileShader(int shaderType, String source, String label) {
+        int shaderId = GL20.glCreateShader(shaderType);
+        GL20.glShaderSource(shaderId, source);
+        GL20.glCompileShader(shaderId);
+        int compileStatus = GL20.glGetShaderi(shaderId, GL20.GL_COMPILE_STATUS);
+        String shaderLog = GL20.glGetShaderInfoLog(shaderId);
+        if (compileStatus == 0) {
+            if (shaderLog != null && !shaderLog.isBlank()) {
+                System.err.println("[gpu-shader] ambient " + label + " compile failed:\n" + shaderLog);
+            }
+            GL20.glDeleteShader(shaderId);
+            throw new IllegalStateException("Failed to compile ambient " + label + " shader");
+        }
+        if (shaderLog != null && !shaderLog.isBlank()) {
+            System.out.println("[gpu-shader] ambient " + label + " compile log:\n" + shaderLog);
+        }
+        return shaderId;
     }
 
     private static void configureProjection(int width, int height) {

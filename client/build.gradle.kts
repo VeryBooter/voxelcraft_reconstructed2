@@ -5,6 +5,7 @@ plugins {
 val lwjglVersion = "3.3.4"
 val osName = System.getProperty("os.name").lowercase()
 val archName = System.getProperty("os.arch").lowercase()
+val isMac = osName.contains("mac")
 
 val lwjglNatives = when {
     osName.contains("mac") && (archName.contains("aarch64") || archName.contains("arm64")) -> "natives-macos-arm64"
@@ -56,9 +57,14 @@ fun registerClientRunTask(name: String, renderMode: String, headless: Boolean = 
         configureOptionalDiagnosticsJvmArgs()
         if (headless) {
             jvmArgs("-Djava.awt.headless=true")
-        } else if (renderMode == "software") {
-            // Hint Java2D to prefer GPU-backed pipelines when available.
-            jvmArgs("-Dsun.java2d.opengl=true", "-Dsun.java2d.metal=true")
+        } else {
+            if (isMac) {
+                jvmArgs("-XstartOnFirstThread")
+            }
+            if (renderMode == "software") {
+                // Hint Java2D to prefer GPU-backed pipelines when available.
+                jvmArgs("-Dsun.java2d.opengl=true", "-Dsun.java2d.metal=true")
+            }
         }
         args("--render", renderMode)
 
@@ -80,6 +86,9 @@ tasks.register<JavaExec>("runAccelerated") {
     mainClass.set(application.mainClass)
     forwardVoxelcraftSystemProperties()
     configureOptionalDiagnosticsJvmArgs()
+    if (isMac) {
+        jvmArgs("-XstartOnFirstThread")
+    }
     jvmArgs("-Dvoxelcraft.vsync=0")
     args("--render", "gpu")
 
@@ -107,6 +116,9 @@ tasks.register<JavaExec>("runGpuLocal") {
     mainClass.set(application.mainClass)
     forwardVoxelcraftSystemProperties()
     configureOptionalDiagnosticsJvmArgs()
+    if (isMac) {
+        jvmArgs("-XstartOnFirstThread")
+    }
     args("--render", "gpu", "--connect", "127.0.0.1:25565")
 }
 
@@ -117,6 +129,9 @@ tasks.register<JavaExec>("runAcceleratedLocal") {
     mainClass.set(application.mainClass)
     forwardVoxelcraftSystemProperties()
     configureOptionalDiagnosticsJvmArgs()
+    if (isMac) {
+        jvmArgs("-XstartOnFirstThread")
+    }
     jvmArgs("-Dvoxelcraft.vsync=0")
     args("--render", "gpu", "--connect", "127.0.0.1:25565")
 }

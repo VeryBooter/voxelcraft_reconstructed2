@@ -47,7 +47,6 @@ public final class ChunkMesher {
     private int cachedMinY = Integer.MIN_VALUE;
     private int cachedMaxY = Integer.MAX_VALUE;
     private Mesh cachedMesh = new Mesh(List.of());
-    private final ThreadLocal<SoftwareBuildScratch> softwareScratch = ThreadLocal.withInitial(SoftwareBuildScratch::new);
     private final ThreadLocal<MeshBuildScratch> gpuScratch = ThreadLocal.withInitial(MeshBuildScratch::new);
     private final SnapshotBlockArrayPool snapshotBlockPool = new SnapshotBlockArrayPool(32);
 
@@ -60,16 +59,31 @@ public final class ChunkMesher {
             return cachedMesh;
         }
 
-        SoftwareBuildScratch scratch = softwareScratch.get();
-        ArrayList<Mesh.ChunkBatch> chunkBatches = scratch.chunkBatches;
-        chunkBatches.clear();
+        List<Mesh.ChunkBatch> chunkBatches = new ArrayList<>();
         for (Chunk chunk : worldView.loadedChunks()) {
             int chunkBaseX = chunk.pos().x() * Section.SIZE;
             int chunkBaseZ = chunk.pos().z() * Section.SIZE;
-            scratch.beginChunk(worldView, chunkBaseX, chunkBaseZ);
-            chunk.forEachNonAirInRange(minY, maxY, scratch.consumer);
-            if (scratch.hasFaces()) {
-                chunkBatches.add(scratch.finishChunkBatch(minY));
+            List<Mesh.Face> facesForChunk = new ArrayList<>();
+            int[] chunkYRange = {Integer.MAX_VALUE, Integer.MIN_VALUE};
+
+            chunk.forEachNonAirInRange(minY, maxY, (localX, y, localZ, block) -> {
+                int worldX = chunkBaseX + localX;
+                int worldZ = chunkBaseZ + localZ;
+                if (block != Blocks.AIR && block.solid()) {
+                    if (y < chunkYRange[0]) {
+                        chunkYRange[0] = y;
+                    }
+                    if (y > chunkYRange[1]) {
+                        chunkYRange[1] = y;
+                    }
+                }
+                addVisibleFaces(worldView, facesForChunk, block, worldX, y, worldZ);
+            });
+
+            if (!facesForChunk.isEmpty()) {
+                double chunkMinY = chunkYRange[0] == Integer.MAX_VALUE ? minY : chunkYRange[0];
+                double chunkMaxY = chunkYRange[1] == Integer.MIN_VALUE ? (minY + 1.0) : (chunkYRange[1] + 1.0);
+                chunkBatches.add(new Mesh.ChunkBatch(chunkBaseX, chunkBaseZ, chunkMinY, chunkMaxY, facesForChunk));
             }
         }
 
@@ -714,63 +728,6 @@ public final class ChunkMesher {
             Vec3 v2 = direction.vertex(x, y, z, 2);
             Vec3 v3 = direction.vertex(x, y, z, 3);
             outFaces.add(new Mesh.Face(v0, v1, v2, v3, shaded));
-        }
-    }
-
-    private static final class SoftwareBuildScratch {
-        private final ArrayList<Mesh.ChunkBatch> chunkBatches = new ArrayList<>();
-        private final ArrayList<Mesh.Face> chunkFaces = new ArrayList<>();
-        private final ChunkFaceCollector consumer = new ChunkFaceCollector(this);
-        private ClientWorldView worldView;
-        private int chunkBaseX;
-        private int chunkBaseZ;
-        private int minSolidY = Integer.MAX_VALUE;
-        private int maxSolidY = Integer.MIN_VALUE;
-
-        private void beginChunk(ClientWorldView worldView, int chunkBaseX, int chunkBaseZ) {
-            this.worldView = worldView;
-            this.chunkBaseX = chunkBaseX;
-            this.chunkBaseZ = chunkBaseZ;
-            this.minSolidY = Integer.MAX_VALUE;
-            this.maxSolidY = Integer.MIN_VALUE;
-            chunkFaces.clear();
-        }
-
-        private boolean hasFaces() {
-            return !chunkFaces.isEmpty();
-        }
-
-        private Mesh.ChunkBatch finishChunkBatch(int fallbackMinY) {
-            double chunkMinY = minSolidY == Integer.MAX_VALUE ? fallbackMinY : minSolidY;
-            double chunkMaxY = maxSolidY == Integer.MIN_VALUE ? (fallbackMinY + 1.0) : (maxSolidY + 1.0);
-            return new Mesh.ChunkBatch(chunkBaseX, chunkBaseZ, chunkMinY, chunkMaxY, chunkFaces);
-        }
-
-        private void accept(int localX, int y, int localZ, Block block) {
-            int worldX = chunkBaseX + localX;
-            int worldZ = chunkBaseZ + localZ;
-            if (block != Blocks.AIR && block.solid()) {
-                if (y < minSolidY) {
-                    minSolidY = y;
-                }
-                if (y > maxSolidY) {
-                    maxSolidY = y;
-                }
-            }
-            addVisibleFaces(worldView, chunkFaces, block, worldX, y, worldZ);
-        }
-
-        private static final class ChunkFaceCollector implements Chunk.NonAirBlockConsumer {
-            private final SoftwareBuildScratch owner;
-
-            private ChunkFaceCollector(SoftwareBuildScratch owner) {
-                this.owner = owner;
-            }
-
-            @Override
-            public void accept(int localX, int y, int localZ, Block block) {
-                owner.accept(localX, y, localZ, block);
-            }
         }
     }
 

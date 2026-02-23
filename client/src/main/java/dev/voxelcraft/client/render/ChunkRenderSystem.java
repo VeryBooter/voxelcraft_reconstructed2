@@ -7,7 +7,6 @@ import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
-import java.awt.Stroke;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -17,23 +16,6 @@ public final class ChunkRenderSystem {
     private static final boolean DRAW_FACE_OUTLINES = false;
     private static final Comparator<ProjectedFace> PROJECTED_FACE_DEPTH_DESC =
         Comparator.comparingDouble(ProjectedFace::averageDepth).reversed();
-    private static final Stroke SELECTION_BOX_STROKE = new BasicStroke(2.0f);
-    private static final Color SELECTION_BOX_COLOR = new Color(255, 255, 255, 220);
-    private static final int[][] SELECTION_BOX_CORNER_OFFSETS = {
-        {0, 0, 0},
-        {1, 0, 0},
-        {1, 1, 0},
-        {0, 1, 0},
-        {0, 0, 1},
-        {1, 0, 1},
-        {1, 1, 1},
-        {0, 1, 1}
-    };
-    private static final int[][] SELECTION_BOX_EDGES = {
-        {0, 1}, {1, 2}, {2, 3}, {3, 0},
-        {4, 5}, {5, 6}, {6, 7}, {7, 4},
-        {0, 4}, {1, 5}, {2, 6}, {3, 7}
-    };
 
     private static final float VERTICAL_FOV_DEGREES = 75.0f;
     private static final double NEAR_PLANE = 0.05;
@@ -41,22 +23,15 @@ public final class ChunkRenderSystem {
 
     private final ChunkMesher mesher = new ChunkMesher();
     private final Frustum frustum = new Frustum();
-    private final Frustum.MutableCameraPoint cameraPointScratch = new Frustum.MutableCameraPoint();
+    private final Frustum.CameraPoint scratchCamera = new Frustum.CameraPoint();
     private final MutableScreenPoint screenPointScratch = new MutableScreenPoint();
     private final ArrayList<ProjectedFace> projectedFacesScratch = new ArrayList<>();
     private final ArrayList<ProjectedFace> projectedFacePool = new ArrayList<>();
-    private final MutableScreenPoint[] selectionBoxPointsScratch = new MutableScreenPoint[SELECTION_BOX_CORNER_OFFSETS.length];
     private int projectedFacePoolUsed;
 
     private int viewportWidth;
     private int viewportHeight;
     private double focalLength;
-
-    public ChunkRenderSystem() {
-        for (int i = 0; i < selectionBoxPointsScratch.length; i++) {
-            selectionBoxPointsScratch[i] = new MutableScreenPoint();
-        }
-    }
 
     public RenderStats draw(Graphics2D graphics, int width, int height, ClientWorldView worldView, PlayerController player) {
         updateCamera(player, width, height);
@@ -111,20 +86,38 @@ public final class ChunkRenderSystem {
         int y = blockPos.y();
         int z = blockPos.z();
 
-        for (int i = 0; i < SELECTION_BOX_CORNER_OFFSETS.length; i++) {
-            int[] offset = SELECTION_BOX_CORNER_OFFSETS[i];
-            if (!projectPointInto(x + offset[0], y + offset[1], z + offset[2], selectionBoxPointsScratch[i])) {
+        Vec3[] corners = {
+            new Vec3(x, y, z),
+            new Vec3(x + 1, y, z),
+            new Vec3(x + 1, y + 1, z),
+            new Vec3(x, y + 1, z),
+            new Vec3(x, y, z + 1),
+            new Vec3(x + 1, y, z + 1),
+            new Vec3(x + 1, y + 1, z + 1),
+            new Vec3(x, y + 1, z + 1)
+        };
+
+        ScreenPoint[] points = new ScreenPoint[8];
+        for (int i = 0; i < corners.length; i++) {
+            points[i] = projectPoint(corners[i]);
+            if (points[i] == null) {
                 return;
             }
         }
 
+        int[][] edges = {
+            {0, 1}, {1, 2}, {2, 3}, {3, 0},
+            {4, 5}, {5, 6}, {6, 7}, {7, 4},
+            {0, 4}, {1, 5}, {2, 6}, {3, 7}
+        };
+
         java.awt.Stroke previousStroke = graphics.getStroke();
-        graphics.setStroke(SELECTION_BOX_STROKE);
-        graphics.setColor(SELECTION_BOX_COLOR);
-        for (int[] edge : SELECTION_BOX_EDGES) {
-            MutableScreenPoint a = selectionBoxPointsScratch[edge[0]];
-            MutableScreenPoint b = selectionBoxPointsScratch[edge[1]];
-            graphics.drawLine(a.screenX, a.screenY, b.screenX, b.screenY);
+        graphics.setStroke(new BasicStroke(2.0f));
+        graphics.setColor(new Color(255, 255, 255, 220));
+        for (int[] edge : edges) {
+            ScreenPoint a = points[edge[0]];
+            ScreenPoint b = points[edge[1]];
+            graphics.drawLine(a.screenX(), a.screenY(), b.screenX(), b.screenY());
         }
         graphics.setStroke(previousStroke);
     }
@@ -198,21 +191,17 @@ public final class ChunkRenderSystem {
     }
 
     private boolean projectPointInto(Vec3 worldPoint, MutableScreenPoint out) {
-        return projectPointInto(worldPoint.x(), worldPoint.y(), worldPoint.z(), out);
-    }
-
-    private boolean projectPointInto(double worldX, double worldY, double worldZ, MutableScreenPoint out) {
-        frustum.toCameraSpace(worldX, worldY, worldZ, cameraPointScratch);
-        if (cameraPointScratch.z() <= frustum.nearPlane()) {
+        frustum.toCameraSpace(worldPoint.x(), worldPoint.y(), worldPoint.z(), scratchCamera);
+        if (scratchCamera.z <= frustum.nearPlane()) {
             return false;
         }
 
-        double ndcX = cameraPointScratch.x() / cameraPointScratch.z();
-        double ndcY = cameraPointScratch.y() / cameraPointScratch.z();
+        double ndcX = scratchCamera.x / scratchCamera.z;
+        double ndcY = scratchCamera.y / scratchCamera.z;
 
         out.screenX = (int) Math.round(viewportWidth * 0.5 + ndcX * focalLength);
         out.screenY = (int) Math.round(viewportHeight * 0.5 - ndcY * focalLength);
-        out.depth = cameraPointScratch.z();
+        out.depth = scratchCamera.z;
         return true;
     }
 

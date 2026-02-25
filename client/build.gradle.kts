@@ -36,7 +36,7 @@ fun JavaExec.forwardVoxelcraftSystemProperties() {
     System.getProperties()
         .stringPropertyNames()
         .asSequence()
-        .filter { it.startsWith("voxelcraft.") }
+        .filter { it.startsWith("voxelcraft.") || it.startsWith("vc.") }
         .sorted()
         .forEach { key -> systemProperty(key, System.getProperty(key)) }
 }

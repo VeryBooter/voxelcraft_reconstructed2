@@ -152,6 +152,7 @@ public final class GpuChunkRenderer implements AutoCloseable {
     private static final int DEFAULT_SHARED_ARENA_VERTEX_MB = 128;
     // 中文标注（字段）：`DEFAULT_SHARED_ARENA_INDEX_MB`，含义：用于表示默认、shared、arena、索引、mb。
     private static final int DEFAULT_SHARED_ARENA_INDEX_MB = 64;
+    private static final int MAX_CULL_LOGS_PER_FRAME = 32;
     // 中文标注（字段）：`VERTEX_STRIDE_BYTES`，含义：用于表示顶点、步长、字节数据。
     private static final int VERTEX_STRIDE_BYTES = ChunkMesher.GPU_VERTEX_STRIDE_BYTES;
     // 中文标注（字段）：`POSITION_OFFSET_BYTES`，含义：用于表示位置、偏移、字节数据。
@@ -408,7 +409,7 @@ public final class GpuChunkRenderer implements AutoCloseable {
             // 中文标注（局部变量）：`drawLoopStarted`，含义：用于表示绘制、loop、started。
             long drawLoopStarted = System.nanoTime();
             // 中文标注（局部变量）：`frameStats`，含义：用于表示帧、stats。
-            FrameStats frameStats = renderVisibleChunks(frameSet.chunks(), ambient);
+            FrameStats frameStats = renderVisibleChunks(frameSet.chunks(), ambient, player);
             lastDrawLoopNanos = System.nanoTime() - drawLoopStarted;
             // 中文标注（局部变量）：`renderCpuNanos`，含义：用于表示渲染、CPU、nanos。
             long renderCpuNanos = System.nanoTime() - renderStarted;
@@ -438,8 +439,12 @@ public final class GpuChunkRenderer implements AutoCloseable {
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         glEnable(GL_DEPTH_TEST);
-        glEnable(GL_CULL_FACE);
-        glCullFace(GL_BACK);
+        if (features.disableFaceCulling()) {
+            glDisable(GL_CULL_FACE);
+        } else {
+            glEnable(GL_CULL_FACE);
+            glCullFace(GL_BACK);
+        }
         // We use a Z reflection in the view transform to match the engine's +Z-forward camera convention.
         // Reflection flips winding, so front-face must be switched to CW for correct culling.
         glFrontFace(GL_CW);
@@ -932,8 +937,8 @@ public final class GpuChunkRenderer implements AutoCloseable {
     // 中文标注（方法）：`renderVisibleChunks`，参数：chunksInRange、ambient；用途：执行渲染或图形资源处理：渲染、visible、区块集合。
     // 中文标注（参数）：`chunksInRange`，含义：用于表示区块集合、in、范围。
     // 中文标注（参数）：`ambient`，含义：用于表示环境光。
-    private FrameStats renderVisibleChunks(List<Chunk> chunksInRange, float ambient) {
-        VisibleChunkRenderPass pass = beginVisibleChunkRenderPass(ambient);
+    private FrameStats renderVisibleChunks(List<Chunk> chunksInRange, float ambient, PlayerController player) {
+        VisibleChunkRenderPass pass = beginVisibleChunkRenderPass(ambient, player);
         try {
             for (Chunk chunk : chunksInRange) {
                 processVisibleChunkCandidate(pass, chunk);
@@ -950,11 +955,23 @@ public final class GpuChunkRenderer implements AutoCloseable {
         return pass.toFrameStats();
     }
 
-    private VisibleChunkRenderPass beginVisibleChunkRenderPass(float ambient) {
-        boolean occlusionEnabled = features.occlusionQuery() && supportsOcclusionQuery && occlusionBoxMesh != null;
+    private VisibleChunkRenderPass beginVisibleChunkRenderPass(float ambient, PlayerController player) {
+        boolean occlusionEnabled = !features.disableChunkOcclusionCull()
+            && features.occlusionQuery()
+            && supportsOcclusionQuery
+            && occlusionBoxMesh != null;
         boolean mdiEnabled = features.mdi() && supportsMdi && sharedChunkBufferArena != null;
         int occlusionResultPollBudget = occlusionEnabled ? Math.max(0, features.occlusionResultPollBudget()) : 0;
-        VisibleChunkRenderPass pass = new VisibleChunkRenderPass(occlusionEnabled, mdiEnabled, occlusionResultPollBudget);
+        VisibleChunkRenderPass pass = new VisibleChunkRenderPass(
+            occlusionEnabled,
+            mdiEnabled,
+            occlusionResultPollBudget,
+            player.eyeX(),
+            player.eyeY(),
+            player.eyeZ(),
+            player.yaw(),
+            player.pitch()
+        );
         scratchOcclusionCandidates.clear();
         scratchMdiChunks.clear();
 
@@ -973,7 +990,7 @@ public final class GpuChunkRenderer implements AutoCloseable {
             return;
         }
 
-        if (!isGpuChunkFrustumVisible(gpuChunk)) {
+        if (!isGpuChunkFrustumVisible(pass, gpuChunk)) {
             return;
         }
 
@@ -992,7 +1009,7 @@ public final class GpuChunkRenderer implements AutoCloseable {
         drawVisibleChunkImmediate(pass, gpuChunk);
     }
 
-    private boolean isGpuChunkFrustumVisible(GpuChunk gpuChunk) {
+    private boolean isGpuChunkFrustumVisible(VisibleChunkRenderPass pass, GpuChunk gpuChunk) {
         if (features.disableChunkFrustumCull()) {
             return true;
         }
@@ -1005,7 +1022,7 @@ public final class GpuChunkRenderer implements AutoCloseable {
         double cullMaxZ = cullMinZ + Section.SIZE;
         double cullMinY = gpuChunk.fullHeightMeshingUploaded ? World.MIN_Y : gpuChunk.minY;
         double cullMaxY = gpuChunk.fullHeightMeshingUploaded ? (World.MAX_Y + 1.0) : gpuChunk.maxY;
-        return frustum.isAabbVisible(
+        Frustum.AabbVisibilityResult visibility = frustum.classifyAabb(
             cullMinX,
             cullMinY,
             cullMinZ,
@@ -1013,9 +1030,27 @@ public final class GpuChunkRenderer implements AutoCloseable {
             cullMaxY,
             cullMaxZ
         );
+        if (!visibility.visible()) {
+            logChunkCull(
+                pass,
+                gpuChunk,
+                "FRUSTUM",
+                cullMinX,
+                cullMinY,
+                cullMinZ,
+                cullMaxX,
+                cullMaxY,
+                cullMaxZ,
+                visibility.rejectPlaneIndex()
+            );
+        }
+        return visibility.visible();
     }
 
     private void pollGpuChunkOcclusionIfNeeded(VisibleChunkRenderPass pass, GpuChunk gpuChunk) {
+        if (!pass.occlusionEnabled) {
+            return;
+        }
         if (!gpuChunk.hasPendingOcclusionQuery()) {
             return;
         }
@@ -1039,7 +1074,57 @@ public final class GpuChunkRenderer implements AutoCloseable {
             return true;
         }
         perfOcclusionCulledChunks++;
+        logChunkCull(
+            pass,
+            gpuChunk,
+            "OCCLUSION",
+            gpuChunk.minX,
+            gpuChunk.minY,
+            gpuChunk.minZ,
+            gpuChunk.maxX,
+            gpuChunk.maxY,
+            gpuChunk.maxZ,
+            -1
+        );
         return false;
+    }
+
+    private void logChunkCull(
+        VisibleChunkRenderPass pass,
+        GpuChunk gpuChunk,
+        String reason,
+        double minX,
+        double minY,
+        double minZ,
+        double maxX,
+        double maxY,
+        double maxZ,
+        int planeIndex
+    ) {
+        if (pass.cullLogsEmitted >= MAX_CULL_LOGS_PER_FRAME) {
+            return;
+        }
+        pass.cullLogsEmitted++;
+        String planeName = planeIndex >= 0 ? Frustum.planeName(planeIndex) : "N/A";
+        System.out.printf(
+            "[gpu-cull] chunk=(%d,%d) reason=%s plane=%d planeName=%s cam=(%.2f,%.2f,%.2f) yaw=%.1f pitch=%.1f aabb=[(%.2f,%.2f,%.2f)->(%.2f,%.2f,%.2f)]%n",
+            gpuChunk.pos.x(),
+            gpuChunk.pos.z(),
+            reason,
+            planeIndex,
+            planeName,
+            pass.cameraX,
+            pass.cameraY,
+            pass.cameraZ,
+            pass.cameraYaw,
+            pass.cameraPitch,
+            minX,
+            minY,
+            minZ,
+            maxX,
+            maxY,
+            maxZ
+        );
     }
 
     private void recordVisibleChunk(VisibleChunkRenderPass pass, Chunk chunk, GpuChunk gpuChunk) {
@@ -1219,7 +1304,11 @@ public final class GpuChunkRenderer implements AutoCloseable {
         glBindBuffer(GL_ARRAY_BUFFER, 0);
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
         glDisableClientState(GL_VERTEX_ARRAY);
-        glEnable(GL_CULL_FACE);
+        if (features.disableFaceCulling()) {
+            glDisable(GL_CULL_FACE);
+        } else {
+            glEnable(GL_CULL_FACE);
+        }
         glDepthMask(true);
         glColorMask(true, true, true, true);
         pass.stateChanges += 4;
@@ -2035,13 +2124,33 @@ public final class GpuChunkRenderer implements AutoCloseable {
         private int boundElementBuffer;
         private int boundIndirectBuffer;
         private int occlusionResultPollBudget;
+        private int cullLogsEmitted;
         private final boolean occlusionEnabled;
         private final boolean mdiEnabled;
+        private final double cameraX;
+        private final double cameraY;
+        private final double cameraZ;
+        private final float cameraYaw;
+        private final float cameraPitch;
 
-        private VisibleChunkRenderPass(boolean occlusionEnabled, boolean mdiEnabled, int occlusionResultPollBudget) {
+        private VisibleChunkRenderPass(
+            boolean occlusionEnabled,
+            boolean mdiEnabled,
+            int occlusionResultPollBudget,
+            double cameraX,
+            double cameraY,
+            double cameraZ,
+            float cameraYaw,
+            float cameraPitch
+        ) {
             this.occlusionEnabled = occlusionEnabled;
             this.mdiEnabled = mdiEnabled;
             this.occlusionResultPollBudget = occlusionResultPollBudget;
+            this.cameraX = cameraX;
+            this.cameraY = cameraY;
+            this.cameraZ = cameraZ;
+            this.cameraYaw = cameraYaw;
+            this.cameraPitch = cameraPitch;
         }
 
         private FrameStats toFrameStats() {
@@ -2122,6 +2231,10 @@ public final class GpuChunkRenderer implements AutoCloseable {
         boolean fullHeightMeshing,
         // 中文标注（字段）：`disableChunkFrustumCull`，含义：用于表示disable、区块、视锥体、cull。
         boolean disableChunkFrustumCull,
+        // 中文标注（字段）：`disableChunkOcclusionCull`，含义：用于表示disable、区块、遮挡、cull。
+        boolean disableChunkOcclusionCull,
+        // 中文标注（字段）：`disableFaceCulling`，含义：用于表示disable、face、culling。
+        boolean disableFaceCulling,
         // 中文标注（字段）：`lod`，含义：用于表示细节层级。
         boolean lod,
         // 中文标注（字段）：`lodStartChunkDistance`，含义：用于表示细节层级、开始、区块、distance。
@@ -2175,6 +2288,8 @@ public final class GpuChunkRenderer implements AutoCloseable {
             ResolvedBoolean fullHeightMeshing = flagCompat("vc.gpu.fullHeightMeshing", "voxelcraft.gpu.fullHeightMeshing", false);
             // 中文标注（局部变量）：`disableChunkFrustumCull`，含义：用于表示disable、区块、视锥体、cull。
             ResolvedBoolean disableChunkFrustumCull = flagCompat("vc.gpu.disableChunkFrustumCull", "voxelcraft.gpu.disableChunkFrustumCull", false);
+            ResolvedBoolean disableChunkOcclusionCull = flagCompat("vc.gpu.disableChunkOcclusionCull", "voxelcraft.gpu.disableChunkOcclusionCull", false);
+            ResolvedBoolean disableFaceCulling = flagCompat("vc.gpu.disableFaceCulling", "voxelcraft.gpu.disableFaceCulling", false);
             // 中文标注（局部变量）：`lod`，含义：用于表示细节层级。
             ResolvedBoolean lod = flagCompat("vc.gpu.lod", "voxelcraft.gpu.lod", false);
             // 中文标注（局部变量）：`lodStartChunkDistance`，含义：用于表示细节层级、开始、区块、distance。
@@ -2209,6 +2324,8 @@ public final class GpuChunkRenderer implements AutoCloseable {
                 uploadTimeBudgetMs,
                 fullHeightMeshing.value(),
                 disableChunkFrustumCull.value(),
+                disableChunkOcclusionCull.value(),
+                disableFaceCulling.value(),
                 lod.value(),
                 lodStartChunkDistance,
                 lodHysteresisChunks,

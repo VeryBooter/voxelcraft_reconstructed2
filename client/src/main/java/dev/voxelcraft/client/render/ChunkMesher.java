@@ -1058,12 +1058,15 @@ public final class ChunkMesher {
         vertices.appendVertex(x2, y2, z2, packedColor);
         vertices.appendVertex(x3, y3, z3, packedColor);
 
+        // 统一 GPU 面 winding 为 CCW（世界空间外向法线）。
+        // GpuChunkRenderer 在 view 变换里做了 Z 反射，并通过 glFrontFace(GL_CW) 做补偿；
+        // 因此这里必须保持一致的外向 CCW，不能混用/反向，否则会出现地面等面被背面裁剪误删。
         indices.append(baseVertex);
+        indices.append(baseVertex + 2);
         indices.append(baseVertex + 1);
         indices.append(baseVertex + 2);
-        indices.append(baseVertex + 2);
-        indices.append(baseVertex + 3);
         indices.append(baseVertex);
+        indices.append(baseVertex + 3);
 
         bounds.include(x0, y0, z0);
         bounds.include(x1, y1, z1);

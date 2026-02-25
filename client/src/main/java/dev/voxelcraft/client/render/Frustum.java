@@ -5,6 +5,14 @@ package dev.voxelcraft.client.render;
 
 // 中文标注（类）：`Frustum`，职责：封装视锥体相关逻辑。
 public final class Frustum {
+    private static final int OUT_LEFT = 1 << 0;
+    private static final int OUT_RIGHT = 1 << 1;
+    private static final int OUT_BOTTOM = 1 << 2;
+    private static final int OUT_TOP = 1 << 3;
+    private static final int OUT_NEAR = 1 << 4;
+    private static final int OUT_FAR = 1 << 5;
+    private static final int ALL_OUT_PLANES_MASK = OUT_LEFT | OUT_RIGHT | OUT_BOTTOM | OUT_TOP | OUT_NEAR | OUT_FAR;
+
     // 中文标注（字段）：`cameraX`，含义：用于表示相机、X坐标。
     private double cameraX;
     // 中文标注（字段）：`cameraY`，含义：用于表示相机、Y坐标。
@@ -168,30 +176,29 @@ public final class Frustum {
     // 中文标注（参数）：`maxY`，含义：用于表示最大、Y坐标。
     // 中文标注（参数）：`maxZ`，含义：用于表示最大、Z坐标。
     public boolean isAabbVisible(double minX, double minY, double minZ, double maxX, double maxY, double maxZ) {
+        return rejectionMaskForAabb(minX, minY, minZ, maxX, maxY, maxZ) == 0;
+    }
+
+    /**
+     * 中文说明：AABB 诊断分类：返回可见性与（若被拒绝）共同外侧平面编号，便于 GPU 剔除日志定位。
+     */
+    public AabbVisibilityResult classifyAabb(double minX, double minY, double minZ, double maxX, double maxY, double maxZ) {
+        int rejectMask = rejectionMaskForAabb(minX, minY, minZ, maxX, maxY, maxZ);
+        return rejectMask == 0 ? AabbVisibilityResult.visibleResult() : AabbVisibilityResult.rejectedResult(rejectMask);
+    }
+
+    private int rejectionMaskForAabb(double minX, double minY, double minZ, double maxX, double maxY, double maxZ) {
         if (cameraX >= minX && cameraX <= maxX
             && cameraY >= minY && cameraY <= maxY
             && cameraZ >= minZ && cameraZ <= maxZ) {
-            return true;
+            return 0;
         }
 
         // 保守的 AABB 视锥拒绝测试：
         // transform the 8 AABB corners into camera space (no allocations, cached trig),
         // then reject only if all corners lie outside the same frustum plane.
-        // 中文标注（局部变量）：`OUT_LEFT`，含义：用于表示out、left。
-        final int OUT_LEFT = 1 << 0;
-        // 中文标注（局部变量）：`OUT_RIGHT`，含义：用于表示out、right。
-        final int OUT_RIGHT = 1 << 1;
-        // 中文标注（局部变量）：`OUT_BOTTOM`，含义：用于表示out、底面。
-        final int OUT_BOTTOM = 1 << 2;
-        // 中文标注（局部变量）：`OUT_TOP`，含义：用于表示out、顶面。
-        final int OUT_TOP = 1 << 3;
-        // 中文标注（局部变量）：`OUT_NEAR`，含义：用于表示out、near。
-        final int OUT_NEAR = 1 << 4;
-        // 中文标注（局部变量）：`OUT_FAR`，含义：用于表示out、far。
-        final int OUT_FAR = 1 << 5;
-
         // 中文标注（局部变量）：`andMask`，含义：用于表示and、掩码。
-        int andMask = OUT_LEFT | OUT_RIGHT | OUT_BOTTOM | OUT_TOP | OUT_NEAR | OUT_FAR;
+        int andMask = ALL_OUT_PLANES_MASK;
 
         // 中文标注（局部变量）：`ix`，含义：用于表示ix。
         for (int ix = 0; ix < 2; ix++) {
@@ -245,17 +252,52 @@ public final class Frustum {
                     }
 
                     if (mask == 0) {
-                        return true;
+                        return 0;
                     }
                     andMask &= mask;
                     if (andMask == 0) {
-                        return true;
+                        // 没有公共剔除平面，按“可能可见”处理（保守接受）。
+                        return 0;
                     }
                 }
             }
         }
 
-        return false;
+        return andMask;
+    }
+
+    public static String planeName(int planeIndex) {
+        return switch (planeIndex) {
+            case 0 -> "LEFT";
+            case 1 -> "RIGHT";
+            case 2 -> "BOTTOM";
+            case 3 -> "TOP";
+            case 4 -> "NEAR";
+            case 5 -> "FAR";
+            default -> "UNKNOWN";
+        };
+    }
+
+    private static int rejectPlaneIndexFromMask(int rejectMask) {
+        if ((rejectMask & OUT_LEFT) != 0) {
+            return 0;
+        }
+        if ((rejectMask & OUT_RIGHT) != 0) {
+            return 1;
+        }
+        if ((rejectMask & OUT_BOTTOM) != 0) {
+            return 2;
+        }
+        if ((rejectMask & OUT_TOP) != 0) {
+            return 3;
+        }
+        if ((rejectMask & OUT_NEAR) != 0) {
+            return 4;
+        }
+        if ((rejectMask & OUT_FAR) != 0) {
+            return 5;
+        }
+        return -1;
     }
 
     // 中文标注（方法）：`isPointVisibleNoRadius`，参数：worldX、worldY、worldZ；用途：判断point、visible、no、radius是否满足条件。
@@ -343,6 +385,18 @@ public final class Frustum {
         // 中文标注（方法）：`z`，参数：无；用途：执行Z坐标相关逻辑。
         public double z() {
             return z;
+        }
+    }
+
+    public record AabbVisibilityResult(boolean visible, int rejectPlaneIndex, int rejectMask) {
+        private static final AabbVisibilityResult VISIBLE = new AabbVisibilityResult(true, -1, 0);
+
+        private static AabbVisibilityResult visibleResult() {
+            return VISIBLE;
+        }
+
+        private static AabbVisibilityResult rejectedResult(int rejectMask) {
+            return new AabbVisibilityResult(false, rejectPlaneIndexFromMask(rejectMask), rejectMask);
         }
     }
 }

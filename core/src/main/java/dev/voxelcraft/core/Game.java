@@ -25,21 +25,28 @@ public final class Game {
 
     // 中文标注（方法）：`world`，参数：无；用途：执行世界相关逻辑。
     public World world() {
-        return worldStack.slice(activeW);
+        return worldStack.get(activeW);
     }
 
     public WorldStack worldStack() {
         return worldStack;
     }
 
-    public int activeW() {
+    public int w() {
         return activeW;
     }
 
-    public void switchSlice(int newW) {
+    public void switchW(int newW) {
         activeW = newW;
-        // 预热目标切片实例，避免首次访问路径分散在调用方。
-        worldStack.slice(activeW);
+        worldStack.get(activeW);
+    }
+
+    public int activeW() {
+        return w();
+    }
+
+    public void switchSlice(int newW) {
+        switchW(newW);
     }
 
     // 中文标注（方法）：`tick`，参数：无；用途：更新刻相关状态。

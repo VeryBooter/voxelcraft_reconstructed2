@@ -249,7 +249,7 @@ public final class GpuChunkRenderer implements AutoCloseable {
     private final AtomicLong uploadSequence = new AtomicLong();
     // 中文标注（字段）：`meshTaskSequence`，含义：用于表示网格、task、sequence。
     private final AtomicLong meshTaskSequence = new AtomicLong();
-    private final AtomicLong sliceEpoch = new AtomicLong();
+    private final AtomicInteger worldEpoch = new AtomicInteger();
     // 中文标注（字段）：`meshPool`，含义：用于表示网格、池。
     private final ThreadPoolExecutor meshPool;
     // 中文标注（字段）：`meshWorkerCount`，含义：用于表示网格、worker、数量。
@@ -383,7 +383,7 @@ public final class GpuChunkRenderer implements AutoCloseable {
     private volatile String latestTitleStats = "gpu init";
     // 中文标注（字段）：`closing`，含义：用于表示closing。
     private volatile boolean closing;
-    private int lastRenderedSliceW = Integer.MIN_VALUE;
+    private long lastWorldSeed = Long.MIN_VALUE;
     // 中文标注（字段）：`latestMeshCaptureMinY`，含义：用于表示latest、网格、capture、最小、Y坐标。
     private volatile int latestMeshCaptureMinY = World.MIN_Y;
     // 中文标注（字段）：`latestMeshCaptureMaxY`，含义：用于表示latest、网格、capture、最大、Y坐标。
@@ -436,7 +436,11 @@ public final class GpuChunkRenderer implements AutoCloseable {
         ClientWorldView worldView = gameClient.worldView();
         // 中文标注（局部变量）：`ambient`，含义：用于表示环境光。
         float ambient = gameClient.ambientLight();
-        handleSliceSwitchIfNeeded(gameClient.activeSliceW());
+        long worldSeed = worldView.world().seed();
+        if (worldSeed != lastWorldSeed) {
+            lastWorldSeed = worldSeed;
+            resetForWorldSwitch();
+        }
 
         prepareFrameGlState(safeWidth, safeHeight, ambient);
         try {
@@ -485,17 +489,8 @@ public final class GpuChunkRenderer implements AutoCloseable {
         return Math.max(1, value);
     }
 
-    private void handleSliceSwitchIfNeeded(int activeSliceW) {
-        if (activeSliceW == lastRenderedSliceW) {
-            return;
-        }
-        lastRenderedSliceW = activeSliceW;
-        sliceEpoch.incrementAndGet();
-        resetSliceRenderCaches();
-        System.out.printf("[gpu-slice] switched renderer cache to w=%d epoch=%d%n", activeSliceW, sliceEpoch.get());
-    }
-
-    private void resetSliceRenderCaches() {
+    private synchronized void resetForWorldSwitch() {
+        int epoch = worldEpoch.incrementAndGet();
         for (GpuChunk gpuChunk : gpuChunks.values()) {
             gpuChunk.dispose(sharedChunkBufferArena);
         }
@@ -509,6 +504,7 @@ public final class GpuChunkRenderer implements AutoCloseable {
         inFlightVersion.clear();
         recentlyVisibleFrame.clear();
         lodSelectionCache.clear();
+        System.out.printf("[gpu-world] renderer reset for world switch seed=%d epoch=%d%n", lastWorldSeed, epoch);
     }
 
     private void prepareFrameGlState(int width, int height, float ambient) {
@@ -794,7 +790,7 @@ public final class GpuChunkRenderer implements AutoCloseable {
     // 中文标注（参数）：`chunksInRange`，含义：用于表示区块集合、in、范围。
     // 中文标注（参数）：`player`，含义：用于表示玩家。
     private void submitMeshJobsForDirtyChunks(ClientWorldView worldView, List<Chunk> chunksInRange, PlayerController player) {
-        long submitSliceEpoch = sliceEpoch.get();
+        int submitWorldEpoch = worldEpoch.get();
         // 中文标注（局部变量）：`playerX`，含义：用于表示玩家、X坐标。
         double playerX = player.x();
         // 中文标注（局部变量）：`playerY`，含义：用于表示玩家、Y坐标。
@@ -912,7 +908,7 @@ public final class GpuChunkRenderer implements AutoCloseable {
                     ChunkMeshData meshData = null;
                     try {
                         meshData = mesher.buildChunkMesh(snapshot, uploadBufferPool, desiredLodLevel);
-                        if (submitSliceEpoch != sliceEpoch.get()) {
+                        if (submitWorldEpoch != worldEpoch.get()) {
                             if (meshData != null) {
                                 meshData.releaseBuffers(uploadBufferPool);
                             }
@@ -920,7 +916,7 @@ public final class GpuChunkRenderer implements AutoCloseable {
                         }
                         synchronized (uploadQueueLifecycleLock) {
                             if (closing) {
-                                if (submitSliceEpoch == sliceEpoch.get()) {
+                                if (submitWorldEpoch == worldEpoch.get()) {
                                     inFlightVersion.remove(pos, desiredBuildKey);
                                 }
                                 meshData.releaseBuffers(uploadBufferPool);
@@ -936,14 +932,14 @@ public final class GpuChunkRenderer implements AutoCloseable {
                                     desiredBuildKey,
                                     fullHeightMeshing,
                                     meshConfigHash,
-                                    submitSliceEpoch
+                                    submitWorldEpoch
                                 )
                             );
                             meshData = null;
                         }
                     // 中文标注（异常参数）：`meshFailure`，含义：用于表示mesh、failure。
                     } catch (RuntimeException meshFailure) {
-                        if (submitSliceEpoch == sliceEpoch.get()) {
+                        if (submitWorldEpoch == worldEpoch.get()) {
                             inFlightVersion.remove(pos, desiredBuildKey);
                         }
                         if (meshData != null) {
@@ -961,7 +957,7 @@ public final class GpuChunkRenderer implements AutoCloseable {
                         );
                     // 中文标注（异常参数）：`meshFailure`，含义：用于表示mesh、failure。
                     } catch (Error meshFailure) {
-                        if (submitSliceEpoch == sliceEpoch.get()) {
+                        if (submitWorldEpoch == worldEpoch.get()) {
                             inFlightVersion.remove(pos, desiredBuildKey);
                         }
                         if (meshData != null) {
@@ -972,7 +968,7 @@ public final class GpuChunkRenderer implements AutoCloseable {
                         meshingJobsInFlight.decrementAndGet();
                     }
                 }, () -> {
-                    if (submitSliceEpoch == sliceEpoch.get()) {
+                    if (submitWorldEpoch == worldEpoch.get()) {
                         inFlightVersion.remove(pos, desiredBuildKey);
                     }
                     mesher.discardChunkSnapshot(snapshot);
@@ -1018,7 +1014,7 @@ public final class GpuChunkRenderer implements AutoCloseable {
             processed++;
             // 中文标注（局部变量）：`meshData`，含义：用于表示网格、数据。
             ChunkMeshData meshData = queuedUpload.meshData();
-            if (queuedUpload.sliceEpoch() != sliceEpoch.get()) {
+            if (queuedUpload.worldEpoch() != worldEpoch.get()) {
                 meshData.releaseBuffers(uploadBufferPool);
                 continue;
             }
@@ -2449,8 +2445,8 @@ public final class GpuChunkRenderer implements AutoCloseable {
         boolean fullHeightMeshing,
         // 中文标注（字段）：`meshConfigHash`，含义：用于表示网格、config、hash。
         int meshConfigHash,
-        // 中文标注（字段）：`sliceEpoch`，含义：用于表示切片纪元，用于丢弃切片切换前的旧上传结果。
-        long sliceEpoch
+        // 中文标注（字段）：`worldEpoch`，含义：用于表示世界纪元，用于丢弃世界切换前的旧上传结果。
+        int worldEpoch
     ) {
     }
 

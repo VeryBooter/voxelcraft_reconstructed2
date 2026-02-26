@@ -15,6 +15,7 @@ import dev.voxelcraft.core.block.Blocks;
 import dev.voxelcraft.core.world.BlockPos;
 import dev.voxelcraft.core.world.Section;
 import dev.voxelcraft.core.world.World;
+import dev.voxelcraft.core.world.WorldStack;
 import java.awt.Color;
 import java.awt.Font;
 import java.awt.GradientPaint;
@@ -42,14 +43,13 @@ public final class GameClient implements AutoCloseable {
         "voxelcraft.wormhole.enabled",
         false
     );
-    private static final int WORMHOLE_TOGGLE_KEY = KeyEvent.VK_V;
-    private static final double WORMHOLE_FLOW_UNITS_PER_SECOND = 0.35;
-    private static final double WORMHOLE_TRIGGER_RADIUS_BLOCKS = 6.0;
-    private static final int WORMHOLE_ROOM_HALF_EXTENT_XZ = 4;
-    private static final int WORMHOLE_ROOM_INTERIOR_HEIGHT = 4;
-    private static final int WORMHOLE_ROOM_OFFSET_Y = 24;
-    private static final double WORMHOLE_SNAP_LOWER_THRESHOLD = 0.4;
-    private static final double WORMHOLE_SNAP_UPPER_THRESHOLD = 0.6;
+    private static final int WORMHOLE_TOGGLE_KEY = KeyEvent.VK_P;
+    private static final double WORMHOLE_EXIT_ROOM_HALF_EXTENT = 3.0;
+    private static final double WORMHOLE_NORTH_DRIFT = +0.8;
+    private static final double WORMHOLE_EAST_DRIFT = +2.0;
+    private static final double WORMHOLE_SOUTH_DRIFT = -0.8;
+    private static final double WORMHOLE_WEST_DRIFT = -2.0;
+    private static final double WORMHOLE_SNAP_HYSTERESIS = 0.60;
 
     // 中文标注（字段）：`game`，含义：用于表示game。
     private final Game game = new Game();
@@ -109,17 +109,14 @@ public final class GameClient implements AutoCloseable {
     private long lastEnsureLocalChunksNanos;
     // 中文标注（字段）：`lastChunkGenerationDrainNanos`，含义：用于表示last、区块、generation、drain、nanos。
     private long lastChunkGenerationDrainNanos;
-    private boolean wormholeToggleDownLastTick;
-    private boolean wormholeMode;
-    private int wormholeEntryW;
-    private int wormholeSnapReferenceW;
+    private boolean inWormhole;
+    private int entryW;
     private double wormholeEntryX;
     private double wormholeEntryY;
     private double wormholeEntryZ;
     private double wormholeWPhase;
-    private int wormholeRoomCenterX;
-    private int wormholeRoomCenterY;
-    private int wormholeRoomCenterZ;
+    private int wormholeWCandidate;
+    private double wormholeDwPerSecond;
 
     // 中文标注（构造方法）：`GameClient`，参数：无；用途：初始化`GameClient`实例。
     public GameClient() {
@@ -155,8 +152,10 @@ public final class GameClient implements AutoCloseable {
             hardwareSampleAccumulator = 0.0;
         }
 
+        handleWormholeToggleInput(input);
         handleBlockSelection(input);
         playerController.tick(worldView, input, deltaSeconds);
+        tickWormholeIfActive(deltaSeconds);
 
         // 中文标注（局部变量）：`ensureStarted`，含义：用于表示ensure、started。
         long ensureStarted = System.nanoTime();
@@ -167,7 +166,6 @@ public final class GameClient implements AutoCloseable {
         worldView.drainChunkGenerationBudget(LOCAL_CHUNK_GENERATION_BUDGET_PER_TICK);
         lastChunkGenerationDrainNanos = System.nanoTime() - chunkDrainStarted;
         requestChunksIfNeeded(false);
-        handleWormholeFlow(input, deltaSeconds);
 
         targetedBlock = raycastFromPlayer(INTERACTION_REACH);
         handleInteractions(input);
@@ -214,7 +212,7 @@ public final class GameClient implements AutoCloseable {
     }
 
     public int activeSliceW() {
-        return game.activeW();
+        return game.w();
     }
 
     // 中文标注（方法）：`targetedBlock`，参数：无；用途：执行targeted、方块相关逻辑。
@@ -295,12 +293,13 @@ public final class GameClient implements AutoCloseable {
             System.out.println("[wormhole] slice switching is disabled while connected to a multiplayer server.");
             return;
         }
-        if (newW == game.activeW()) {
+        if (newW == game.w()) {
             return;
         }
 
         ClientWorldView oldWorldView = worldView;
-        game.switchSlice(newW);
+        oldWorldView.close();
+        game.switchW(newW);
         worldView = new ClientWorldView(game.world());
         renderSystem = new ChunkRenderSystem();
         lightEngine = new LightEngine();
@@ -312,10 +311,6 @@ public final class GameClient implements AutoCloseable {
         networkStateSendAccumulator = 0.0;
         lightEngine.tick(worldView);
         requestChunksIfNeeded(true);
-        if (networkClient == null || !networkClient.isConnected()) {
-            ensureLocalChunksAroundPlayer();
-        }
-        oldWorldView.close();
         System.out.printf("[wormhole] switched to slice w=%d%n", newW);
     }
 
@@ -371,109 +366,90 @@ public final class GameClient implements AutoCloseable {
         worldView.ensureChunkRadius(chunkX, chunkZ, LOCAL_CHUNK_RADIUS);
     }
 
-    private void handleWormholeFlow(InputState input, double deltaSeconds) {
-        boolean toggleDown = input.isKeyDown(WORMHOLE_TOGGLE_KEY);
-        boolean toggledPressed = toggleDown && !wormholeToggleDownLastTick;
-        wormholeToggleDownLastTick = toggleDown;
-
+    private void handleWormholeToggleInput(InputState input) {
         if (!WORMHOLE_FEATURE_ENABLED) {
             return;
         }
         if (networkClient != null && networkClient.isConnected()) {
             return;
         }
-
-        if (wormholeMode) {
-            wormholeWPhase += WORMHOLE_FLOW_UNITS_PER_SECOND * Math.max(0.0, deltaSeconds);
-            if (toggledPressed) {
-                exitWormhole();
-            }
+        if (!input.wasKeyPressed(WORMHOLE_TOGGLE_KEY)) {
             return;
         }
 
-        if (toggledPressed && canEnterWormholeAtCurrentPosition()) {
+        if (inWormhole) {
+            tryExitWormhole();
+        } else {
             enterWormhole();
         }
     }
 
-    private boolean canEnterWormholeAtCurrentPosition() {
-        double dx = playerController.x();
-        double dz = playerController.z();
-        return dx * dx + dz * dz <= WORMHOLE_TRIGGER_RADIUS_BLOCKS * WORMHOLE_TRIGGER_RADIUS_BLOCKS;
+    private void tickWormholeIfActive(double deltaSeconds) {
+        if (!WORMHOLE_FEATURE_ENABLED || !inWormhole) {
+            return;
+        }
+        if (networkClient != null && networkClient.isConnected()) {
+            return;
+        }
+        tickWormhole(deltaSeconds);
+    }
+
+    private void tickWormhole(double deltaSeconds) {
+        double x = playerController.x();
+        double z = playerController.z();
+        if (z < -4.0 && Math.abs(x) <= 2.0) {
+            wormholeDwPerSecond = WORMHOLE_NORTH_DRIFT;
+        } else if (z > 4.0 && Math.abs(x) <= 2.0) {
+            wormholeDwPerSecond = WORMHOLE_SOUTH_DRIFT;
+        } else if (x > 4.0 && Math.abs(z) <= 2.0) {
+            wormholeDwPerSecond = WORMHOLE_EAST_DRIFT;
+        } else if (x < -4.0 && Math.abs(z) <= 2.0) {
+            wormholeDwPerSecond = WORMHOLE_WEST_DRIFT;
+        } else {
+            wormholeDwPerSecond = 0.0;
+        }
+
+        wormholeWPhase += wormholeDwPerSecond * Math.max(0.0, deltaSeconds);
+        while (wormholeWPhase > wormholeWCandidate + WORMHOLE_SNAP_HYSTERESIS) {
+            wormholeWCandidate++;
+        }
+        while (wormholeWPhase < wormholeWCandidate - WORMHOLE_SNAP_HYSTERESIS) {
+            wormholeWCandidate--;
+        }
     }
 
     private void enterWormhole() {
-        wormholeEntryW = game.activeW();
-        wormholeSnapReferenceW = wormholeEntryW;
+        entryW = game.w();
         wormholeEntryX = playerController.x();
         wormholeEntryY = playerController.y();
         wormholeEntryZ = playerController.z();
-        wormholeWPhase = wormholeEntryW;
+        wormholeWPhase = entryW;
+        wormholeWCandidate = entryW;
+        wormholeDwPerSecond = 0.0;
 
-        wormholeRoomCenterX = (int) Math.floor(wormholeEntryX);
-        wormholeRoomCenterZ = (int) Math.floor(wormholeEntryZ);
-        wormholeRoomCenterY = clampInt((int) Math.floor(wormholeEntryY) + WORMHOLE_ROOM_OFFSET_Y, World.MIN_Y + 8, World.MAX_Y - 8);
-        ensureWormholeRoomBuilt();
-
-        playerController.teleport(
-            wormholeRoomCenterX + 0.5,
-            wormholeRoomCenterY + 1.0,
-            wormholeRoomCenterZ + 0.5
-        );
-        wormholeMode = true;
+        inWormhole = true;
+        switchSlice(WorldStack.W_WORMHOLE);
+        playerController.teleport(0.5, 66.0, 0.5);
+        ensureLocalChunksAroundPlayer();
         targetedBlock = null;
         System.out.printf("[wormhole] entered mode entryW=%d phase=%.3f anchor=(%.2f,%.2f,%.2f)%n",
-            wormholeEntryW, wormholeWPhase, wormholeEntryX, wormholeEntryY, wormholeEntryZ);
+            entryW, wormholeWPhase, wormholeEntryX, wormholeEntryY, wormholeEntryZ);
     }
 
-    private void exitWormhole() {
-        int targetW = snapWPhaseWithHysteresis(wormholeWPhase, wormholeSnapReferenceW);
-        wormholeSnapReferenceW = targetW;
-        wormholeMode = false;
-
-        switchSlice(targetW);
+    private void tryExitWormhole() {
+        double x = playerController.x();
+        double z = playerController.z();
+        if (Math.abs(x) > WORMHOLE_EXIT_ROOM_HALF_EXTENT || Math.abs(z) > WORMHOLE_EXIT_ROOM_HALF_EXTENT) {
+            return;
+        }
+        int wOut = wormholeWCandidate;
+        inWormhole = false;
+        wormholeDwPerSecond = 0.0;
+        switchSlice(wOut);
         teleportToSafeAnchor(wormholeEntryX, wormholeEntryY, wormholeEntryZ);
+        ensureLocalChunksAroundPlayer();
         targetedBlock = null;
-        System.out.printf("[wormhole] exit phase=%.3f -> w=%d%n", wormholeWPhase, targetW);
-    }
-
-    private static int snapWPhaseWithHysteresis(double wPhase, int referenceW) {
-        int lower = (int) Math.floor(wPhase);
-        double fraction = wPhase - lower;
-        if (fraction <= WORMHOLE_SNAP_LOWER_THRESHOLD) {
-            return lower;
-        }
-        if (fraction >= WORMHOLE_SNAP_UPPER_THRESHOLD) {
-            return lower + 1;
-        }
-        if (referenceW == lower || referenceW == lower + 1) {
-            return referenceW;
-        }
-        return (int) Math.round(wPhase);
-    }
-
-    private void ensureWormholeRoomBuilt() {
-        int minX = wormholeRoomCenterX - WORMHOLE_ROOM_HALF_EXTENT_XZ;
-        int maxX = wormholeRoomCenterX + WORMHOLE_ROOM_HALF_EXTENT_XZ;
-        int minZ = wormholeRoomCenterZ - WORMHOLE_ROOM_HALF_EXTENT_XZ;
-        int maxZ = wormholeRoomCenterZ + WORMHOLE_ROOM_HALF_EXTENT_XZ;
-        int floorY = wormholeRoomCenterY;
-        int ceilY = wormholeRoomCenterY + WORMHOLE_ROOM_INTERIOR_HEIGHT;
-
-        for (int y = floorY; y <= ceilY; y++) {
-            for (int x = minX; x <= maxX; x++) {
-                for (int z = minZ; z <= maxZ; z++) {
-                    boolean boundary = x == minX || x == maxX || z == minZ || z == maxZ || y == floorY || y == ceilY;
-                    Block block = boundary ? Blocks.STONE : Blocks.AIR;
-                    worldView.setBlock(x, y, z, block);
-                }
-            }
-        }
-
-        // 入口/出口风格走廊：在一侧墙体开口，方便玩家理解这是“通道”空间。
-        for (int y = floorY + 1; y <= floorY + 2; y++) {
-            worldView.setBlock(wormholeRoomCenterX, y, minZ, Blocks.AIR);
-        }
+        System.out.printf("[wormhole] exit phase=%.3f -> w=%d%n", wormholeWPhase, wOut);
     }
 
     private void teleportToSafeAnchor(double anchorX, double anchorY, double anchorZ) {
@@ -546,7 +522,7 @@ public final class GameClient implements AutoCloseable {
     // 中文标注（方法）：`handleInteractions`，参数：input；用途：处理handle、interactions逻辑。
     // 中文标注（参数）：`input`，含义：用于表示输入。
     private void handleInteractions(InputState input) {
-        if (wormholeMode) {
+        if (inWormhole) {
             breakButtonDownLastTick = input.isMouseDown(MouseEvent.BUTTON1);
             placeButtonDownLastTick = input.isMouseDown(MouseEvent.BUTTON3);
             return;
@@ -810,13 +786,11 @@ public final class GameClient implements AutoCloseable {
         graphics.setColor(Color.WHITE);
         graphics.drawString(String.format("XYZ: %.2f %.2f %.2f", playerController.x(), playerController.y(), playerController.z()), 24, 34);
         graphics.drawString(String.format("Yaw/Pitch: %.1f / %.1f", playerController.yaw(), playerController.pitch()), 24, 54);
-        graphics.drawString(
-            wormholeMode
-                ? String.format("Slice w=%d | wormhole phase=%.3f", game.activeW(), wormholeWPhase)
-                : String.format("Slice w=%d", game.activeW()),
-            24,
-            74
-        );
+        String driftLabel = wormholeDwPerSecond >= 0.0 ? "ANA" : "KATA";
+        graphics.drawString(inWormhole
+                ? String.format("W-phase: %.2f  snap=%d  drift=%.2f (%s)", wormholeWPhase, wormholeWCandidate, wormholeDwPerSecond, driftLabel)
+                : "W: " + game.w(),
+            24, 74);
         graphics.drawString(
             String.format("Faces: total=%d, frustum=%d, drawn=%d", stats.totalFaces(), stats.frustumCandidates(), stats.drawnFaces()),
             24,
@@ -839,7 +813,7 @@ public final class GameClient implements AutoCloseable {
         );
         graphics.drawString(
             WORMHOLE_FEATURE_ENABLED
-                ? "Network: " + networkStatusLine + " | Wormhole: press V near origin to enter/exit"
+                ? "Network: " + networkStatusLine + " | Wormhole: press P to enter/exit (exit only in center room)"
                 : "Network: " + networkStatusLine,
             24,
             174

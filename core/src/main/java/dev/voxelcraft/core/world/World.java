@@ -40,9 +40,13 @@ public final class World {
     // 中文标注（构造方法）：`World`，参数：seed；用途：初始化`World`实例。
     // 中文标注（参数）：`seed`，含义：用于表示seed。
     public World(long seed) {
+        this(seed, new FlatWorldGenerator(seed));
+    }
+
+    public World(long seed, WorldGenerator generator) {
         Blocks.bootstrap();
         this.seed = seed;
-        this.worldGenerator = new FlatWorldGenerator(seed);
+        this.worldGenerator = Objects.requireNonNull(generator, "generator");
         // 中文标注（局部变量）：`chunkX`，含义：用于表示区块、X坐标。
         for (int chunkX = -2; chunkX <= 2; chunkX++) {
             // 中文标注（局部变量）：`chunkZ`，含义：用于表示区块、Z坐标。

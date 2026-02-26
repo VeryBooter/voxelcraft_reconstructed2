@@ -78,12 +78,39 @@ public final class FlatWorldGenerator implements WorldGenerator {
     // 中文标注（参数）：`worldX`，含义：用于表示世界、X坐标。
     // 中文标注（参数）：`worldZ`，含义：用于表示世界、Z坐标。
     private int surfaceHeight(int worldX, int worldZ) {
-        // 中文标注（局部变量）：`continental`，含义：用于表示continental。
-        double continental = perlinNoise.fbm2d(worldX * 0.0075, worldZ * 0.0075, 4, 2.0, 0.5);
-        // 中文标注（局部变量）：`erosion`，含义：用于表示erosion。
-        double erosion = perlinNoise.fbm2d(worldX * 0.0200, worldZ * 0.0200, 2, 2.0, 0.55);
-        // 中文标注（局部变量）：`offset`，含义：用于表示偏移。
-        int offset = (int) Math.round(continental * 6.0 + erosion * 2.0);
+        // 固定核平滑：完全按世界坐标采样 raw 高度，保证 deterministic 且跨 chunk 无缝。
+        int center = surfaceHeightRaw(worldX, worldZ);
+        int north = surfaceHeightRaw(worldX, worldZ - 1);
+        int south = surfaceHeightRaw(worldX, worldZ + 1);
+        int west = surfaceHeightRaw(worldX - 1, worldZ);
+        int east = surfaceHeightRaw(worldX + 1, worldZ);
+        int northWest = surfaceHeightRaw(worldX - 1, worldZ - 1);
+        int northEast = surfaceHeightRaw(worldX + 1, worldZ - 1);
+        int southWest = surfaceHeightRaw(worldX - 1, worldZ + 1);
+        int southEast = surfaceHeightRaw(worldX + 1, worldZ + 1);
+
+        double smoothHeight = (
+            (center * 4.0)
+                + ((north + south + west + east) * 2.0)
+                + (northWest + northEast + southWest + southEast)
+        ) / 16.0;
+        return clamp((int) Math.round(smoothHeight), MIN_SURFACE_Y, MAX_SURFACE_Y);
+    }
+
+    // 中文标注（方法）：`surfaceHeightRaw`，参数：worldX、worldZ；用途：执行surface、高度、raw相关逻辑。
+    // 中文标注（参数）：`worldX`，含义：用于表示世界、X坐标。
+    // 中文标注（参数）：`worldZ`，含义：用于表示世界、Z坐标。
+    private int surfaceHeightRaw(int worldX, int worldZ) {
+        // 更低频的大尺度起伏，减少“碎坡”。
+        double continental = perlinNoise.fbm2d(worldX * 0.0022, worldZ * 0.0022, 4, 2.0, 0.40);
+        // 弱 hills 用于打破过于单调的平面，但幅度远小于主体。
+        double hills = perlinNoise.fbm2d(worldX * 0.0075, worldZ * 0.0075, 2, 2.0, 0.35);
+
+        // 非线性压缩：降低极端值出现概率，让坡度更渐进。
+        double combined = continental * 0.95 + hills * 0.28;
+        double shaped = Math.copySign(Math.pow(Math.abs(combined), 0.90), combined);
+
+        int offset = (int) Math.round(shaped * 9.0);
         return clamp(BASE_SURFACE_Y + offset, MIN_SURFACE_Y, MAX_SURFACE_Y);
     }
 

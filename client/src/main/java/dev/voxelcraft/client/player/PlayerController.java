@@ -339,6 +339,10 @@ public final class PlayerController {
         this.spawnX = x;
         this.spawnY = y;
         this.spawnZ = z;
+        teleport(x, y, z);
+    }
+
+    public void teleport(double x, double y, double z) {
         this.x = x;
         this.y = y;
         this.z = z;

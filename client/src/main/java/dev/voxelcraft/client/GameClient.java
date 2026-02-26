@@ -32,22 +32,35 @@ public final class GameClient implements AutoCloseable {
     // 中文标注（字段）：`NETWORK_STATE_SEND_INTERVAL_SECONDS`，含义：用于表示网络、状态、send、interval、seconds。
     private static final double NETWORK_STATE_SEND_INTERVAL_SECONDS = 0.05;
     // 中文标注（字段）：`NETWORK_CHUNK_RADIUS`，含义：用于表示网络、区块、radius。
-    private static final int NETWORK_CHUNK_RADIUS = 3;
+    private static final int NETWORK_CHUNK_RADIUS = 27;
     // 中文标注（字段）：`LOCAL_CHUNK_RADIUS`，含义：用于表示局部、区块、radius。
-    private static final int LOCAL_CHUNK_RADIUS = 3;
+    private static final int LOCAL_CHUNK_RADIUS = 27;
     // 中文标注（字段）：`LOCAL_CHUNK_GENERATION_BUDGET_PER_TICK`，含义：用于表示局部、区块、generation、budget、per、刻。
     private static final int LOCAL_CHUNK_GENERATION_BUDGET_PER_TICK = 2;
+    private static final boolean WORMHOLE_FEATURE_ENABLED = booleanPropertyCompat(
+        "vc.wormhole.enabled",
+        "voxelcraft.wormhole.enabled",
+        false
+    );
+    private static final int WORMHOLE_TOGGLE_KEY = KeyEvent.VK_V;
+    private static final double WORMHOLE_FLOW_UNITS_PER_SECOND = 0.35;
+    private static final double WORMHOLE_TRIGGER_RADIUS_BLOCKS = 6.0;
+    private static final int WORMHOLE_ROOM_HALF_EXTENT_XZ = 4;
+    private static final int WORMHOLE_ROOM_INTERIOR_HEIGHT = 4;
+    private static final int WORMHOLE_ROOM_OFFSET_Y = 24;
+    private static final double WORMHOLE_SNAP_LOWER_THRESHOLD = 0.4;
+    private static final double WORMHOLE_SNAP_UPPER_THRESHOLD = 0.6;
 
     // 中文标注（字段）：`game`，含义：用于表示game。
     private final Game game = new Game();
     // 中文标注（字段）：`playerController`，含义：用于表示玩家、控制器。
     private final PlayerController playerController = new PlayerController();
     // 中文标注（字段）：`worldView`，含义：用于表示世界、view。
-    private final ClientWorldView worldView = new ClientWorldView(game.world());
+    private ClientWorldView worldView = new ClientWorldView(game.world());
     // 中文标注（字段）：`renderSystem`，含义：用于表示渲染、system。
-    private final ChunkRenderSystem renderSystem = new ChunkRenderSystem();
+    private ChunkRenderSystem renderSystem = new ChunkRenderSystem();
     // 中文标注（字段）：`lightEngine`，含义：用于表示光照、engine。
-    private final LightEngine lightEngine = new LightEngine();
+    private LightEngine lightEngine = new LightEngine();
     // 中文标注（字段）：`hardwareStatsSampler`，含义：用于表示hardware、stats、sampler。
     private final HardwareStatsSampler hardwareStatsSampler = new HardwareStatsSampler();
 
@@ -96,6 +109,17 @@ public final class GameClient implements AutoCloseable {
     private long lastEnsureLocalChunksNanos;
     // 中文标注（字段）：`lastChunkGenerationDrainNanos`，含义：用于表示last、区块、generation、drain、nanos。
     private long lastChunkGenerationDrainNanos;
+    private boolean wormholeToggleDownLastTick;
+    private boolean wormholeMode;
+    private int wormholeEntryW;
+    private int wormholeSnapReferenceW;
+    private double wormholeEntryX;
+    private double wormholeEntryY;
+    private double wormholeEntryZ;
+    private double wormholeWPhase;
+    private int wormholeRoomCenterX;
+    private int wormholeRoomCenterY;
+    private int wormholeRoomCenterZ;
 
     // 中文标注（构造方法）：`GameClient`，参数：无；用途：初始化`GameClient`实例。
     public GameClient() {
@@ -143,6 +167,7 @@ public final class GameClient implements AutoCloseable {
         worldView.drainChunkGenerationBudget(LOCAL_CHUNK_GENERATION_BUDGET_PER_TICK);
         lastChunkGenerationDrainNanos = System.nanoTime() - chunkDrainStarted;
         requestChunksIfNeeded(false);
+        handleWormholeFlow(input, deltaSeconds);
 
         targetedBlock = raycastFromPlayer(INTERACTION_REACH);
         handleInteractions(input);
@@ -186,6 +211,10 @@ public final class GameClient implements AutoCloseable {
     // 中文标注（方法）：`playerController`，参数：无；用途：执行玩家、控制器相关逻辑。
     public PlayerController playerController() {
         return playerController;
+    }
+
+    public int activeSliceW() {
+        return game.activeW();
     }
 
     // 中文标注（方法）：`targetedBlock`，参数：无；用途：执行targeted、方块相关逻辑。
@@ -261,6 +290,35 @@ public final class GameClient implements AutoCloseable {
         return worldView.pendingChunkGenerationCount();
     }
 
+    public void switchSlice(int newW) {
+        if (networkClient != null && networkClient.isConnected()) {
+            System.out.println("[wormhole] slice switching is disabled while connected to a multiplayer server.");
+            return;
+        }
+        if (newW == game.activeW()) {
+            return;
+        }
+
+        ClientWorldView oldWorldView = worldView;
+        game.switchSlice(newW);
+        worldView = new ClientWorldView(game.world());
+        renderSystem = new ChunkRenderSystem();
+        lightEngine = new LightEngine();
+        targetedBlock = null;
+        breakButtonDownLastTick = false;
+        placeButtonDownLastTick = false;
+        lastRequestedChunkX = Integer.MIN_VALUE;
+        lastRequestedChunkZ = Integer.MIN_VALUE;
+        networkStateSendAccumulator = 0.0;
+        lightEngine.tick(worldView);
+        requestChunksIfNeeded(true);
+        if (networkClient == null || !networkClient.isConnected()) {
+            ensureLocalChunksAroundPlayer();
+        }
+        oldWorldView.close();
+        System.out.printf("[wormhole] switched to slice w=%d%n", newW);
+    }
+
     // 中文标注（方法）：`close`，参数：无；用途：执行close相关逻辑。
     @Override
     public void close() {
@@ -313,6 +371,163 @@ public final class GameClient implements AutoCloseable {
         worldView.ensureChunkRadius(chunkX, chunkZ, LOCAL_CHUNK_RADIUS);
     }
 
+    private void handleWormholeFlow(InputState input, double deltaSeconds) {
+        boolean toggleDown = input.isKeyDown(WORMHOLE_TOGGLE_KEY);
+        boolean toggledPressed = toggleDown && !wormholeToggleDownLastTick;
+        wormholeToggleDownLastTick = toggleDown;
+
+        if (!WORMHOLE_FEATURE_ENABLED) {
+            return;
+        }
+        if (networkClient != null && networkClient.isConnected()) {
+            return;
+        }
+
+        if (wormholeMode) {
+            wormholeWPhase += WORMHOLE_FLOW_UNITS_PER_SECOND * Math.max(0.0, deltaSeconds);
+            if (toggledPressed) {
+                exitWormhole();
+            }
+            return;
+        }
+
+        if (toggledPressed && canEnterWormholeAtCurrentPosition()) {
+            enterWormhole();
+        }
+    }
+
+    private boolean canEnterWormholeAtCurrentPosition() {
+        double dx = playerController.x();
+        double dz = playerController.z();
+        return dx * dx + dz * dz <= WORMHOLE_TRIGGER_RADIUS_BLOCKS * WORMHOLE_TRIGGER_RADIUS_BLOCKS;
+    }
+
+    private void enterWormhole() {
+        wormholeEntryW = game.activeW();
+        wormholeSnapReferenceW = wormholeEntryW;
+        wormholeEntryX = playerController.x();
+        wormholeEntryY = playerController.y();
+        wormholeEntryZ = playerController.z();
+        wormholeWPhase = wormholeEntryW;
+
+        wormholeRoomCenterX = (int) Math.floor(wormholeEntryX);
+        wormholeRoomCenterZ = (int) Math.floor(wormholeEntryZ);
+        wormholeRoomCenterY = clampInt((int) Math.floor(wormholeEntryY) + WORMHOLE_ROOM_OFFSET_Y, World.MIN_Y + 8, World.MAX_Y - 8);
+        ensureWormholeRoomBuilt();
+
+        playerController.teleport(
+            wormholeRoomCenterX + 0.5,
+            wormholeRoomCenterY + 1.0,
+            wormholeRoomCenterZ + 0.5
+        );
+        wormholeMode = true;
+        targetedBlock = null;
+        System.out.printf("[wormhole] entered mode entryW=%d phase=%.3f anchor=(%.2f,%.2f,%.2f)%n",
+            wormholeEntryW, wormholeWPhase, wormholeEntryX, wormholeEntryY, wormholeEntryZ);
+    }
+
+    private void exitWormhole() {
+        int targetW = snapWPhaseWithHysteresis(wormholeWPhase, wormholeSnapReferenceW);
+        wormholeSnapReferenceW = targetW;
+        wormholeMode = false;
+
+        switchSlice(targetW);
+        teleportToSafeAnchor(wormholeEntryX, wormholeEntryY, wormholeEntryZ);
+        targetedBlock = null;
+        System.out.printf("[wormhole] exit phase=%.3f -> w=%d%n", wormholeWPhase, targetW);
+    }
+
+    private static int snapWPhaseWithHysteresis(double wPhase, int referenceW) {
+        int lower = (int) Math.floor(wPhase);
+        double fraction = wPhase - lower;
+        if (fraction <= WORMHOLE_SNAP_LOWER_THRESHOLD) {
+            return lower;
+        }
+        if (fraction >= WORMHOLE_SNAP_UPPER_THRESHOLD) {
+            return lower + 1;
+        }
+        if (referenceW == lower || referenceW == lower + 1) {
+            return referenceW;
+        }
+        return (int) Math.round(wPhase);
+    }
+
+    private void ensureWormholeRoomBuilt() {
+        int minX = wormholeRoomCenterX - WORMHOLE_ROOM_HALF_EXTENT_XZ;
+        int maxX = wormholeRoomCenterX + WORMHOLE_ROOM_HALF_EXTENT_XZ;
+        int minZ = wormholeRoomCenterZ - WORMHOLE_ROOM_HALF_EXTENT_XZ;
+        int maxZ = wormholeRoomCenterZ + WORMHOLE_ROOM_HALF_EXTENT_XZ;
+        int floorY = wormholeRoomCenterY;
+        int ceilY = wormholeRoomCenterY + WORMHOLE_ROOM_INTERIOR_HEIGHT;
+
+        for (int y = floorY; y <= ceilY; y++) {
+            for (int x = minX; x <= maxX; x++) {
+                for (int z = minZ; z <= maxZ; z++) {
+                    boolean boundary = x == minX || x == maxX || z == minZ || z == maxZ || y == floorY || y == ceilY;
+                    Block block = boundary ? Blocks.STONE : Blocks.AIR;
+                    worldView.setBlock(x, y, z, block);
+                }
+            }
+        }
+
+        // 入口/出口风格走廊：在一侧墙体开口，方便玩家理解这是“通道”空间。
+        for (int y = floorY + 1; y <= floorY + 2; y++) {
+            worldView.setBlock(wormholeRoomCenterX, y, minZ, Blocks.AIR);
+        }
+    }
+
+    private void teleportToSafeAnchor(double anchorX, double anchorY, double anchorZ) {
+        double[] safe = findSafeStandingPosition(anchorX, anchorY, anchorZ);
+        playerController.teleport(safe[0], safe[1], safe[2]);
+    }
+
+    private double[] findSafeStandingPosition(double anchorX, double anchorY, double anchorZ) {
+        int baseX = (int) Math.floor(anchorX);
+        int baseZ = (int) Math.floor(anchorZ);
+        int baseY = clampInt((int) Math.floor(anchorY), World.MIN_Y + 2, World.MAX_Y - 3);
+        int[] offsets = {0, 1, -1, 2, -2, 3, -3, 4, -4};
+
+        for (int radius = 0; radius <= 4; radius++) {
+            for (int dx : offsets) {
+                if (Math.abs(dx) > radius) {
+                    continue;
+                }
+                for (int dz : offsets) {
+                    if (Math.abs(dz) > radius) {
+                        continue;
+                    }
+                    int x = baseX + dx;
+                    int z = baseZ + dz;
+                    for (int dy = -4; dy <= 16; dy++) {
+                        int feetY = baseY + dy;
+                        if (canStandAt(x, feetY, z)) {
+                            return new double[] {x + 0.5, feetY, z + 0.5};
+                        }
+                    }
+                }
+            }
+        }
+
+        int surfaceY = findSurfaceY(baseX, baseZ);
+        double fallbackY = Math.max(surfaceY + 1.0, 6.0);
+        return new double[] {baseX + 0.5, fallbackY, baseZ + 0.5};
+    }
+
+    private boolean canStandAt(int blockX, int feetY, int blockZ) {
+        if (feetY <= World.MIN_Y || feetY + 1 > World.MAX_Y) {
+            return false;
+        }
+        if (!worldView.isSolid(blockX, feetY - 1, blockZ)) {
+            return false;
+        }
+        return !worldView.isSolid(blockX, feetY, blockZ)
+            && !worldView.isSolid(blockX, feetY + 1, blockZ);
+    }
+
+    private static int clampInt(int value, int min, int max) {
+        return Math.max(min, Math.min(max, value));
+    }
+
     // 中文标注（方法）：`handleBlockSelection`，参数：input；用途：处理handle、方块、selection逻辑。
     // 中文标注（参数）：`input`，含义：用于表示输入。
     private void handleBlockSelection(InputState input) {
@@ -331,6 +546,11 @@ public final class GameClient implements AutoCloseable {
     // 中文标注（方法）：`handleInteractions`，参数：input；用途：处理handle、interactions逻辑。
     // 中文标注（参数）：`input`，含义：用于表示输入。
     private void handleInteractions(InputState input) {
+        if (wormholeMode) {
+            breakButtonDownLastTick = input.isMouseDown(MouseEvent.BUTTON1);
+            placeButtonDownLastTick = input.isMouseDown(MouseEvent.BUTTON3);
+            return;
+        }
         // 中文标注（局部变量）：`hit`，含义：用于表示命中。
         BlockHitResult hit = targetedBlock;
         if (hit == null) {
@@ -585,18 +805,25 @@ public final class GameClient implements AutoCloseable {
     private void drawHud(Graphics2D graphics, RenderStats stats) {
         graphics.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 13));
         graphics.setColor(new Color(0, 0, 0, 130));
-        graphics.fillRoundRect(12, 12, 780, 185, 12, 12);
+        graphics.fillRoundRect(12, 12, 980, 205, 12, 12);
 
         graphics.setColor(Color.WHITE);
         graphics.drawString(String.format("XYZ: %.2f %.2f %.2f", playerController.x(), playerController.y(), playerController.z()), 24, 34);
         graphics.drawString(String.format("Yaw/Pitch: %.1f / %.1f", playerController.yaw(), playerController.pitch()), 24, 54);
         graphics.drawString(
-            String.format("Faces: total=%d, frustum=%d, drawn=%d", stats.totalFaces(), stats.frustumCandidates(), stats.drawnFaces()),
+            wormholeMode
+                ? String.format("Slice w=%d | wormhole phase=%.3f", game.activeW(), wormholeWPhase)
+                : String.format("Slice w=%d", game.activeW()),
             24,
             74
         );
-        graphics.drawString(String.format("Held Block: %s", selectedBlock.id()), 24, 94);
-        graphics.drawString("WASD Move | Space Jump | Mouse Look | LMB Break | RMB Place | 1/2/3/4/5 Block", 24, 114);
+        graphics.drawString(
+            String.format("Faces: total=%d, frustum=%d, drawn=%d", stats.totalFaces(), stats.frustumCandidates(), stats.drawnFaces()),
+            24,
+            94
+        );
+        graphics.drawString(String.format("Held Block: %s", selectedBlock.id()), 24, 114);
+        graphics.drawString("WASD Move | Space Jump | Mouse Look | LMB Break | RMB Place | 1/2/3/4/5 Block", 24, 134);
         graphics.drawString(
             String.format(
                 "Perf: %.1f FPS | %.1f ms | CPU %s | RAM %d/%d MB | Cores %d",
@@ -608,10 +835,16 @@ public final class GameClient implements AutoCloseable {
                 hardwareSnapshot.logicalCores()
             ),
             24,
-            134
+            154
         );
-        graphics.drawString("Network: " + networkStatusLine, 24, 154);
-        graphics.drawString("Mouse auto-captured and cursor hidden while focused | ESC exits", 24, 174);
+        graphics.drawString(
+            WORMHOLE_FEATURE_ENABLED
+                ? "Network: " + networkStatusLine + " | Wormhole: press V near origin to enter/exit"
+                : "Network: " + networkStatusLine,
+            24,
+            174
+        );
+        graphics.drawString("Mouse auto-captured and cursor hidden while focused | ESC exits", 24, 194);
     }
 
     // 中文标注（方法）：`hotbarLabel`，参数：block；用途：执行hotbar、label相关逻辑。
@@ -652,5 +885,23 @@ public final class GameClient implements AutoCloseable {
     // 中文标注（参数）：`value`，含义：用于表示值。
     private static int clamp(int value) {
         return Math.max(0, Math.min(255, value));
+    }
+
+    private static boolean booleanPropertyCompat(String key, String legacyKey, boolean defaultValue) {
+        String raw = System.getProperty(key);
+        if (raw == null) {
+            raw = System.getProperty(legacyKey);
+        }
+        if (raw == null) {
+            return defaultValue;
+        }
+        String normalized = raw.trim().toLowerCase();
+        if (normalized.equals("1") || normalized.equals("true") || normalized.equals("yes") || normalized.equals("on")) {
+            return true;
+        }
+        if (normalized.equals("0") || normalized.equals("false") || normalized.equals("no") || normalized.equals("off")) {
+            return false;
+        }
+        return defaultValue;
     }
 }

@@ -35,7 +35,7 @@
 ## Feature Flag / Controls
 - Feature flag: `vc.wormhole.enabled` (legacy alias supported: `voxelcraft.wormhole.enabled`)
 - Default: `false` (gameplay unchanged)
-- Toggle key: `P`
+- Toggle key: `V`
 - Singleplayer-only for now: slice switching is blocked while network-connected
 
 ## Wormhole Runtime State (Client)
@@ -61,12 +61,12 @@
 - This avoids jitter around half-integer boundaries.
 
 ## Enter / Exit Flow
-- Enter (`P`, when not already inside):
+- Enter (`V`, when not already inside):
   - record `entryW` and anchor `x/y/z`
   - set `wPhase = entryW`, `wCandidate = entryW`
   - switch to `W_WORMHOLE`
   - teleport to wormhole center room
-- Exit (`P`, only allowed in center room):
+- Exit (`V`, only allowed in center room):
   - require `|x|<=3 && |z|<=3`
   - `wOut = wCandidate`
   - switch to slice `wOut`

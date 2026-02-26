@@ -43,7 +43,7 @@ public final class GameClient implements AutoCloseable {
         "voxelcraft.wormhole.enabled",
         false
     );
-    private static final int WORMHOLE_TOGGLE_KEY = KeyEvent.VK_P;
+    private static final int WORMHOLE_TOGGLE_KEY = KeyEvent.VK_V;
     private static final double WORMHOLE_EXIT_ROOM_HALF_EXTENT = 3.0;
     private static final double WORMHOLE_NORTH_DRIFT = +0.8;
     private static final double WORMHOLE_EAST_DRIFT = +2.0;
@@ -813,7 +813,7 @@ public final class GameClient implements AutoCloseable {
         );
         graphics.drawString(
             WORMHOLE_FEATURE_ENABLED
-                ? "Network: " + networkStatusLine + " | Wormhole: press P to enter/exit (exit only in center room)"
+                ? "Network: " + networkStatusLine + " | Wormhole: press V to enter/exit (exit only in center room)"
                 : "Network: " + networkStatusLine,
             24,
             174

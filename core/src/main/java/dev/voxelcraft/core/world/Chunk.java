@@ -20,15 +20,15 @@ public final class Chunk {
         // 中文标注（参数）：`y`，含义：用于表示Y坐标。
         // 中文标注（参数）：`localZ`，含义：用于表示局部、Z坐标。
         // 中文标注（参数）：`block`，含义：用于表示方块。
-        void accept(int localX, int y, int localZ, Block block);
+        void accept(int localX, int y, int localZ, Block block); // meaning
     }
 
     // 中文标注（字段）：`pos`，含义：用于表示位置。
-    private final ChunkPos pos;
+    private final ChunkPos pos; // meaning
     // 中文标注（字段）：`sections`，含义：用于表示sections。
-    private final Map<Integer, Section> sections = new HashMap<>();
+    private final Map<Integer, Section> sections = new HashMap<>(); // meaning
     // 中文标注（字段）：`version`，含义：用于表示版本。
-    private volatile long version;
+    private volatile long version; // meaning
 
     // 中文标注（构造方法）：`Chunk`，参数：pos；用途：初始化`Chunk`实例。
     // 中文标注（参数）：`pos`，含义：用于表示位置。
@@ -56,15 +56,15 @@ public final class Chunk {
         }
 
         // 中文标注（局部变量）：`sectionY`，含义：用于表示分段、Y坐标。
-        int sectionY = Math.floorDiv(y, Section.SIZE);
+        int sectionY = Math.floorDiv(y, Section.SIZE); // meaning
         // 中文标注（局部变量）：`section`，含义：用于表示分段。
-        Section section = sections.get(sectionY);
+        Section section = sections.get(sectionY); // meaning
         if (section == null) {
             return y < World.DEFAULT_SOLID_BELOW_Y ? Blocks.STONE : Blocks.AIR;
         }
 
         // 中文标注（局部变量）：`localY`，含义：用于表示局部、Y坐标。
-        int localY = Math.floorMod(y, Section.SIZE);
+        int localY = Math.floorMod(y, Section.SIZE); // meaning
         return section.getBlock(localX, localY, localZ);
     }
 
@@ -85,14 +85,14 @@ public final class Chunk {
         }
 
         // 中文标注（局部变量）：`sectionY`，含义：用于表示分段、Y坐标。
-        int sectionY = Math.floorDiv(y, Section.SIZE);
+        int sectionY = Math.floorDiv(y, Section.SIZE); // meaning
         // 中文标注（局部变量）：`localY`，含义：用于表示局部、Y坐标。
-        int localY = Math.floorMod(y, Section.SIZE);
+        int localY = Math.floorMod(y, Section.SIZE); // meaning
         // 中文标注（Lambda参数）：`unused`，含义：用于表示unused。
         // 中文标注（局部变量）：`section`，含义：用于表示分段。
-        Section section = sections.computeIfAbsent(sectionY, unused -> new Section());
+        Section section = sections.computeIfAbsent(sectionY, unused -> new Section()); // meaning
         // 中文标注（局部变量）：`previous`，含义：用于表示previous。
-        Block previous = section.getBlock(localX, localY, localZ);
+        Block previous = section.getBlock(localX, localY, localZ); // meaning
         section.setBlock(localX, localY, localZ, block);
         if (previous != block) {
             version++;
@@ -108,9 +108,9 @@ public final class Chunk {
         }
         // 中文标注（Lambda参数）：`unused`，含义：用于表示unused。
         // 中文标注（局部变量）：`section`，含义：用于表示分段。
-        Section section = sections.computeIfAbsent(sectionY, unused -> new Section());
+        Section section = sections.computeIfAbsent(sectionY, unused -> new Section()); // meaning
         // 中文标注（局部变量）：`previous`，含义：用于表示previous。
-        Block previous = section.uniformBlock();
+        Block previous = section.uniformBlock(); // meaning
         section.fill(block);
         if (previous != block) {
             version++;
@@ -135,40 +135,40 @@ public final class Chunk {
         // 中文标注（局部变量）：`entry`，含义：用于表示entry。
         for (Entry<Integer, Section> entry : sections.entrySet()) {
             // 中文标注（局部变量）：`sectionY`，含义：用于表示分段、Y坐标。
-            int sectionY = entry.getKey();
+            int sectionY = entry.getKey(); // meaning
             // 中文标注（局部变量）：`section`，含义：用于表示分段。
-            Section section = entry.getValue();
+            Section section = entry.getValue(); // meaning
 
             // 中文标注（局部变量）：`sectionMinY`，含义：用于表示分段、最小、Y坐标。
-            int sectionMinY = sectionY * Section.SIZE;
+            int sectionMinY = sectionY * Section.SIZE; // meaning
             // 中文标注（局部变量）：`sectionMaxY`，含义：用于表示分段、最大、Y坐标。
-            int sectionMaxY = sectionMinY + Section.SIZE - 1;
+            int sectionMaxY = sectionMinY + Section.SIZE - 1; // meaning
             if (sectionMaxY < minY || sectionMinY > maxY) {
                 continue;
             }
 
             // 中文标注（局部变量）：`localYStart`，含义：用于表示局部、ystart。
-            int localYStart = Math.max(0, minY - sectionMinY);
+            int localYStart = Math.max(0, minY - sectionMinY); // meaning
             // 中文标注（局部变量）：`localYEnd`，含义：用于表示局部、yend。
-            int localYEnd = Math.min(Section.SIZE - 1, maxY - sectionMinY);
+            int localYEnd = Math.min(Section.SIZE - 1, maxY - sectionMinY); // meaning
             if (localYStart > localYEnd) {
                 continue;
             }
 
             if (section.isUniform()) {
                 // 中文标注（局部变量）：`block`，含义：用于表示方块。
-                Block block = section.uniformBlock();
+                Block block = section.uniformBlock(); // meaning
                 if (block == Blocks.AIR) {
                     continue;
                 }
                 // 中文标注（局部变量）：`localY`，含义：用于表示局部、Y坐标。
-                for (int localY = localYStart; localY <= localYEnd; localY++) {
+                for (int localY = localYStart; localY <= localYEnd; localY++) { // meaning
                     // 中文标注（局部变量）：`worldY`，含义：用于表示世界、Y坐标。
-                    int worldY = sectionMinY + localY;
+                    int worldY = sectionMinY + localY; // meaning
                     // 中文标注（局部变量）：`localZ`，含义：用于表示局部、Z坐标。
-                    for (int localZ = 0; localZ < Section.SIZE; localZ++) {
+                    for (int localZ = 0; localZ < Section.SIZE; localZ++) { // meaning
                         // 中文标注（局部变量）：`localX`，含义：用于表示局部、X坐标。
-                        for (int localX = 0; localX < Section.SIZE; localX++) {
+                        for (int localX = 0; localX < Section.SIZE; localX++) { // meaning
                             consumer.accept(localX, worldY, localZ, block);
                         }
                     }
@@ -177,18 +177,18 @@ public final class Chunk {
             }
 
             // 中文标注（局部变量）：`localY`，含义：用于表示局部、Y坐标。
-            for (int localY = localYStart; localY <= localYEnd; localY++) {
+            for (int localY = localYStart; localY <= localYEnd; localY++) { // meaning
                 // 中文标注（局部变量）：`localZ`，含义：用于表示局部、Z坐标。
-                for (int localZ = 0; localZ < Section.SIZE; localZ++) {
+                for (int localZ = 0; localZ < Section.SIZE; localZ++) { // meaning
                     // 中文标注（局部变量）：`localX`，含义：用于表示局部、X坐标。
-                    for (int localX = 0; localX < Section.SIZE; localX++) {
+                    for (int localX = 0; localX < Section.SIZE; localX++) { // meaning
                         // 中文标注（局部变量）：`block`，含义：用于表示方块。
-                        Block block = section.getBlock(localX, localY, localZ);
+                        Block block = section.getBlock(localX, localY, localZ); // meaning
                         if (block == Blocks.AIR) {
                             continue;
                         }
                         // 中文标注（局部变量）：`worldY`，含义：用于表示世界、Y坐标。
-                        int worldY = sectionMinY + localY;
+                        int worldY = sectionMinY + localY; // meaning
                         consumer.accept(localX, worldY, localZ, block);
                     }
                 }

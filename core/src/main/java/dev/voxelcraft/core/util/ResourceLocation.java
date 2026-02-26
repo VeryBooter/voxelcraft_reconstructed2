@@ -25,7 +25,7 @@ public record ResourceLocation(String namespace, String path) {
     public static ResourceLocation of(String value) {
         Objects.requireNonNull(value, "value");
         // 中文标注（局部变量）：`split`，含义：用于表示split。
-        String[] split = value.split(":", 2);
+        String[] split = value.split(":", 2); // meaning
         if (split.length == 1) {
             return new ResourceLocation("voxelcraft", split[0]);
         }

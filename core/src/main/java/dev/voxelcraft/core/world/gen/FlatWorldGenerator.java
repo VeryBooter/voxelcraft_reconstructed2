@@ -12,18 +12,18 @@ import dev.voxelcraft.core.world.World;
 // 中文标注（类）：`FlatWorldGenerator`，职责：封装flat、世界、生成器相关逻辑。
 public final class FlatWorldGenerator implements WorldGenerator {
     // 中文标注（字段）：`BASE_SURFACE_Y`，含义：用于表示base、surface、Y坐标。
-    private static final int BASE_SURFACE_Y = 5;
+    private static final int BASE_SURFACE_Y = 5; // meaning
     // 中文标注（字段）：`MIN_SURFACE_Y`，含义：用于表示最小、surface、Y坐标。
-    private static final int MIN_SURFACE_Y = 1;
+    private static final int MIN_SURFACE_Y = 1; // meaning
     // 中文标注（字段）：`MAX_SURFACE_Y`，含义：用于表示最大、surface、Y坐标。
-    private static final int MAX_SURFACE_Y = 24;
+    private static final int MAX_SURFACE_Y = 24; // meaning
     // 中文标注（字段）：`SEA_LEVEL`，含义：用于表示sea、级别。
-    private static final int SEA_LEVEL = 4;
+    private static final int SEA_LEVEL = 4; // meaning
 
     // 中文标注（字段）：`perlinNoise`，含义：用于表示柏林、噪声。
-    private final PerlinNoise perlinNoise;
+    private final PerlinNoise perlinNoise; // meaning
     // 中文标注（字段）：`seed`，含义：用于表示seed。
-    private final long seed;
+    private final long seed; // meaning
 
     // 中文标注（构造方法）：`FlatWorldGenerator`，参数：无；用途：初始化`FlatWorldGenerator`实例。
     public FlatWorldGenerator() {
@@ -42,28 +42,28 @@ public final class FlatWorldGenerator implements WorldGenerator {
     // 中文标注（参数）：`chunk`，含义：用于表示区块。
     public void generate(Chunk chunk) {
         // 中文标注（局部变量）：`chunkBaseX`，含义：用于表示区块、base、X坐标。
-        int chunkBaseX = chunk.pos().x() * Section.SIZE;
+        int chunkBaseX = chunk.pos().x() * Section.SIZE; // meaning
         // 中文标注（局部变量）：`chunkBaseZ`，含义：用于表示区块、base、Z坐标。
-        int chunkBaseZ = chunk.pos().z() * Section.SIZE;
+        int chunkBaseZ = chunk.pos().z() * Section.SIZE; // meaning
 
         // 中文标注（局部变量）：`localX`，含义：用于表示局部、X坐标。
-        for (int localX = 0; localX < Section.SIZE; localX++) {
+        for (int localX = 0; localX < Section.SIZE; localX++) { // meaning
             // 中文标注（局部变量）：`localZ`，含义：用于表示局部、Z坐标。
-            for (int localZ = 0; localZ < Section.SIZE; localZ++) {
+            for (int localZ = 0; localZ < Section.SIZE; localZ++) { // meaning
                 // 中文标注（局部变量）：`worldX`，含义：用于表示世界、X坐标。
-                int worldX = chunkBaseX + localX;
+                int worldX = chunkBaseX + localX; // meaning
                 // 中文标注（局部变量）：`worldZ`，含义：用于表示世界、Z坐标。
-                int worldZ = chunkBaseZ + localZ;
+                int worldZ = chunkBaseZ + localZ; // meaning
                 // 中文标注（局部变量）：`surfaceY`，含义：用于表示surface、Y坐标。
-                int surfaceY = surfaceHeight(worldX, worldZ);
+                int surfaceY = surfaceHeight(worldX, worldZ); // meaning
                 // 中文标注（局部变量）：`surfaceBlock`，含义：用于表示surface、方块。
-                Block surfaceBlock = chooseSurfaceBlock(surfaceY, worldX, worldZ);
+                Block surfaceBlock = chooseSurfaceBlock(surfaceY, worldX, worldZ); // meaning
                 // 中文标注（局部变量）：`columnStartY`，含义：用于表示column、开始、Y坐标。
-                int columnStartY = Math.max(World.DEFAULT_SOLID_BELOW_Y, World.MIN_Y);
+                int columnStartY = Math.max(World.DEFAULT_SOLID_BELOW_Y, World.MIN_Y); // meaning
                 // 中文标注（局部变量）：`y`，含义：用于表示Y坐标。
-                for (int y = columnStartY; y <= surfaceY; y++) {
+                for (int y = columnStartY; y <= surfaceY; y++) { // meaning
                     // 中文标注（局部变量）：`depthFromSurface`，含义：用于表示深度、from、surface。
-                    int depthFromSurface = surfaceY - y;
+                    int depthFromSurface = surfaceY - y; // meaning
                     chunk.setBlock(localX, y, localZ, blockForDepth(depthFromSurface, surfaceBlock));
                 }
 
@@ -79,15 +79,15 @@ public final class FlatWorldGenerator implements WorldGenerator {
     // 中文标注（参数）：`worldZ`，含义：用于表示世界、Z坐标。
     private int surfaceHeight(int worldX, int worldZ) {
         // 固定核平滑：完全按世界坐标采样 raw 高度，保证 deterministic 且跨 chunk 无缝。
-        int center = surfaceHeightRaw(worldX, worldZ);
-        int north = surfaceHeightRaw(worldX, worldZ - 1);
-        int south = surfaceHeightRaw(worldX, worldZ + 1);
-        int west = surfaceHeightRaw(worldX - 1, worldZ);
-        int east = surfaceHeightRaw(worldX + 1, worldZ);
-        int northWest = surfaceHeightRaw(worldX - 1, worldZ - 1);
-        int northEast = surfaceHeightRaw(worldX + 1, worldZ - 1);
-        int southWest = surfaceHeightRaw(worldX - 1, worldZ + 1);
-        int southEast = surfaceHeightRaw(worldX + 1, worldZ + 1);
+        int center = surfaceHeightRaw(worldX, worldZ); // meaning
+        int north = surfaceHeightRaw(worldX, worldZ - 1); // meaning
+        int south = surfaceHeightRaw(worldX, worldZ + 1); // meaning
+        int west = surfaceHeightRaw(worldX - 1, worldZ); // meaning
+        int east = surfaceHeightRaw(worldX + 1, worldZ); // meaning
+        int northWest = surfaceHeightRaw(worldX - 1, worldZ - 1); // meaning
+        int northEast = surfaceHeightRaw(worldX + 1, worldZ - 1); // meaning
+        int southWest = surfaceHeightRaw(worldX - 1, worldZ + 1); // meaning
+        int southEast = surfaceHeightRaw(worldX + 1, worldZ + 1); // meaning
 
         double smoothHeight = (
             (center * 4.0)
@@ -102,15 +102,15 @@ public final class FlatWorldGenerator implements WorldGenerator {
     // 中文标注（参数）：`worldZ`，含义：用于表示世界、Z坐标。
     private int surfaceHeightRaw(int worldX, int worldZ) {
         // 更低频的大尺度起伏，减少“碎坡”。
-        double continental = perlinNoise.fbm2d(worldX * 0.0022, worldZ * 0.0022, 4, 2.0, 0.40);
+        double continental = perlinNoise.fbm2d(worldX * 0.0022, worldZ * 0.0022, 4, 2.0, 0.40); // meaning
         // 弱 hills 用于打破过于单调的平面，但幅度远小于主体。
-        double hills = perlinNoise.fbm2d(worldX * 0.0075, worldZ * 0.0075, 2, 2.0, 0.35);
+        double hills = perlinNoise.fbm2d(worldX * 0.0075, worldZ * 0.0075, 2, 2.0, 0.35); // meaning
 
         // 非线性压缩：降低极端值出现概率，让坡度更渐进。
-        double combined = continental * 0.95 + hills * 0.28;
-        double shaped = Math.copySign(Math.pow(Math.abs(combined), 0.90), combined);
+        double combined = continental * 0.95 + hills * 0.28; // meaning
+        double shaped = Math.copySign(Math.pow(Math.abs(combined), 0.90), combined); // meaning
 
-        int offset = (int) Math.round(shaped * 9.0);
+        int offset = (int) Math.round(shaped * 9.0); // meaning
         return clamp(BASE_SURFACE_Y + offset, MIN_SURFACE_Y, MAX_SURFACE_Y);
     }
 
@@ -139,7 +139,7 @@ public final class FlatWorldGenerator implements WorldGenerator {
             return Blocks.SAND;
         }
         // 中文标注（局部变量）：`stoneMask`，含义：用于表示石头、掩码。
-        double stoneMask = perlinNoise.fbm2d(worldX * 0.045, worldZ * 0.045, 2, 2.0, 0.5);
+        double stoneMask = perlinNoise.fbm2d(worldX * 0.045, worldZ * 0.045, 2, 2.0, 0.5); // meaning
         if (surfaceY >= 14 && stoneMask > 0.28) {
             return Blocks.STONE;
         }
@@ -156,13 +156,13 @@ public final class FlatWorldGenerator implements WorldGenerator {
         }
 
         // 中文标注（局部变量）：`gridMask`，含义：用于表示grid、掩码。
-        int gridMask = 7;
+        int gridMask = 7; // meaning
         if ((Math.floorMod(worldX, 16) & gridMask) != 3 || (Math.floorMod(worldZ, 16) & gridMask) != 5) {
             return false;
         }
 
         // 中文标注（局部变量）：`treeDensity`，含义：用于表示tree、density。
-        double treeDensity = perlinNoise.fbm2d(worldX * 0.065, worldZ * 0.065, 3, 2.0, 0.55);
+        double treeDensity = perlinNoise.fbm2d(worldX * 0.065, worldZ * 0.065, 3, 2.0, 0.55); // meaning
         return treeDensity > 0.2;
     }
 
@@ -175,33 +175,33 @@ public final class FlatWorldGenerator implements WorldGenerator {
     // 中文标注（参数）：`worldZ`，含义：用于表示世界、Z坐标。
     private void placeTree(Chunk chunk, int chunkBaseX, int chunkBaseZ, int worldX, int baseY, int worldZ) {
         // 中文标注（局部变量）：`trunkHeight`，含义：用于表示trunk、高度。
-        int trunkHeight = 3 + (int) (Math.floorMod(mixSeed(worldX, worldZ), 3));
+        int trunkHeight = 3 + (int) (Math.floorMod(mixSeed(worldX, worldZ), 3)); // meaning
         // 中文标注（局部变量）：`i`，含义：用于表示i。
-        for (int i = 0; i < trunkHeight; i++) {
+        for (int i = 0; i < trunkHeight; i++) { // meaning
             setIfInsideChunk(chunk, chunkBaseX, chunkBaseZ, worldX, baseY + i, worldZ, Blocks.WOOD);
         }
 
         // 中文标注（局部变量）：`leafBaseY`，含义：用于表示leaf、base、Y坐标。
-        int leafBaseY = baseY + trunkHeight - 2;
+        int leafBaseY = baseY + trunkHeight - 2; // meaning
         // 中文标注（局部变量）：`dy`，含义：用于表示dy。
-        for (int dy = 0; dy <= 3; dy++) {
+        for (int dy = 0; dy <= 3; dy++) { // meaning
             // 中文标注（局部变量）：`radius`，含义：用于表示radius。
-            int radius = dy == 3 ? 1 : 2;
+            int radius = dy == 3 ? 1 : 2; // meaning
             // 中文标注（局部变量）：`dx`，含义：用于表示dx。
-            for (int dx = -radius; dx <= radius; dx++) {
+            for (int dx = -radius; dx <= radius; dx++) { // meaning
                 // 中文标注（局部变量）：`dz`，含义：用于表示dz。
-                for (int dz = -radius; dz <= radius; dz++) {
+                for (int dz = -radius; dz <= radius; dz++) { // meaning
                     // 中文标注（局部变量）：`manhattan`，含义：用于表示manhattan。
-                    int manhattan = Math.abs(dx) + Math.abs(dz);
+                    int manhattan = Math.abs(dx) + Math.abs(dz); // meaning
                     if (manhattan > radius + 1) {
                         continue;
                     }
                     // 中文标注（局部变量）：`leafX`，含义：用于表示leaf、X坐标。
-                    int leafX = worldX + dx;
+                    int leafX = worldX + dx; // meaning
                     // 中文标注（局部变量）：`leafY`，含义：用于表示leaf、Y坐标。
-                    int leafY = leafBaseY + dy;
+                    int leafY = leafBaseY + dy; // meaning
                     // 中文标注（局部变量）：`leafZ`，含义：用于表示leaf、Z坐标。
-                    int leafZ = worldZ + dz;
+                    int leafZ = worldZ + dz; // meaning
                     if (leafY <= baseY + trunkHeight - 1) {
                         continue;
                     }
@@ -229,9 +229,9 @@ public final class FlatWorldGenerator implements WorldGenerator {
         Block block
     ) {
         // 中文标注（局部变量）：`localX`，含义：用于表示局部、X坐标。
-        int localX = worldX - chunkBaseX;
+        int localX = worldX - chunkBaseX; // meaning
         // 中文标注（局部变量）：`localZ`，含义：用于表示局部、Z坐标。
-        int localZ = worldZ - chunkBaseZ;
+        int localZ = worldZ - chunkBaseZ; // meaning
         if (localX < 0 || localX >= Section.SIZE || localZ < 0 || localZ >= Section.SIZE) {
             return;
         }
@@ -243,7 +243,7 @@ public final class FlatWorldGenerator implements WorldGenerator {
     // 中文标注（参数）：`z`，含义：用于表示Z坐标。
     private long mixSeed(int x, int z) {
         // 中文标注（局部变量）：`value`，含义：用于表示值。
-        long value = seed;
+        long value = seed; // meaning
         value ^= (long) x * 0x9E3779B97F4A7C15L;
         value ^= (long) z * 0xC2B2AE3D27D4EB4FL;
         value ^= (value >>> 33);

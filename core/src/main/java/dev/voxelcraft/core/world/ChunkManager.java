@@ -14,15 +14,15 @@ import java.util.concurrent.ConcurrentHashMap;
 // 中文标注（类）：`ChunkManager`，职责：封装区块、管理器相关逻辑。
 public final class ChunkManager {
     // 中文标注（字段）：`chunks`，含义：用于表示区块集合。
-    private final Map<Long, Chunk> chunks = new ConcurrentHashMap<>();
+    private final Map<Long, Chunk> chunks = new ConcurrentHashMap<>(); // meaning
 
     // 中文标注（方法）：`getOrCreateChunk`，参数：chunkX、chunkZ；用途：获取或读取or、创建、区块。
     // 中文标注（参数）：`chunkX`，含义：用于表示区块、X坐标。
     // 中文标注（参数）：`chunkZ`，含义：用于表示区块、Z坐标。
     public Chunk getOrCreateChunk(int chunkX, int chunkZ) {
         // 中文标注（局部变量）：`key`，含义：用于表示键。
-        long key = chunkKey(chunkX, chunkZ);
-        return chunks.computeIfAbsent(key, unused -> new Chunk(new ChunkPos(chunkX, chunkZ)));
+        long key = chunkKey(chunkX, chunkZ); // meaning
+        return chunks.computeIfAbsent(key, unused -> new Chunk(new ChunkPos(chunkX, chunkZ))); // meaning
     }
 
     // 中文标注（方法）：`getChunk`，参数：chunkX、chunkZ；用途：获取或读取区块。
@@ -37,9 +37,9 @@ public final class ChunkManager {
     public Chunk installChunkIfAbsent(Chunk chunk) {
         Objects.requireNonNull(chunk, "chunk");
         // 中文标注（局部变量）：`key`，含义：用于表示键。
-        long key = chunkKey(chunk.pos().x(), chunk.pos().z());
+        long key = chunkKey(chunk.pos().x(), chunk.pos().z()); // meaning
         // 中文标注（局部变量）：`existing`，含义：用于表示existing。
-        Chunk existing = chunks.putIfAbsent(key, chunk);
+        Chunk existing = chunks.putIfAbsent(key, chunk); // meaning
         return existing == null ? chunk : existing;
     }
 
@@ -48,19 +48,19 @@ public final class ChunkManager {
     public Block getBlock(BlockPos pos) {
         Objects.requireNonNull(pos, "pos");
         // 中文标注（局部变量）：`chunkX`，含义：用于表示区块、X坐标。
-        int chunkX = Math.floorDiv(pos.x(), Section.SIZE);
+        int chunkX = Math.floorDiv(pos.x(), Section.SIZE); // meaning
         // 中文标注（局部变量）：`chunkZ`，含义：用于表示区块、Z坐标。
-        int chunkZ = Math.floorDiv(pos.z(), Section.SIZE);
+        int chunkZ = Math.floorDiv(pos.z(), Section.SIZE); // meaning
         // 中文标注（局部变量）：`chunk`，含义：用于表示区块。
-        Chunk chunk = getChunk(chunkX, chunkZ);
+        Chunk chunk = getChunk(chunkX, chunkZ); // meaning
         if (chunk == null) {
             return Blocks.AIR;
         }
 
         // 中文标注（局部变量）：`localX`，含义：用于表示局部、X坐标。
-        int localX = Math.floorMod(pos.x(), Section.SIZE);
+        int localX = Math.floorMod(pos.x(), Section.SIZE); // meaning
         // 中文标注（局部变量）：`localZ`，含义：用于表示局部、Z坐标。
-        int localZ = Math.floorMod(pos.z(), Section.SIZE);
+        int localZ = Math.floorMod(pos.z(), Section.SIZE); // meaning
         return chunk.getBlock(localX, pos.y(), localZ);
     }
 
@@ -71,16 +71,16 @@ public final class ChunkManager {
         Objects.requireNonNull(pos, "pos");
         Objects.requireNonNull(block, "block");
         // 中文标注（局部变量）：`chunkX`，含义：用于表示区块、X坐标。
-        int chunkX = Math.floorDiv(pos.x(), Section.SIZE);
+        int chunkX = Math.floorDiv(pos.x(), Section.SIZE); // meaning
         // 中文标注（局部变量）：`chunkZ`，含义：用于表示区块、Z坐标。
-        int chunkZ = Math.floorDiv(pos.z(), Section.SIZE);
+        int chunkZ = Math.floorDiv(pos.z(), Section.SIZE); // meaning
         // 中文标注（局部变量）：`localX`，含义：用于表示局部、X坐标。
-        int localX = Math.floorMod(pos.x(), Section.SIZE);
+        int localX = Math.floorMod(pos.x(), Section.SIZE); // meaning
         // 中文标注（局部变量）：`localZ`，含义：用于表示局部、Z坐标。
-        int localZ = Math.floorMod(pos.z(), Section.SIZE);
+        int localZ = Math.floorMod(pos.z(), Section.SIZE); // meaning
 
         // 中文标注（局部变量）：`chunk`，含义：用于表示区块。
-        Chunk chunk = getOrCreateChunk(chunkX, chunkZ);
+        Chunk chunk = getOrCreateChunk(chunkX, chunkZ); // meaning
         chunk.setBlock(localX, pos.y(), localZ, block);
     }
 

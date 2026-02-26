@@ -12,46 +12,46 @@ import java.awt.event.KeyEvent;
 // 中文标注（类）：`PlayerController`，职责：封装玩家、控制器相关逻辑。
 public final class PlayerController {
     // 中文标注（字段）：`PLAYER_WIDTH`，含义：用于表示玩家、宽度。
-    private static final double PLAYER_WIDTH = 0.6;
+    private static final double PLAYER_WIDTH = 0.6; // meaning
     // 中文标注（字段）：`PLAYER_HEIGHT`，含义：用于表示玩家、高度。
-    private static final double PLAYER_HEIGHT = 1.8;
+    private static final double PLAYER_HEIGHT = 1.8; // meaning
     // 中文标注（字段）：`EYE_HEIGHT`，含义：用于表示eye、高度。
-    private static final double EYE_HEIGHT = 1.62;
+    private static final double EYE_HEIGHT = 1.62; // meaning
 
     // 中文标注（字段）：`WALK_SPEED`，含义：用于表示walk、speed。
-    private static final double WALK_SPEED = 8.6;
+    private static final double WALK_SPEED = 8.6; // meaning
     // 中文标注（字段）：`SPRINT_SPEED`，含义：用于表示sprint、speed。
-    private static final double SPRINT_SPEED = 12.4;
+    private static final double SPRINT_SPEED = 12.4; // meaning
     // 中文标注（字段）：`GRAVITY`，含义：用于表示gravity。
-    private static final double GRAVITY = 24.0;
+    private static final double GRAVITY = 24.0; // meaning
     // 中文标注（字段）：`JUMP_VELOCITY`，含义：用于表示jump、velocity。
-    private static final double JUMP_VELOCITY = 8.7;
+    private static final double JUMP_VELOCITY = 8.7; // meaning
     // 中文标注（字段）：`COLLISION_STEP`，含义：用于表示collision、step。
-    private static final double COLLISION_STEP = 0.05;
+    private static final double COLLISION_STEP = 0.05; // meaning
 
     // 中文标注（字段）：`x`，含义：用于表示X坐标。
-    private double x = 0.5;
+    private double x = 0.5; // meaning
     // 中文标注（字段）：`y`，含义：用于表示Y坐标。
-    private double y = 8.0;
+    private double y = 8.0; // meaning
     // 中文标注（字段）：`z`，含义：用于表示Z坐标。
-    private double z = 0.5;
+    private double z = 0.5; // meaning
     // 中文标注（字段）：`spawnX`，含义：用于表示spawn、X坐标。
-    private double spawnX = 0.5;
+    private double spawnX = 0.5; // meaning
     // 中文标注（字段）：`spawnY`，含义：用于表示spawn、Y坐标。
-    private double spawnY = 8.0;
+    private double spawnY = 8.0; // meaning
     // 中文标注（字段）：`spawnZ`，含义：用于表示spawn、Z坐标。
-    private double spawnZ = 0.5;
+    private double spawnZ = 0.5; // meaning
 
     // 中文标注（字段）：`verticalVelocity`，含义：用于表示垂直、velocity。
-    private double verticalVelocity;
+    private double verticalVelocity; // meaning
     // 中文标注（字段）：`pitch`，含义：用于表示pitch。
-    private float pitch = -15.0f;
+    private float pitch = -15.0f; // meaning
     // 中文标注（字段）：`yaw`，含义：用于表示yaw。
-    private float yaw = 135.0f;
+    private float yaw = 135.0f; // meaning
     // 中文标注（字段）：`onGround`，含义：用于表示on、ground。
-    private boolean onGround;
+    private boolean onGround; // meaning
     // 中文标注（字段）：`jumpKeyDownLastTick`，含义：用于表示jump、键、down、last、刻。
-    private boolean jumpKeyDownLastTick;
+    private boolean jumpKeyDownLastTick; // meaning
 
     // 中文标注（方法）：`tick`，参数：worldView、input、deltaSeconds；用途：更新刻相关状态。
     // 中文标注（参数）：`worldView`，含义：用于表示世界、view。
@@ -61,7 +61,7 @@ public final class PlayerController {
         updateView(input, deltaSeconds);
 
         // 中文标注（局部变量）：`jumpKeyDown`，含义：用于表示jump、键、down。
-        boolean jumpKeyDown = input.isKeyDown(KeyEvent.VK_SPACE);
+        boolean jumpKeyDown = input.isKeyDown(KeyEvent.VK_SPACE); // meaning
         if (jumpKeyDown && !jumpKeyDownLastTick && onGround) {
             verticalVelocity = JUMP_VELOCITY;
             onGround = false;
@@ -70,25 +70,25 @@ public final class PlayerController {
 
         // 约定：W/S 控制前后轴，D/A 控制左右轴（正值=向右平移）。
         // 中文标注（局部变量）：`forwardAxis`，含义：用于表示forward、axis。
-        double forwardAxis = axis(input, KeyEvent.VK_W, KeyEvent.VK_S);
+        double forwardAxis = axis(input, KeyEvent.VK_W, KeyEvent.VK_S); // meaning
         // 中文标注（局部变量）：`strafeAxis`，含义：用于表示strafe、axis。
-        double strafeAxis = axis(input, KeyEvent.VK_D, KeyEvent.VK_A);
+        double strafeAxis = axis(input, KeyEvent.VK_D, KeyEvent.VK_A); // meaning
         // 中文标注（局部变量）：`speed`，含义：用于表示speed。
-        double speed = input.isKeyDown(KeyEvent.VK_SHIFT) ? SPRINT_SPEED : WALK_SPEED;
+        double speed = input.isKeyDown(KeyEvent.VK_SHIFT) ? SPRINT_SPEED : WALK_SPEED; // meaning
 
         // 中文标注（局部变量）：`horizontalVelocity`，含义：用于表示水平、velocity。
-        double[] horizontalVelocity = computeHorizontalVelocity(forwardAxis, strafeAxis, speed);
+        double[] horizontalVelocity = computeHorizontalVelocity(forwardAxis, strafeAxis, speed); // meaning
         // 中文标注（局部变量）：`moveX`，含义：用于表示move、X坐标。
-        double moveX = horizontalVelocity[0] * deltaSeconds;
+        double moveX = horizontalVelocity[0] * deltaSeconds; // meaning
         // 中文标注（局部变量）：`moveZ`，含义：用于表示move、Z坐标。
-        double moveZ = horizontalVelocity[1] * deltaSeconds;
+        double moveZ = horizontalVelocity[1] * deltaSeconds; // meaning
 
         verticalVelocity -= GRAVITY * deltaSeconds;
         if (verticalVelocity < -40.0) {
             verticalVelocity = -40.0;
         }
         // 中文标注（局部变量）：`moveY`，含义：用于表示move、Y坐标。
-        double moveY = verticalVelocity * deltaSeconds;
+        double moveY = verticalVelocity * deltaSeconds; // meaning
 
         moveWithCollisions(worldView, moveX, moveY, moveZ);
 
@@ -102,12 +102,12 @@ public final class PlayerController {
     // 中文标注（参数）：`deltaSeconds`，含义：用于表示增量、seconds。
     private void updateView(InputState input, double deltaSeconds) {
         // 中文标注（局部变量）：`mouseSensitivity`，含义：用于表示鼠标、sensitivity。
-        float mouseSensitivity = 0.28f;
+        float mouseSensitivity = 0.28f; // meaning
         yaw += input.mouseDeltaX() * mouseSensitivity;
         pitch += input.mouseDeltaY() * mouseSensitivity;
 
         // 中文标注（局部变量）：`keyLookSpeed`，含义：用于表示键、look、speed。
-        float keyLookSpeed = (float) (120.0 * deltaSeconds);
+        float keyLookSpeed = (float) (120.0 * deltaSeconds); // meaning
         if (input.isKeyDown(KeyEvent.VK_LEFT)) {
             yaw -= keyLookSpeed;
         }
@@ -135,7 +135,7 @@ public final class PlayerController {
     // 中文标注（参数）：`negativeKey`，含义：用于表示negative、键。
     private static double axis(InputState input, int positiveKey, int negativeKey) {
         // 中文标注（局部变量）：`value`，含义：用于表示值。
-        double value = 0.0;
+        double value = 0.0; // meaning
         if (input.isKeyDown(positiveKey)) {
             value += 1.0;
         }
@@ -155,22 +155,22 @@ public final class PlayerController {
         }
 
         // 中文标注（局部变量）：`magnitude`，含义：用于表示magnitude。
-        double magnitude = Math.hypot(forwardAxis, strafeAxis);
+        double magnitude = Math.hypot(forwardAxis, strafeAxis); // meaning
         forwardAxis /= magnitude;
         strafeAxis /= magnitude;
 
         // 中文标注（局部变量）：`yawRadians`，含义：用于表示yaw、radians。
-        double yawRadians = Math.toRadians(yaw);
+        double yawRadians = Math.toRadians(yaw); // meaning
         // 中文标注（局部变量）：`sin`，含义：用于表示sin。
-        double sin = Math.sin(yawRadians);
+        double sin = Math.sin(yawRadians); // meaning
         // 中文标注（局部变量）：`cos`，含义：用于表示cos。
-        double cos = Math.cos(yawRadians);
+        double cos = Math.cos(yawRadians); // meaning
 
         // 与相机/Frustum 使用同一 yaw 约定，避免出现“移动方向正确但渲染/剔除方向反了”。
         // 中文标注（局部变量）：`velocityX`，含义：用于表示velocity、X坐标。
-        double velocityX = (forwardAxis * sin + strafeAxis * cos) * speed;
+        double velocityX = (forwardAxis * sin + strafeAxis * cos) * speed; // meaning
         // 中文标注（局部变量）：`velocityZ`，含义：用于表示velocity、Z坐标。
-        double velocityZ = (forwardAxis * cos - strafeAxis * sin) * speed;
+        double velocityZ = (forwardAxis * cos - strafeAxis * sin) * speed; // meaning
         return new double[] {velocityX, velocityZ};
     }
 
@@ -184,7 +184,7 @@ public final class PlayerController {
         moveAxis(worldView, moveZ, Axis.Z);
 
         // 中文标注（局部变量）：`movedY`，含义：用于表示moved、Y坐标。
-        double movedY = moveAxis(worldView, moveY, Axis.Y);
+        double movedY = moveAxis(worldView, moveY, Axis.Y); // meaning
         if (moveY < 0.0 && Math.abs(movedY - moveY) > 1e-6) {
             onGround = true;
             verticalVelocity = 0.0;
@@ -205,23 +205,23 @@ public final class PlayerController {
         }
 
         // 中文标注（局部变量）：`stepSign`，含义：用于表示step、sign。
-        double stepSign = Math.signum(distance);
+        double stepSign = Math.signum(distance); // meaning
         // 中文标注（局部变量）：`remaining`，含义：用于表示remaining。
-        double remaining = Math.abs(distance);
+        double remaining = Math.abs(distance); // meaning
         // 中文标注（局部变量）：`moved`，含义：用于表示moved。
-        double moved = 0.0;
+        double moved = 0.0; // meaning
 
         while (remaining > 1e-6) {
             // 中文标注（局部变量）：`step`，含义：用于表示step。
-            double step = Math.min(remaining, COLLISION_STEP);
+            double step = Math.min(remaining, COLLISION_STEP); // meaning
             // 中文标注（局部变量）：`delta`，含义：用于表示增量。
-            double delta = step * stepSign;
+            double delta = step * stepSign; // meaning
             // 中文标注（局部变量）：`next`，含义：用于表示next。
-            AABB next = movedBoundingBox(axis, delta);
+            AABB next = movedBoundingBox(axis, delta); // meaning
 
             if (collides(worldView, next)) {
                 // 中文标注（局部变量）：`resolved`，含义：用于表示resolved。
-                double resolved = resolveAllowedDelta(worldView, axis, delta);
+                double resolved = resolveAllowedDelta(worldView, axis, delta); // meaning
                 if (Math.abs(resolved) > 1e-6) {
                     applyAxisDelta(axis, resolved);
                     moved += resolved;
@@ -243,18 +243,18 @@ public final class PlayerController {
     // 中文标注（参数）：`desiredDelta`，含义：用于表示desired、增量。
     private double resolveAllowedDelta(ClientWorldView worldView, Axis axis, double desiredDelta) {
         // 中文标注（局部变量）：`sign`，含义：用于表示sign。
-        double sign = Math.signum(desiredDelta);
+        double sign = Math.signum(desiredDelta); // meaning
         // 中文标注（局部变量）：`low`，含义：用于表示low。
-        double low = 0.0;
+        double low = 0.0; // meaning
         // 中文标注（局部变量）：`high`，含义：用于表示high。
-        double high = Math.abs(desiredDelta);
+        double high = Math.abs(desiredDelta); // meaning
 
         // 中文标注（局部变量）：`i`，含义：用于表示i。
-        for (int i = 0; i < 8; i++) {
+        for (int i = 0; i < 8; i++) { // meaning
             // 中文标注（局部变量）：`mid`，含义：用于表示mid。
-            double mid = (low + high) * 0.5;
+            double mid = (low + high) * 0.5; // meaning
             // 中文标注（局部变量）：`candidate`，含义：用于表示candidate。
-            AABB candidate = movedBoundingBox(axis, sign * mid);
+            AABB candidate = movedBoundingBox(axis, sign * mid); // meaning
             if (collides(worldView, candidate)) {
                 high = mid;
             } else {
@@ -292,27 +292,27 @@ public final class PlayerController {
     // 中文标注（参数）：`box`，含义：用于表示box。
     private static boolean collides(ClientWorldView worldView, AABB box) {
         // 中文标注（局部变量）：`minX`，含义：用于表示最小、X坐标。
-        int minX = (int) Math.floor(box.minX());
+        int minX = (int) Math.floor(box.minX()); // meaning
         // 中文标注（局部变量）：`maxX`，含义：用于表示最大、X坐标。
-        int maxX = (int) Math.floor(box.maxX() - 1e-6);
+        int maxX = (int) Math.floor(box.maxX() - 1e-6); // meaning
         // 中文标注（局部变量）：`minY`，含义：用于表示最小、Y坐标。
-        int minY = (int) Math.floor(box.minY());
+        int minY = (int) Math.floor(box.minY()); // meaning
         // 中文标注（局部变量）：`maxY`，含义：用于表示最大、Y坐标。
-        int maxY = (int) Math.floor(box.maxY() - 1e-6);
+        int maxY = (int) Math.floor(box.maxY() - 1e-6); // meaning
         // 中文标注（局部变量）：`minZ`，含义：用于表示最小、Z坐标。
-        int minZ = (int) Math.floor(box.minZ());
+        int minZ = (int) Math.floor(box.minZ()); // meaning
         // 中文标注（局部变量）：`maxZ`，含义：用于表示最大、Z坐标。
-        int maxZ = (int) Math.floor(box.maxZ() - 1e-6);
+        int maxZ = (int) Math.floor(box.maxZ() - 1e-6); // meaning
 
         // 中文标注（局部变量）：`blockY`，含义：用于表示方块、Y坐标。
-        for (int blockY = minY; blockY <= maxY; blockY++) {
+        for (int blockY = minY; blockY <= maxY; blockY++) { // meaning
             if (!worldView.isWithinWorldY(blockY)) {
                 return true;
             }
             // 中文标注（局部变量）：`blockX`，含义：用于表示方块、X坐标。
-            for (int blockX = minX; blockX <= maxX; blockX++) {
+            for (int blockX = minX; blockX <= maxX; blockX++) { // meaning
                 // 中文标注（局部变量）：`blockZ`，含义：用于表示方块、Z坐标。
-                for (int blockZ = minZ; blockZ <= maxZ; blockZ++) {
+                for (int blockZ = minZ; blockZ <= maxZ; blockZ++) { // meaning
                     if (worldView.isSolid(blockX, blockY, blockZ)) {
                         return true;
                     }
@@ -354,7 +354,7 @@ public final class PlayerController {
     // 中文标注（方法）：`boundingBox`，参数：无；用途：执行bounding、box相关逻辑。
     public AABB boundingBox() {
         // 中文标注（局部变量）：`halfWidth`，含义：用于表示half、宽度。
-        double halfWidth = PLAYER_WIDTH * 0.5;
+        double halfWidth = PLAYER_WIDTH * 0.5; // meaning
         return new AABB(x - halfWidth, y, z - halfWidth, x + halfWidth, y + PLAYER_HEIGHT, z + halfWidth);
     }
 
@@ -406,25 +406,25 @@ public final class PlayerController {
     // 中文标注（方法）：`lookDirX`，参数：无；用途：执行look、dir、X坐标相关逻辑。
     public double lookDirX() {
         // 中文标注（局部变量）：`yawRadians`，含义：用于表示yaw、radians。
-        double yawRadians = Math.toRadians(yaw);
+        double yawRadians = Math.toRadians(yaw); // meaning
         // 中文标注（局部变量）：`pitchRadians`，含义：用于表示pitch、radians。
-        double pitchRadians = Math.toRadians(pitch);
+        double pitchRadians = Math.toRadians(pitch); // meaning
         return Math.sin(yawRadians) * Math.cos(pitchRadians);
     }
 
     // 中文标注（方法）：`lookDirY`，参数：无；用途：执行look、dir、Y坐标相关逻辑。
     public double lookDirY() {
         // 中文标注（局部变量）：`pitchRadians`，含义：用于表示pitch、radians。
-        double pitchRadians = Math.toRadians(pitch);
+        double pitchRadians = Math.toRadians(pitch); // meaning
         return -Math.sin(pitchRadians);
     }
 
     // 中文标注（方法）：`lookDirZ`，参数：无；用途：执行look、dir、Z坐标相关逻辑。
     public double lookDirZ() {
         // 中文标注（局部变量）：`yawRadians`，含义：用于表示yaw、radians。
-        double yawRadians = Math.toRadians(yaw);
+        double yawRadians = Math.toRadians(yaw); // meaning
         // 中文标注（局部变量）：`pitchRadians`，含义：用于表示pitch、radians。
-        double pitchRadians = Math.toRadians(pitch);
+        double pitchRadians = Math.toRadians(pitch); // meaning
         return Math.cos(yawRadians) * Math.cos(pitchRadians);
     }
 

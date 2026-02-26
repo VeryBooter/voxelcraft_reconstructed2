@@ -12,12 +12,12 @@ class PaletteTest {
     @Test
     void paletteReusesIdsForSameValue() {
         // 中文标注（局部变量）：`palette`，含义：用于表示palette。
-        Palette<String> palette = new Palette<>();
+        Palette<String> palette = new Palette<>(); // meaning
 
         // 中文标注（局部变量）：`first`，含义：用于表示first。
-        int first = palette.idFor("stone");
+        int first = palette.idFor("stone"); // meaning
         // 中文标注（局部变量）：`second`，含义：用于表示second。
-        int second = palette.idFor("stone");
+        int second = palette.idFor("stone"); // meaning
 
         Assertions.assertEquals(first, second);
         Assertions.assertEquals(1, palette.size());
@@ -27,10 +27,10 @@ class PaletteTest {
     @Test
     void paletteResolvesValuesById() {
         // 中文标注（局部变量）：`palette`，含义：用于表示palette。
-        Palette<String> palette = new Palette<>();
+        Palette<String> palette = new Palette<>(); // meaning
         palette.idFor("stone");
         // 中文标注（局部变量）：`dirtId`，含义：用于表示泥土、标识。
-        int dirtId = palette.idFor("dirt");
+        int dirtId = palette.idFor("dirt"); // meaning
 
         Assertions.assertEquals("dirt", palette.valueFor(dirtId));
     }
@@ -39,7 +39,7 @@ class PaletteTest {
     @Test
     void invalidIdThrows() {
         // 中文标注（局部变量）：`palette`，含义：用于表示palette。
-        Palette<String> palette = new Palette<>();
+        Palette<String> palette = new Palette<>(); // meaning
         palette.idFor("stone");
 
         Assertions.assertThrows(IllegalArgumentException.class, () -> palette.valueFor(10));

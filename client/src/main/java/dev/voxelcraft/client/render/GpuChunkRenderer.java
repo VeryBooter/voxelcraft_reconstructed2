@@ -111,67 +111,67 @@ import static org.lwjgl.opengl.GL40.GL_DRAW_INDIRECT_BUFFER;
 // 中文标注（类）：`GpuChunkRenderer`，职责：封装GPU、区块、渲染器相关逻辑。
 public final class GpuChunkRenderer implements AutoCloseable {
     // 中文标注（字段）：`VERTICAL_FOV_DEGREES`，含义：用于表示垂直、fov、degrees。
-    private static final float VERTICAL_FOV_DEGREES = 75.0f;
+    private static final float VERTICAL_FOV_DEGREES = 75.0f; // meaning
     // 中文标注（字段）：`NEAR_PLANE`，含义：用于表示near、plane。
-    private static final double NEAR_PLANE = 0.05;
+    private static final double NEAR_PLANE = 0.05; // meaning
     // 中文标注（字段）：`FAR_PLANE`，含义：用于表示far、plane。
-    private static final double FAR_PLANE = 4_800.0;
+    private static final double FAR_PLANE = 4_800.0; // meaning
 
     // 中文标注（字段）：`RENDER_CHUNK_RADIUS`，含义：用于表示渲染、区块、radius。
-    private static final int RENDER_CHUNK_RADIUS = 300; // 4,800 blocks radius / 16 blocks per chunk
+    private static final int RENDER_CHUNK_RADIUS = 300; // meaning
     // 中文标注（字段）：`MIN_UPLOADS_PER_FRAME`，含义：用于表示最小、uploads、per、帧。
-    private static final int MIN_UPLOADS_PER_FRAME = 1;
+    private static final int MIN_UPLOADS_PER_FRAME = 1; // meaning
     // 中文标注（字段）：`DEFAULT_UPLOADS_PER_FRAME`，含义：用于表示默认、uploads、per、帧。
-    private static final int DEFAULT_UPLOADS_PER_FRAME = 3;
+    private static final int DEFAULT_UPLOADS_PER_FRAME = 3; // meaning
     // 中文标注（字段）：`MAX_UPLOADS_PER_FRAME`，含义：用于表示最大、uploads、per、帧。
-    private static final int MAX_UPLOADS_PER_FRAME = 6;
+    private static final int MAX_UPLOADS_PER_FRAME = 6; // meaning
     // 中文标注（字段）：`MIN_MESH_SUBMITS_PER_FRAME`，含义：用于表示最小、网格、submits、per、帧。
-    private static final int MIN_MESH_SUBMITS_PER_FRAME = 1;
+    private static final int MIN_MESH_SUBMITS_PER_FRAME = 1; // meaning
     // 中文标注（字段）：`DEFAULT_MESH_SUBMITS_PER_FRAME`，含义：用于表示默认、网格、submits、per、帧。
-    private static final int DEFAULT_MESH_SUBMITS_PER_FRAME = 6;
+    private static final int DEFAULT_MESH_SUBMITS_PER_FRAME = 6; // meaning
     // 中文标注（字段）：`MAX_MESH_SUBMITS_PER_FRAME`，含义：用于表示最大、网格、submits、per、帧。
-    private static final int MAX_MESH_SUBMITS_PER_FRAME = 12;
+    private static final int MAX_MESH_SUBMITS_PER_FRAME = 12; // meaning
     // 中文标注（字段）：`BYTE_BUFFER_POOL_BUCKET_LIMIT`，含义：用于表示字节、缓冲区、池、bucket、limit。
-    private static final int BYTE_BUFFER_POOL_BUCKET_LIMIT = 8;
+    private static final int BYTE_BUFFER_POOL_BUCKET_LIMIT = 8; // meaning
     // 中文标注（字段）：`FRAME_TIME_EMA_ALPHA`，含义：用于表示帧、时间、ema、alpha。
-    private static final double FRAME_TIME_EMA_ALPHA = 0.12;
+    private static final double FRAME_TIME_EMA_ALPHA = 0.12; // meaning
     // 中文标注（字段）：`UPLOAD_BUDGET_REDUCE_MS`，含义：用于表示上传、budget、reduce、ms。
-    private static final double UPLOAD_BUDGET_REDUCE_MS = 14.5;
+    private static final double UPLOAD_BUDGET_REDUCE_MS = 14.5; // meaning
     // 中文标注（字段）：`UPLOAD_BUDGET_INCREASE_MS`，含义：用于表示上传、budget、increase、ms。
-    private static final double UPLOAD_BUDGET_INCREASE_MS = 9.5;
+    private static final double UPLOAD_BUDGET_INCREASE_MS = 9.5; // meaning
     // 中文标注（字段）：`UPLOAD_BUDGET_RECOVER_MS`，含义：用于表示上传、budget、recover、ms。
-    private static final double UPLOAD_BUDGET_RECOVER_MS = 8.0;
+    private static final double UPLOAD_BUDGET_RECOVER_MS = 8.0; // meaning
     // 中文标注（字段）：`DEFAULT_UPLOAD_TIME_BUDGET_MS`，含义：用于表示默认、上传、时间、budget、ms。
-    private static final double DEFAULT_UPLOAD_TIME_BUDGET_MS = 1.25;
+    private static final double DEFAULT_UPLOAD_TIME_BUDGET_MS = 1.25; // meaning
     // 中文标注（字段）：`RECENTLY_VISIBLE_BIAS_FRAMES`，含义：用于表示recently、visible、bias、frames。
-    private static final int RECENTLY_VISIBLE_BIAS_FRAMES = 45;
+    private static final int RECENTLY_VISIBLE_BIAS_FRAMES = 45; // meaning
     // 中文标注（字段）：`PRIORITY_FORWARD_BIAS_WEIGHT`，含义：用于表示priority、forward、bias、weight。
-    private static final double PRIORITY_FORWARD_BIAS_WEIGHT = 48.0;
+    private static final double PRIORITY_FORWARD_BIAS_WEIGHT = 48.0; // meaning
     // 中文标注（字段）：`PRIORITY_RECENT_VISIBLE_BIAS`，含义：用于表示priority、recent、visible、bias。
-    private static final double PRIORITY_RECENT_VISIBLE_BIAS = 24.0;
+    private static final double PRIORITY_RECENT_VISIBLE_BIAS = 24.0; // meaning
     // 中文标注（字段）：`OCCLUSION_HIDDEN_HYSTERESIS_FRAMES`，含义：用于表示occlusion、hidden、hysteresis、frames。
-    private static final int OCCLUSION_HIDDEN_HYSTERESIS_FRAMES = 2;
+    private static final int OCCLUSION_HIDDEN_HYSTERESIS_FRAMES = 2; // meaning
     // 中文标注（字段）：`OCCLUSION_RESAMPLE_INTERVAL_FRAMES`，含义：用于表示occlusion、resample、interval、frames。
-    private static final int OCCLUSION_RESAMPLE_INTERVAL_FRAMES = 10;
+    private static final int OCCLUSION_RESAMPLE_INTERVAL_FRAMES = 10; // meaning
     // 中文标注（字段）：`OCCLUSION_MAX_QUERIES_PER_FRAME`，含义：用于表示occlusion、最大、queries、per、帧。
-    private static final int OCCLUSION_MAX_QUERIES_PER_FRAME = 96;
+    private static final int OCCLUSION_MAX_QUERIES_PER_FRAME = 96; // meaning
     // 中文标注（字段）：`DEFAULT_OCCLUSION_RESULT_POLL_BUDGET`，含义：用于表示默认、occlusion、结果、poll、budget。
-    private static final int DEFAULT_OCCLUSION_RESULT_POLL_BUDGET = 192;
+    private static final int DEFAULT_OCCLUSION_RESULT_POLL_BUDGET = 192; // meaning
     // 中文标注（字段）：`DEFAULT_LOD_START_CHUNK_DISTANCE`，含义：用于表示默认、细节层级、开始、区块、distance。
-    private static final int DEFAULT_LOD_START_CHUNK_DISTANCE = 4;
+    private static final int DEFAULT_LOD_START_CHUNK_DISTANCE = 4; // meaning
     // 中文标注（字段）：`DEFAULT_LOD_HYSTERESIS_CHUNKS`，含义：用于表示默认、细节层级、hysteresis、区块集合。
-    private static final int DEFAULT_LOD_HYSTERESIS_CHUNKS = 1;
+    private static final int DEFAULT_LOD_HYSTERESIS_CHUNKS = 1; // meaning
     // 中文标注（字段）：`DEFAULT_SHARED_ARENA_VERTEX_MB`，含义：用于表示默认、shared、arena、顶点、mb。
-    private static final int DEFAULT_SHARED_ARENA_VERTEX_MB = 128;
+    private static final int DEFAULT_SHARED_ARENA_VERTEX_MB = 128; // meaning
     // 中文标注（字段）：`DEFAULT_SHARED_ARENA_INDEX_MB`，含义：用于表示默认、shared、arena、索引、mb。
-    private static final int DEFAULT_SHARED_ARENA_INDEX_MB = 64;
-    private static final int MAX_CULL_LOGS_PER_FRAME = 32;
+    private static final int DEFAULT_SHARED_ARENA_INDEX_MB = 64; // meaning
+    private static final int MAX_CULL_LOGS_PER_FRAME = 32; // meaning
     // 中文标注（字段）：`VERTEX_STRIDE_BYTES`，含义：用于表示顶点、步长、字节数据。
-    private static final int VERTEX_STRIDE_BYTES = ChunkMesher.GPU_VERTEX_STRIDE_BYTES;
+    private static final int VERTEX_STRIDE_BYTES = ChunkMesher.GPU_VERTEX_STRIDE_BYTES; // meaning
     // 中文标注（字段）：`POSITION_OFFSET_BYTES`，含义：用于表示位置、偏移、字节数据。
-    private static final long POSITION_OFFSET_BYTES = 0L;
+    private static final long POSITION_OFFSET_BYTES = 0L; // meaning
     // 中文标注（字段）：`COLOR_OFFSET_BYTES`，含义：用于表示颜色、偏移、字节数据。
-    private static final long COLOR_OFFSET_BYTES = ChunkMesher.GPU_COLOR_OFFSET_BYTES;
+    private static final long COLOR_OFFSET_BYTES = ChunkMesher.GPU_COLOR_OFFSET_BYTES; // meaning
     // 中文标注（字段）：`AMBIENT_VERTEX_SHADER_SOURCE`，含义：用于表示环境光、顶点、着色器、source。
     private static final String AMBIENT_VERTEX_SHADER_SOURCE = """
         #version 120
@@ -225,13 +225,13 @@ public final class GpuChunkRenderer implements AutoCloseable {
         """;
 
     // 中文标注（字段）：`mesher`，含义：用于表示mesher。
-    private final ChunkMesher mesher = new ChunkMesher();
+    private final ChunkMesher mesher = new ChunkMesher(); // meaning
     // 中文标注（字段）：`frustum`，含义：用于表示视锥体。
-    private final Frustum frustum = new Frustum();
+    private final Frustum frustum = new Frustum(); // meaning
     // 中文标注（字段）：`features`，含义：用于表示features。
-    private final GpuConfig features = GpuConfig.load();
+    private final GpuConfig features = GpuConfig.load(); // meaning
     // 中文标注（字段）：`gpuChunks`，含义：用于表示GPU、区块集合。
-    private final Map<ChunkPos, GpuChunk> gpuChunks = new HashMap<>();
+    private final Map<ChunkPos, GpuChunk> gpuChunks = new HashMap<>(); // meaning
     // 中文标注（字段）：`uploadQueue`，含义：用于表示上传、队列。
     private final PriorityBlockingQueue<QueuedMeshUpload> uploadQueue = new PriorityBlockingQueue<>(
         64,
@@ -240,158 +240,158 @@ public final class GpuChunkRenderer implements AutoCloseable {
             .thenComparingLong(QueuedMeshUpload::sequence)
     );
     // 中文标注（字段）：`uploadQueueLifecycleLock`，含义：用于表示上传、队列、lifecycle、锁。
-    private final Object uploadQueueLifecycleLock = new Object();
+    private final Object uploadQueueLifecycleLock = new Object(); // meaning
     // 中文标注（字段）：`inFlightVersion`，含义：用于表示in、flight、版本。
-    private final ConcurrentHashMap<ChunkPos, Long> inFlightVersion = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<ChunkPos, Long> inFlightVersion = new ConcurrentHashMap<>(); // meaning
     // 中文标注（字段）：`meshingJobsInFlight`，含义：用于表示meshing、jobs、in、flight。
-    private final AtomicInteger meshingJobsInFlight = new AtomicInteger();
+    private final AtomicInteger meshingJobsInFlight = new AtomicInteger(); // meaning
     // 中文标注（字段）：`uploadSequence`，含义：用于表示上传、sequence。
-    private final AtomicLong uploadSequence = new AtomicLong();
+    private final AtomicLong uploadSequence = new AtomicLong(); // meaning
     // 中文标注（字段）：`meshTaskSequence`，含义：用于表示网格、task、sequence。
-    private final AtomicLong meshTaskSequence = new AtomicLong();
-    private final AtomicInteger worldEpoch = new AtomicInteger();
+    private final AtomicLong meshTaskSequence = new AtomicLong(); // meaning
+    private final AtomicInteger worldEpoch = new AtomicInteger(); // meaning
     // 中文标注（字段）：`meshPool`，含义：用于表示网格、池。
-    private final ThreadPoolExecutor meshPool;
+    private final ThreadPoolExecutor meshPool; // meaning
     // 中文标注（字段）：`meshWorkerCount`，含义：用于表示网格、worker、数量。
-    private final int meshWorkerCount;
+    private final int meshWorkerCount; // meaning
     // 中文标注（字段）：`uploadBufferPool`，含义：用于表示上传、缓冲区、池。
-    private final DirectByteBufferPool uploadBufferPool = new DirectByteBufferPool(BYTE_BUFFER_POOL_BUCKET_LIMIT);
+    private final DirectByteBufferPool uploadBufferPool = new DirectByteBufferPool(BYTE_BUFFER_POOL_BUCKET_LIMIT); // meaning
     // 中文标注（字段）：`scratchLoadedChunks`，含义：用于表示临时工作区、loaded、区块集合。
-    private final ArrayList<Chunk> scratchLoadedChunks = new ArrayList<>();
+    private final ArrayList<Chunk> scratchLoadedChunks = new ArrayList<>(); // meaning
     // 中文标注（字段）：`scratchChunksInRange`，含义：用于表示临时工作区、区块集合、in、范围。
-    private final ArrayList<Chunk> scratchChunksInRange = new ArrayList<>();
+    private final ArrayList<Chunk> scratchChunksInRange = new ArrayList<>(); // meaning
     // 中文标注（字段）：`scratchActiveChunkPositions`，含义：用于表示临时工作区、active、区块、positions。
-    private final HashSet<ChunkPos> scratchActiveChunkPositions = new HashSet<>();
+    private final HashSet<ChunkPos> scratchActiveChunkPositions = new HashSet<>(); // meaning
     // 中文标注（字段）：`scratchPruneRemovals`，含义：用于表示临时工作区、prune、removals。
-    private final ArrayList<ChunkPos> scratchPruneRemovals = new ArrayList<>();
+    private final ArrayList<ChunkPos> scratchPruneRemovals = new ArrayList<>(); // meaning
     // 中文标注（字段）：`scratchOcclusionCandidates`，含义：用于表示临时工作区、occlusion、candidates。
-    private final ArrayList<GpuChunk> scratchOcclusionCandidates = new ArrayList<>();
+    private final ArrayList<GpuChunk> scratchOcclusionCandidates = new ArrayList<>(); // meaning
     // 中文标注（字段）：`scratchMdiChunks`，含义：用于表示临时工作区、mdi、区块集合。
-    private final ArrayList<GpuChunk> scratchMdiChunks = new ArrayList<>();
+    private final ArrayList<GpuChunk> scratchMdiChunks = new ArrayList<>(); // meaning
     // 中文标注（字段）：`recentlyVisibleFrame`，含义：用于表示recently、visible、帧。
-    private final HashMap<ChunkPos, Long> recentlyVisibleFrame = new HashMap<>();
+    private final HashMap<ChunkPos, Long> recentlyVisibleFrame = new HashMap<>(); // meaning
     // 中文标注（字段）：`lodSelectionCache`，含义：用于表示细节层级、selection、缓存。
-    private final HashMap<ChunkPos, Integer> lodSelectionCache = new HashMap<>();
+    private final HashMap<ChunkPos, Integer> lodSelectionCache = new HashMap<>(); // meaning
     // 中文标注（字段）：`frameTimeWindowMs`，含义：用于表示帧、时间、窗口、ms。
-    private final double[] frameTimeWindowMs = new double[512];
+    private final double[] frameTimeWindowMs = new double[512]; // meaning
     // 中文标注（字段）：`frameTimeSortScratchMs`，含义：用于表示帧、时间、sort、临时工作区、ms。
-    private final double[] frameTimeSortScratchMs = new double[512];
+    private final double[] frameTimeSortScratchMs = new double[512]; // meaning
 
     // 中文标注（字段）：`perfWindowStartNanos`，含义：用于表示perf、窗口、开始、nanos。
-    private long perfWindowStartNanos = System.nanoTime();
+    private long perfWindowStartNanos = System.nanoTime(); // meaning
     // 中文标注（字段）：`perfFrames`，含义：用于表示perf、frames。
-    private int perfFrames;
+    private int perfFrames; // meaning
     // 中文标注（字段）：`perfUploadJobs`，含义：用于表示perf、上传、jobs。
-    private long perfUploadJobs;
+    private long perfUploadJobs; // meaning
     // 中文标注（字段）：`perfUploadBytes`，含义：用于表示perf、上传、字节数据。
-    private long perfUploadBytes;
+    private long perfUploadBytes; // meaning
     // 中文标注（字段）：`perfUploadDropped`，含义：用于表示perf、上传、dropped。
-    private long perfUploadDropped;
+    private long perfUploadDropped; // meaning
     // 中文标注（字段）：`perfBufferReallocs`，含义：用于表示perf、缓冲区、reallocs。
-    private long perfBufferReallocs;
+    private long perfBufferReallocs; // meaning
     // 中文标注（字段）：`perfBufferOrphans`，含义：用于表示perf、缓冲区、orphans。
-    private long perfBufferOrphans;
+    private long perfBufferOrphans; // meaning
     // 中文标注（字段）：`perfBufferSubDatas`，含义：用于表示perf、缓冲区、sub、datas。
-    private long perfBufferSubDatas;
+    private long perfBufferSubDatas; // meaning
     // 中文标注（字段）：`perfMeshingQueueTopPriority`，含义：用于表示perf、meshing、队列、顶面、priority。
-    private double perfMeshingQueueTopPriority = Double.NaN;
+    private double perfMeshingQueueTopPriority = Double.NaN; // meaning
     // 中文标注（字段）：`perfUploadQueueTopPriority`，含义：用于表示perf、上传、队列、顶面、priority。
-    private double perfUploadQueueTopPriority = Double.NaN;
+    private double perfUploadQueueTopPriority = Double.NaN; // meaning
     // 中文标注（字段）：`perfVisibleLatencyNanosTotal`，含义：用于表示perf、visible、latency、nanos、total。
-    private long perfVisibleLatencyNanosTotal;
+    private long perfVisibleLatencyNanosTotal; // meaning
     // 中文标注（字段）：`perfVisibleLatencySamples`，含义：用于表示perf、visible、latency、samples。
-    private int perfVisibleLatencySamples;
+    private int perfVisibleLatencySamples; // meaning
     // 中文标注（字段）：`perfOcclusionQueries`，含义：用于表示perf、occlusion、queries。
-    private long perfOcclusionQueries;
+    private long perfOcclusionQueries; // meaning
     // 中文标注（字段）：`perfOcclusionCulledChunks`，含义：用于表示perf、occlusion、culled、区块集合。
-    private long perfOcclusionCulledChunks;
+    private long perfOcclusionCulledChunks; // meaning
     // 中文标注（字段）：`perfOcclusionQueryPolls`，含义：用于表示perf、occlusion、query、polls。
-    private long perfOcclusionQueryPolls;
+    private long perfOcclusionQueryPolls; // meaning
     // 中文标注（字段）：`perfOcclusionQueryDeferredPolls`，含义：用于表示perf、occlusion、query、deferred、polls。
-    private long perfOcclusionQueryDeferredPolls;
+    private long perfOcclusionQueryDeferredPolls; // meaning
     // 中文标注（字段）：`perfOcclusionQueryReadStalls`，含义：用于表示perf、occlusion、query、读取、stalls。
-    private long perfOcclusionQueryReadStalls;
+    private long perfOcclusionQueryReadStalls; // meaning
     // 中文标注（字段）：`perfMdiBatches`，含义：用于表示perf、mdi、batches。
-    private long perfMdiBatches;
+    private long perfMdiBatches; // meaning
     // 中文标注（字段）：`perfMdiChunks`，含义：用于表示perf、mdi、区块集合。
-    private long perfMdiChunks;
+    private long perfMdiChunks; // meaning
     // 中文标注（字段）：`perfMdiFallbackChunks`，含义：用于表示perf、mdi、fallback、区块集合。
-    private long perfMdiFallbackChunks;
+    private long perfMdiFallbackChunks; // meaning
     // 中文标注（字段）：`perfDrawElementsChunks`，含义：用于表示perf、绘制、elements、区块集合。
-    private long perfDrawElementsChunks;
+    private long perfDrawElementsChunks; // meaning
     // 中文标注（字段）：`perfSharedArenaDrawChunks`，含义：用于表示perf、shared、arena、绘制、区块集合。
-    private long perfSharedArenaDrawChunks;
+    private long perfSharedArenaDrawChunks; // meaning
     // 中文标注（字段）：`perfLocalDrawChunks`，含义：用于表示perf、局部、绘制、区块集合。
-    private long perfLocalDrawChunks;
+    private long perfLocalDrawChunks; // meaning
     // 中文标注（字段）：`perfMdiCommandBytes`，含义：用于表示perf、mdi、command、字节数据。
-    private long perfMdiCommandBytes;
+    private long perfMdiCommandBytes; // meaning
     // 中文标注（字段）：`perfMdiCommandBufferReallocs`，含义：用于表示perf、mdi、command、缓冲区、reallocs。
-    private long perfMdiCommandBufferReallocs;
+    private long perfMdiCommandBufferReallocs; // meaning
     // 中文标注（字段）：`perfMdiCommandBufferOrphans`，含义：用于表示perf、mdi、command、缓冲区、orphans。
-    private long perfMdiCommandBufferOrphans;
+    private long perfMdiCommandBufferOrphans; // meaning
     // 中文标注（字段）：`perfSharedArenaAllocFailures`，含义：用于表示perf、shared、arena、alloc、failures。
-    private long perfSharedArenaAllocFailures;
+    private long perfSharedArenaAllocFailures; // meaning
     // 中文标注（字段）：`perfSharedArenaFallbackUploads`，含义：用于表示perf、shared、arena、fallback、uploads。
-    private long perfSharedArenaFallbackUploads;
+    private long perfSharedArenaFallbackUploads; // meaning
     // 中文标注（字段）：`adaptiveUploadsPerFrame`，含义：用于表示adaptive、uploads、per、帧。
-    private int adaptiveUploadsPerFrame = DEFAULT_UPLOADS_PER_FRAME;
+    private int adaptiveUploadsPerFrame = DEFAULT_UPLOADS_PER_FRAME; // meaning
     // 中文标注（字段）：`adaptiveMeshSubmitsPerFrame`，含义：用于表示adaptive、网格、submits、per、帧。
-    private int adaptiveMeshSubmitsPerFrame = DEFAULT_MESH_SUBMITS_PER_FRAME;
+    private int adaptiveMeshSubmitsPerFrame = DEFAULT_MESH_SUBMITS_PER_FRAME; // meaning
     // 中文标注（字段）：`renderCpuMsEma`，含义：用于表示渲染、CPU、ms、ema。
-    private double renderCpuMsEma = -1.0;
+    private double renderCpuMsEma = -1.0; // meaning
     // 中文标注（字段）：`frameTimeWindowIndex`，含义：用于表示帧、时间、窗口、索引。
-    private int frameTimeWindowIndex;
+    private int frameTimeWindowIndex; // meaning
     // 中文标注（字段）：`frameTimeWindowCount`，含义：用于表示帧、时间、窗口、数量。
-    private int frameTimeWindowCount;
+    private int frameTimeWindowCount; // meaning
     // 中文标注（字段）：`frameSequence`，含义：用于表示帧、sequence。
-    private long frameSequence;
+    private long frameSequence; // meaning
     // 中文标注（字段）：`lastMeshingSubmitNanos`，含义：用于表示last、meshing、submit、nanos。
-    private long lastMeshingSubmitNanos;
+    private long lastMeshingSubmitNanos; // meaning
     // 中文标注（字段）：`lastUploadQueueDrainNanos`，含义：用于表示last、上传、队列、drain、nanos。
-    private long lastUploadQueueDrainNanos;
+    private long lastUploadQueueDrainNanos; // meaning
     // 中文标注（字段）：`lastDrawLoopNanos`，含义：用于表示last、绘制、loop、nanos。
-    private long lastDrawLoopNanos;
+    private long lastDrawLoopNanos; // meaning
     // 中文标注（字段）：`glCapabilitiesLogged`，含义：用于表示OpenGL、capabilities、logged。
-    private boolean glCapabilitiesLogged;
+    private boolean glCapabilitiesLogged; // meaning
     // 中文标注（字段）：`supportsMdiCore43`，含义：用于表示supports、mdi、core、43。
-    private boolean supportsMdiCore43;
+    private boolean supportsMdiCore43; // meaning
     // 中文标注（字段）：`supportsMdiArb`，含义：用于表示supports、mdi、arb。
-    private boolean supportsMdiArb;
+    private boolean supportsMdiArb; // meaning
     // 中文标注（字段）：`supportsMdi`，含义：用于表示supports、mdi。
-    private boolean supportsMdi;
+    private boolean supportsMdi; // meaning
     // 中文标注（字段）：`supportsOcclusionQuery`，含义：用于表示supports、occlusion、query。
-    private boolean supportsOcclusionQuery;
+    private boolean supportsOcclusionQuery; // meaning
     // 中文标注（字段）：`supportsPersistentMapping`，含义：用于表示supports、persistent、mapping。
-    private boolean supportsPersistentMapping;
+    private boolean supportsPersistentMapping; // meaning
     // 中文标注（字段）：`occlusionBoxMesh`，含义：用于表示occlusion、box、网格。
-    private OcclusionBoxMesh occlusionBoxMesh;
+    private OcclusionBoxMesh occlusionBoxMesh; // meaning
     // 中文标注（字段）：`sharedChunkBufferArena`，含义：用于表示shared、区块、缓冲区、arena。
-    private SharedChunkBufferArena sharedChunkBufferArena;
+    private SharedChunkBufferArena sharedChunkBufferArena; // meaning
     // 中文标注（字段）：`mdiIndirectBufferId`，含义：用于表示mdi、indirect、缓冲区、标识。
-    private int mdiIndirectBufferId;
+    private int mdiIndirectBufferId; // meaning
     // 中文标注（字段）：`mdiIndirectBufferCapacityBytes`，含义：用于表示mdi、indirect、缓冲区、capacity、字节数据。
-    private int mdiIndirectBufferCapacityBytes;
+    private int mdiIndirectBufferCapacityBytes; // meaning
     // 中文标注（字段）：`mdiCommandUploadBytes`，含义：用于表示mdi、command、上传、字节数据。
-    private ByteBuffer mdiCommandUploadBytes;
+    private ByteBuffer mdiCommandUploadBytes; // meaning
     // 中文标注（字段）：`mdiCommandScratch`，含义：用于表示mdi、command、临时工作区。
-    private int[] mdiCommandScratch = new int[5 * 64];
+    private int[] mdiCommandScratch = new int[5 * 64]; // meaning
     // 中文标注（字段）：`ambientShaderProgramId`，含义：用于表示环境光、着色器、program、标识。
-    private int ambientShaderProgramId;
+    private int ambientShaderProgramId; // meaning
     // 中文标注（字段）：`ambientUniformLocation`，含义：用于表示环境光、uniform、location。
-    private int ambientUniformLocation = -1;
+    private int ambientUniformLocation = -1; // meaning
     // 中文标注（字段）：`latestTitleStats`，含义：用于表示latest、title、stats。
-    private volatile String latestTitleStats = "gpu init";
+    private volatile String latestTitleStats = "gpu init"; // meaning
     // 中文标注（字段）：`closing`，含义：用于表示closing。
-    private volatile boolean closing;
-    private long lastWorldSeed = Long.MIN_VALUE;
+    private volatile boolean closing; // meaning
+    private long lastWorldSeed = Long.MIN_VALUE; // meaning
     // 中文标注（字段）：`latestMeshCaptureMinY`，含义：用于表示latest、网格、capture、最小、Y坐标。
-    private volatile int latestMeshCaptureMinY = World.MIN_Y;
+    private volatile int latestMeshCaptureMinY = World.MIN_Y; // meaning
     // 中文标注（字段）：`latestMeshCaptureMaxY`，含义：用于表示latest、网格、capture、最大、Y坐标。
-    private volatile int latestMeshCaptureMaxY = World.MAX_Y;
+    private volatile int latestMeshCaptureMaxY = World.MAX_Y; // meaning
     // 中文标注（字段）：`latestMeshCaptureBandKey`，含义：用于表示latest、网格、capture、带、键。
-    private volatile int latestMeshCaptureBandKey;
+    private volatile int latestMeshCaptureBandKey; // meaning
     // 中文标注（字段）：`latestMeshConfigHash`，含义：用于表示latest、网格、config、hash。
-    private volatile int latestMeshConfigHash;
+    private volatile int latestMeshConfigHash; // meaning
 
     // 中文标注（构造方法）：`GpuChunkRenderer`，参数：无；用途：初始化`GpuChunkRenderer`实例。
     public GpuChunkRenderer() {
@@ -405,7 +405,7 @@ public final class GpuChunkRenderer implements AutoCloseable {
             // 中文标注（Lambda参数）：`runnable`，含义：用于表示runnable。
             runnable -> {
                 // 中文标注（局部变量）：`thread`，含义：用于表示thread。
-                Thread thread = new Thread(runnable, "voxelcraft-chunk-mesher");
+                Thread thread = new Thread(runnable, "voxelcraft-chunk-mesher"); // meaning
                 thread.setDaemon(true);
                 return thread;
             }
@@ -421,22 +421,22 @@ public final class GpuChunkRenderer implements AutoCloseable {
             return new RenderStats(0, 0, 0);
         }
         // 中文标注（局部变量）：`renderStarted`，含义：用于表示渲染、started。
-        long renderStarted = System.nanoTime();
+        long renderStarted = System.nanoTime(); // meaning
         initializeCapabilitiesIfNeeded();
         ensureAmbientShaderProgram();
         frameSequence++;
         // 中文标注（局部变量）：`safeWidth`，含义：用于表示safe、宽度。
-        int safeWidth = clampViewportDimension(width);
+        int safeWidth = clampViewportDimension(width); // meaning
         // 中文标注（局部变量）：`safeHeight`，含义：用于表示safe、高度。
-        int safeHeight = clampViewportDimension(height);
+        int safeHeight = clampViewportDimension(height); // meaning
 
         // 中文标注（局部变量）：`player`，含义：用于表示玩家。
-        PlayerController player = gameClient.playerController();
+        PlayerController player = gameClient.playerController(); // meaning
         // 中文标注（局部变量）：`worldView`，含义：用于表示世界、view。
-        ClientWorldView worldView = gameClient.worldView();
+        ClientWorldView worldView = gameClient.worldView(); // meaning
         // 中文标注（局部变量）：`ambient`，含义：用于表示环境光。
-        float ambient = gameClient.ambientLight();
-        long worldSeed = worldView.world().seed();
+        float ambient = gameClient.ambientLight(); // meaning
+        long worldSeed = worldView.world().seed(); // meaning
         if (worldSeed != lastWorldSeed) {
             lastWorldSeed = worldSeed;
             resetForWorldSwitch();
@@ -450,35 +450,35 @@ public final class GpuChunkRenderer implements AutoCloseable {
             configurePlayerCameraAndFrustum(player, safeWidth, safeHeight);
 
             // 中文标注（局部变量）：`frameSet`，含义：用于表示帧、集合。
-            ChunkFrameSet frameSet = collectChunksInRange(worldView, player);
+            ChunkFrameSet frameSet = collectChunksInRange(worldView, player); // meaning
             // 中文标注（局部变量）：`meshingSubmitStarted`，含义：用于表示meshing、submit、started。
-            long meshingSubmitStarted = System.nanoTime();
+            long meshingSubmitStarted = System.nanoTime(); // meaning
             submitMeshJobsForDirtyChunks(worldView, frameSet.chunks(), player);
             lastMeshingSubmitNanos = System.nanoTime() - meshingSubmitStarted;
 
             // 中文标注（局部变量）：`uploadDrainStarted`，含义：用于表示上传、drain、started。
-            long uploadDrainStarted = System.nanoTime();
+            long uploadDrainStarted = System.nanoTime(); // meaning
             processUploadQueue(worldView, player, adaptiveUploadsPerFrame, features.uploadTimeBudgetMs());
             lastUploadQueueDrainNanos = System.nanoTime() - uploadDrainStarted;
             pruneGpuChunks(frameSet.positions());
 
             // 中文标注（局部变量）：`drawLoopStarted`，含义：用于表示绘制、loop、started。
-            long drawLoopStarted = System.nanoTime();
+            long drawLoopStarted = System.nanoTime(); // meaning
             // 中文标注（局部变量）：`frameStats`，含义：用于表示帧、stats。
-            FrameStats frameStats = renderVisibleChunks(frameSet.chunks(), ambient, player);
+            FrameStats frameStats = renderVisibleChunks(frameSet.chunks(), ambient, player); // meaning
             if (features.hud()) {
                 renderHudForegroundOverlay(safeWidth, safeHeight, gameClient);
             }
             lastDrawLoopNanos = System.nanoTime() - drawLoopStarted;
             // 中文标注（局部变量）：`renderCpuNanos`，含义：用于表示渲染、CPU、nanos。
-            long renderCpuNanos = System.nanoTime() - renderStarted;
+            long renderCpuNanos = System.nanoTime() - renderStarted; // meaning
             recordFrameTime(renderCpuNanos);
             updateAdaptiveBudgets(renderCpuNanos);
             emitPerfLine(frameStats, frameSet.chunks().size());
 
-            int totalFaces = frameStats.totalCandidateTriangles() / 2;
-            int frustumFaces = frameStats.frustumCandidateTriangles() / 2;
-            int drawnFaces = frameStats.totalTriangles() / 2;
+            int totalFaces = frameStats.totalCandidateTriangles() / 2; // meaning
+            int frustumFaces = frameStats.frustumCandidateTriangles() / 2; // meaning
+            int drawnFaces = frameStats.totalTriangles() / 2; // meaning
             return new RenderStats(totalFaces, frustumFaces, drawnFaces);
         } finally {
             glFrontFace(GL_CCW);
@@ -490,13 +490,13 @@ public final class GpuChunkRenderer implements AutoCloseable {
     }
 
     private synchronized void resetForWorldSwitch() {
-        int epoch = worldEpoch.incrementAndGet();
+        int epoch = worldEpoch.incrementAndGet(); // meaning
         for (GpuChunk gpuChunk : gpuChunks.values()) {
             gpuChunk.dispose(sharedChunkBufferArena);
         }
         gpuChunks.clear();
         synchronized (uploadQueueLifecycleLock) {
-            QueuedMeshUpload pending;
+            QueuedMeshUpload pending; // meaning
             while ((pending = uploadQueue.poll()) != null) {
                 pending.meshData().releaseBuffers(uploadBufferPool);
             }
@@ -510,9 +510,9 @@ public final class GpuChunkRenderer implements AutoCloseable {
     private void prepareFrameGlState(int width, int height, float ambient) {
         glViewport(0, 0, width, height);
 
-        float skyR = 0.31f * ambient;
-        float skyG = 0.53f * ambient;
-        float skyB = 0.78f * ambient;
+        float skyR = 0.31f * ambient; // meaning
+        float skyG = 0.53f * ambient; // meaning
+        float skyB = 0.78f * ambient; // meaning
         glClearColor(skyR, skyG, skyB, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -532,7 +532,7 @@ public final class GpuChunkRenderer implements AutoCloseable {
         configureProjection(width, height);
         configureCamera(player);
 
-        double aspect = (double) width / (double) height;
+        double aspect = (double) width / (double) height; // meaning
         frustum.setCamera(
             player.eyeX(),
             player.eyeY(),
@@ -549,12 +549,12 @@ public final class GpuChunkRenderer implements AutoCloseable {
     private void renderHudBackgroundOverlay(int width, int height, float ambient) {
         beginScreenSpaceOverlay(width, height);
         try {
-            float skyTopR = colorComponent(94, ambient);
-            float skyTopG = colorComponent(170, ambient);
-            float skyTopB = colorComponent(240, ambient);
-            float skyBottomR = colorComponent(178, ambient);
-            float skyBottomG = colorComponent(225, ambient);
-            float skyBottomB = colorComponent(255, ambient);
+            float skyTopR = colorComponent(94, ambient); // meaning
+            float skyTopG = colorComponent(170, ambient); // meaning
+            float skyTopB = colorComponent(240, ambient); // meaning
+            float skyBottomR = colorComponent(178, ambient); // meaning
+            float skyBottomG = colorComponent(225, ambient); // meaning
+            float skyBottomB = colorComponent(255, ambient); // meaning
 
             glBegin(GL_QUADS);
             glColor4f(skyTopR, skyTopG, skyTopB, 1.0f);
@@ -565,8 +565,8 @@ public final class GpuChunkRenderer implements AutoCloseable {
             glVertex2f(0.0f, (float) height);
             glEnd();
 
-            int horizonY = (int) (height * 0.72);
-            float horizonAmbient = ambient * 0.85f;
+            int horizonY = (int) (height * 0.72); // meaning
+            float horizonAmbient = ambient * 0.85f; // meaning
             glColor4f(
                 colorComponent(84, horizonAmbient),
                 colorComponent(140, horizonAmbient),
@@ -629,8 +629,8 @@ public final class GpuChunkRenderer implements AutoCloseable {
     }
 
     private void drawOverlayCrosshair(int width, int height) {
-        float cx = width * 0.5f;
-        float cy = height * 0.5f;
+        float cx = width * 0.5f; // meaning
+        float cy = height * 0.5f; // meaning
         glColor4f(1.0f, 1.0f, 1.0f, 230.0f / 255.0f);
         glLineWidth(1.0f);
         glBegin(GL_LINES);
@@ -642,15 +642,15 @@ public final class GpuChunkRenderer implements AutoCloseable {
     }
 
     private void drawOverlayHotbar(int width, int height, int slots, int selectedSlot) {
-        int slotSize = 54;
-        int gap = 9;
-        int totalWidth = slots * slotSize + Math.max(0, slots - 1) * gap;
-        int left = (width - totalWidth) / 2;
-        int top = height - slotSize - 26;
+        int slotSize = 54; // meaning
+        int gap = 9; // meaning
+        int totalWidth = slots * slotSize + Math.max(0, slots - 1) * gap; // meaning
+        int left = (width - totalWidth) / 2; // meaning
+        int top = height - slotSize - 26; // meaning
 
-        for (int slot = 0; slot < slots; slot++) {
-            int slotX = left + slot * (slotSize + gap);
-            boolean selected = slot == selectedSlot;
+        for (int slot = 0; slot < slots; slot++) { // meaning
+            int slotX = left + slot * (slotSize + gap); // meaning
+            boolean selected = slot == selectedSlot; // meaning
 
             if (selected) {
                 glColor4f(1.0f, 1.0f, 1.0f, 215.0f / 255.0f);
@@ -696,7 +696,7 @@ public final class GpuChunkRenderer implements AutoCloseable {
             }
             closing = true;
         }
-        List<Runnable> cancelledMeshingTasks = meshPool.shutdownNow();
+        List<Runnable> cancelledMeshingTasks = meshPool.shutdownNow(); // meaning
         // shutdownNow 返回的是尚未开始执行的任务；这里需要显式释放它们持有的 snapshot 等资源。
         for (Runnable cancelledTask : cancelledMeshingTasks) {
             if (cancelledTask instanceof PrioritizedMeshTask prioritizedMeshTask) {
@@ -710,7 +710,7 @@ public final class GpuChunkRenderer implements AutoCloseable {
         gpuChunks.clear();
         // 中文标注（局部变量）：`pending`，含义：用于表示pending。
         synchronized (uploadQueueLifecycleLock) {
-            QueuedMeshUpload pending;
+            QueuedMeshUpload pending; // meaning
             while ((pending = uploadQueue.poll()) != null) {
                 pending.meshData().releaseBuffers(uploadBufferPool);
             }
@@ -749,16 +749,16 @@ public final class GpuChunkRenderer implements AutoCloseable {
         scratchActiveChunkPositions.clear();
 
         // 中文标注（局部变量）：`playerChunkX`，含义：用于表示玩家、区块、X坐标。
-        int playerChunkX = Math.floorDiv((int) Math.floor(player.x()), Section.SIZE);
+        int playerChunkX = Math.floorDiv((int) Math.floor(player.x()), Section.SIZE); // meaning
         // 中文标注（局部变量）：`playerChunkZ`，含义：用于表示玩家、区块、Z坐标。
-        int playerChunkZ = Math.floorDiv((int) Math.floor(player.z()), Section.SIZE);
+        int playerChunkZ = Math.floorDiv((int) Math.floor(player.z()), Section.SIZE); // meaning
 
         // 中文标注（局部变量）：`chunk`，含义：用于表示区块。
         for (Chunk chunk : scratchLoadedChunks) {
             // 中文标注（局部变量）：`dx`，含义：用于表示dx。
-            int dx = Math.abs(chunk.pos().x() - playerChunkX);
+            int dx = Math.abs(chunk.pos().x() - playerChunkX); // meaning
             // 中文标注（局部变量）：`dz`，含义：用于表示dz。
-            int dz = Math.abs(chunk.pos().z() - playerChunkZ);
+            int dz = Math.abs(chunk.pos().z() - playerChunkZ); // meaning
             if (dx > RENDER_CHUNK_RADIUS || dz > RENDER_CHUNK_RADIUS) {
                 continue;
             }
@@ -767,19 +767,19 @@ public final class GpuChunkRenderer implements AutoCloseable {
         }
 
         // 中文标注（局部变量）：`playerX`，含义：用于表示玩家、X坐标。
-        double playerX = player.x();
+        double playerX = player.x(); // meaning
         // 中文标注（局部变量）：`playerZ`，含义：用于表示玩家、Z坐标。
-        double playerZ = player.z();
+        double playerZ = player.z(); // meaning
         if (features.priorityForwardBias() || features.priorityRecentlyVisibleBias()) {
             // 中文标注（局部变量）：`lookX`，含义：用于表示look、X坐标。
-            double lookX = player.lookDirX();
+            double lookX = player.lookDirX(); // meaning
             // 中文标注（局部变量）：`lookZ`，含义：用于表示look、Z坐标。
-            double lookZ = player.lookDirZ();
+            double lookZ = player.lookDirZ(); // meaning
             // 中文标注（Lambda参数）：`chunk`，含义：用于表示区块。
-            scratchChunksInRange.sort(Comparator.comparingDouble(chunk -> chunkPriorityKey(chunk, playerX, playerZ, lookX, lookZ)));
+            scratchChunksInRange.sort(Comparator.comparingDouble(chunk -> chunkPriorityKey(chunk, playerX, playerZ, lookX, lookZ))); // meaning
         } else {
             // 中文标注（Lambda参数）：`chunk`，含义：用于表示区块。
-            scratchChunksInRange.sort(Comparator.comparingDouble(chunk -> chunkDistanceSq(chunk, playerX, playerZ)));
+            scratchChunksInRange.sort(Comparator.comparingDouble(chunk -> chunkDistanceSq(chunk, playerX, playerZ))); // meaning
         }
 
         return new ChunkFrameSet(scratchChunksInRange, scratchActiveChunkPositions);
@@ -790,35 +790,35 @@ public final class GpuChunkRenderer implements AutoCloseable {
     // 中文标注（参数）：`chunksInRange`，含义：用于表示区块集合、in、范围。
     // 中文标注（参数）：`player`，含义：用于表示玩家。
     private void submitMeshJobsForDirtyChunks(ClientWorldView worldView, List<Chunk> chunksInRange, PlayerController player) {
-        int submitWorldEpoch = worldEpoch.get();
+        int submitWorldEpoch = worldEpoch.get(); // meaning
         // 中文标注（局部变量）：`playerX`，含义：用于表示玩家、X坐标。
-        double playerX = player.x();
+        double playerX = player.x(); // meaning
         // 中文标注（局部变量）：`playerY`，含义：用于表示玩家、Y坐标。
-        double playerY = player.y();
+        double playerY = player.y(); // meaning
         // 中文标注（局部变量）：`playerZ`，含义：用于表示玩家、Z坐标。
-        double playerZ = player.z();
+        double playerZ = player.z(); // meaning
         // 中文标注（局部变量）：`lookX`，含义：用于表示look、X坐标。
-        double lookX = player.lookDirX();
+        double lookX = player.lookDirX(); // meaning
         // 中文标注（局部变量）：`lookZ`，含义：用于表示look、Z坐标。
-        double lookZ = player.lookDirZ();
+        double lookZ = player.lookDirZ(); // meaning
 
         // 垂直捕获范围是 GPU 几何正确性的关键控制面：
         // 1) fullHeightMeshing=true 时直接覆盖世界全高度，优先保证不漏几何；
         // 2) 否则按 FAR_PLANE 推导带宽，避免出现“视野看得到但 snapshot 没抓到”的蓝洞。
         // 中文标注（局部变量）：`fullHeightMeshing`，含义：用于表示full、高度、meshing。
-        boolean fullHeightMeshing = features.fullHeightMeshing();
+        boolean fullHeightMeshing = features.fullHeightMeshing(); // meaning
         // 中文标注（局部变量）：`playerBlockY`，含义：用于表示玩家、方块、Y坐标。
-        int playerBlockY = (int) Math.floor(playerY);
+        int playerBlockY = (int) Math.floor(playerY); // meaning
         // 中文标注（局部变量）：`margin`，含义：用于表示margin。
-        int margin = 32;
+        int margin = 32; // meaning
         // 中文标注（局部变量）：`below`，含义：用于表示below。
-        int below = (int) Math.ceil(FAR_PLANE) + margin;
+        int below = (int) Math.ceil(FAR_PLANE) + margin; // meaning
         // 中文标注（局部变量）：`above`，含义：用于表示above。
-        int above = (int) Math.ceil(FAR_PLANE) + margin;
+        int above = (int) Math.ceil(FAR_PLANE) + margin; // meaning
         // 中文标注（局部变量）：`minY`，含义：用于表示最小、Y坐标。
-        int minY = Math.max(World.MIN_Y, playerBlockY - below);
+        int minY = Math.max(World.MIN_Y, playerBlockY - below); // meaning
         // 中文标注（局部变量）：`maxY`，含义：用于表示最大、Y坐标。
-        int maxY = Math.min(World.MAX_Y, playerBlockY + above);
+        int maxY = Math.min(World.MAX_Y, playerBlockY + above); // meaning
         if (fullHeightMeshing) {
             minY = World.MIN_Y;
             maxY = World.MAX_Y;
@@ -826,13 +826,13 @@ public final class GpuChunkRenderer implements AutoCloseable {
         latestMeshCaptureMinY = minY;
         latestMeshCaptureMaxY = maxY;
         // 中文标注（局部变量）：`bandKey`，含义：用于表示带、键。
-        int bandKey = meshBandKey(minY, maxY);
+        int bandKey = meshBandKey(minY, maxY); // meaning
         latestMeshCaptureBandKey = bandKey;
         // 中文标注（局部变量）：`meshConfigHash`，含义：用于表示网格、config、hash。
-        int meshConfigHash = features.meshConfigHash();
+        int meshConfigHash = features.meshConfigHash(); // meaning
         latestMeshConfigHash = meshConfigHash;
         // 中文标注（局部变量）：`submitted`，含义：用于表示submitted。
-        int submitted = 0;
+        int submitted = 0; // meaning
 
         // 中文标注（局部变量）：`chunk`，含义：用于表示区块。
         for (Chunk chunk : chunksInRange) {
@@ -841,13 +841,13 @@ public final class GpuChunkRenderer implements AutoCloseable {
             }
 
             // 中文标注（局部变量）：`pos`，含义：用于表示位置。
-            ChunkPos pos = chunk.pos();
+            ChunkPos pos = chunk.pos(); // meaning
             // 中文标注（局部变量）：`currentVersion`，含义：用于表示current、版本。
-            long currentVersion = chunk.version();
+            long currentVersion = chunk.version(); // meaning
             // 中文标注（局部变量）：`desiredLodLevel`，含义：用于表示desired、细节层级、级别。
-            int desiredLodLevel = resolveChunkLodLevel(chunk, playerX, playerZ);
+            int desiredLodLevel = resolveChunkLodLevel(chunk, playerX, playerZ); // meaning
             // 中文标注（局部变量）：`gpuChunk`，含义：用于表示GPU、区块。
-            GpuChunk gpuChunk = gpuChunks.get(pos);
+            GpuChunk gpuChunk = gpuChunks.get(pos); // meaning
             // 只要影响几何生成的任一参数变化（version/lod/band/fullHeight/configHash），
             // 就必须强制重新 meshing+upload，禁止复用旧网格。
             if (gpuChunk != null
@@ -860,9 +860,9 @@ public final class GpuChunkRenderer implements AutoCloseable {
             }
 
             // 中文标注（局部变量）：`desiredBuildKey`，含义：用于表示desired、构建、键。
-            long desiredBuildKey = meshBuildKey(currentVersion, desiredLodLevel, bandKey, fullHeightMeshing, meshConfigHash);
+            long desiredBuildKey = meshBuildKey(currentVersion, desiredLodLevel, bandKey, fullHeightMeshing, meshConfigHash); // meaning
             // 中文标注（局部变量）：`inFlight`，含义：用于表示in、flight。
-            Long inFlight = inFlightVersion.get(pos);
+            Long inFlight = inFlightVersion.get(pos); // meaning
             if (inFlight != null && inFlight == desiredBuildKey) {
                 continue;
             }
@@ -875,7 +875,7 @@ public final class GpuChunkRenderer implements AutoCloseable {
             }
 
             // 中文标注（局部变量）：`snapshot`，含义：用于表示快照。
-            ChunkSnapshot snapshot;
+            ChunkSnapshot snapshot; // meaning
             try {
                 snapshot = mesher.captureChunkSnapshot(worldView, chunk, minY, maxY);
             // 中文标注（异常参数）：`snapshotFailure`，含义：用于表示snapshot、failure。
@@ -898,14 +898,14 @@ public final class GpuChunkRenderer implements AutoCloseable {
                 throw snapshotFailure;
             }
             // 中文标注（局部变量）：`priorityKey`，含义：用于表示priority、键。
-            double priorityKey = chunkPriorityKey(chunk, playerX, playerZ, lookX, lookZ);
+            double priorityKey = chunkPriorityKey(chunk, playerX, playerZ, lookX, lookZ); // meaning
             // 中文标注（局部变量）：`submittedNanos`，含义：用于表示submitted、nanos。
-            long submittedNanos = System.nanoTime();
+            long submittedNanos = System.nanoTime(); // meaning
             meshingJobsInFlight.incrementAndGet();
             try {
                 meshPool.execute(new PrioritizedMeshTask(priorityKey, meshTaskSequence.getAndIncrement(), () -> {
                     // 中文标注（局部变量）：`meshData`，含义：用于表示网格、数据。
-                    ChunkMeshData meshData = null;
+                    ChunkMeshData meshData = null; // meaning
                     try {
                         meshData = mesher.buildChunkMesh(snapshot, uploadBufferPool, desiredLodLevel);
                         if (submitWorldEpoch != worldEpoch.get()) {
@@ -991,29 +991,29 @@ public final class GpuChunkRenderer implements AutoCloseable {
     // 中文标注（参数）：`uploadBudgetMs`，含义：用于表示上传、budget、ms。
     private void processUploadQueue(ClientWorldView worldView, PlayerController player, int maxUploads, double uploadBudgetMs) {
         // 中文标注（局部变量）：`meshHead`，含义：用于表示网格、head。
-        PrioritizedMeshTask meshHead = peekMeshingTask();
+        PrioritizedMeshTask meshHead = peekMeshingTask(); // meaning
         perfMeshingQueueTopPriority = meshHead == null ? Double.NaN : meshHead.priorityKey();
         // 中文标注（局部变量）：`queuedHead`，含义：用于表示queued、head。
-        QueuedMeshUpload queuedHead = uploadQueue.peek();
+        QueuedMeshUpload queuedHead = uploadQueue.peek(); // meaning
         perfUploadQueueTopPriority = queuedHead == null ? Double.NaN : queuedHead.priorityKey();
-        UploadValidationContext validationContext = buildUploadValidationContext(player);
+        UploadValidationContext validationContext = buildUploadValidationContext(player); // meaning
 
         // 中文标注（局部变量）：`startedNanos`，含义：用于表示started、nanos。
-        long startedNanos = System.nanoTime();
+        long startedNanos = System.nanoTime(); // meaning
         // 中文标注（局部变量）：`processed`，含义：用于表示processed。
-        int processed = 0;
+        int processed = 0; // meaning
         while (processed < maxUploads) {
             if (isUploadBudgetExceeded(processed, startedNanos, uploadBudgetMs)) {
                 break;
             }
             // 中文标注（局部变量）：`queuedUpload`，含义：用于表示queued、上传。
-            QueuedMeshUpload queuedUpload = uploadQueue.poll();
+            QueuedMeshUpload queuedUpload = uploadQueue.poll(); // meaning
             if (queuedUpload == null) {
                 break;
             }
             processed++;
             // 中文标注（局部变量）：`meshData`，含义：用于表示网格、数据。
-            ChunkMeshData meshData = queuedUpload.meshData();
+            ChunkMeshData meshData = queuedUpload.meshData(); // meaning
             if (queuedUpload.worldEpoch() != worldEpoch.get()) {
                 meshData.releaseBuffers(uploadBufferPool);
                 continue;
@@ -1021,7 +1021,7 @@ public final class GpuChunkRenderer implements AutoCloseable {
 
             inFlightVersion.remove(meshData.pos(), queuedUpload.buildKey());
             // 中文标注（局部变量）：`chunk`，含义：用于表示区块。
-            Chunk chunk = worldView.getChunk(meshData.pos());
+            Chunk chunk = worldView.getChunk(meshData.pos()); // meaning
             if (chunk == null) {
                 dropQueuedUpload(meshData, true);
                 continue;
@@ -1044,11 +1044,11 @@ public final class GpuChunkRenderer implements AutoCloseable {
     }
 
     private UploadValidationContext buildUploadValidationContext(PlayerController player) {
-        double playerX = player.x();
-        double playerZ = player.z();
-        boolean fullHeightMeshing = features.fullHeightMeshing();
-        int meshConfigHash = features.meshConfigHash();
-        int currentBandKey = meshBandKey(computeMeshCaptureMinY(player.y()), computeMeshCaptureMaxY(player.y()));
+        double playerX = player.x(); // meaning
+        double playerZ = player.z(); // meaning
+        boolean fullHeightMeshing = features.fullHeightMeshing(); // meaning
+        int meshConfigHash = features.meshConfigHash(); // meaning
+        int currentBandKey = meshBandKey(computeMeshCaptureMinY(player.y()), computeMeshCaptureMaxY(player.y())); // meaning
         return new UploadValidationContext(playerX, playerZ, currentBandKey, fullHeightMeshing, meshConfigHash);
     }
 
@@ -1056,7 +1056,7 @@ public final class GpuChunkRenderer implements AutoCloseable {
         if (processed <= 0 || uploadBudgetMs <= 0.0) {
             return false;
         }
-        double elapsedMs = (System.nanoTime() - startedNanos) / 1_000_000.0;
+        double elapsedMs = (System.nanoTime() - startedNanos) / 1_000_000.0; // meaning
         return elapsedMs >= uploadBudgetMs;
     }
 
@@ -1069,7 +1069,7 @@ public final class GpuChunkRenderer implements AutoCloseable {
         if (chunk.version() != meshData.version()) {
             return true;
         }
-        int desiredLodLevel = resolveChunkLodLevel(chunk, validationContext.playerX(), validationContext.playerZ());
+        int desiredLodLevel = resolveChunkLodLevel(chunk, validationContext.playerX(), validationContext.playerZ()); // meaning
         if (desiredLodLevel != meshData.lodLevel()) {
             return true;
         }
@@ -1114,9 +1114,9 @@ public final class GpuChunkRenderer implements AutoCloseable {
     ) {
         // 中文标注（Lambda参数）：`unused`，含义：用于表示unused。
         // 中文标注（局部变量）：`gpuChunk`，含义：用于表示GPU、区块。
-        GpuChunk gpuChunk = gpuChunks.computeIfAbsent(meshData.pos(), unused -> new GpuChunk(meshData.pos()));
+        GpuChunk gpuChunk = gpuChunks.computeIfAbsent(meshData.pos(), unused -> new GpuChunk(meshData.pos())); // meaning
         // 中文标注（局部变量）：`stats`，含义：用于表示stats。
-        UploadStats stats;
+        UploadStats stats; // meaning
         try {
             stats = gpuChunk.upload(
                 meshData,
@@ -1162,7 +1162,7 @@ public final class GpuChunkRenderer implements AutoCloseable {
         // 中文标注（局部变量）：`pos`，含义：用于表示位置。
         for (ChunkPos pos : scratchPruneRemovals) {
             // 中文标注（局部变量）：`removed`，含义：用于表示removed。
-            GpuChunk removed = gpuChunks.remove(pos);
+            GpuChunk removed = gpuChunks.remove(pos); // meaning
             if (removed != null) {
                 removed.dispose(sharedChunkBufferArena);
             }
@@ -1177,7 +1177,7 @@ public final class GpuChunkRenderer implements AutoCloseable {
     // 中文标注（参数）：`chunksInRange`，含义：用于表示区块集合、in、范围。
     // 中文标注（参数）：`ambient`，含义：用于表示环境光。
     private FrameStats renderVisibleChunks(List<Chunk> chunksInRange, float ambient, PlayerController player) {
-        VisibleChunkRenderPass pass = beginVisibleChunkRenderPass(ambient, player);
+        VisibleChunkRenderPass pass = beginVisibleChunkRenderPass(ambient, player); // meaning
         try {
             for (Chunk chunk : chunksInRange) {
                 processVisibleChunkCandidate(pass, chunk);
@@ -1199,8 +1199,8 @@ public final class GpuChunkRenderer implements AutoCloseable {
             && features.occlusionQuery()
             && supportsOcclusionQuery
             && occlusionBoxMesh != null;
-        boolean mdiEnabled = features.mdi() && supportsMdi && sharedChunkBufferArena != null;
-        int occlusionResultPollBudget = occlusionEnabled ? Math.max(0, features.occlusionResultPollBudget()) : 0;
+        boolean mdiEnabled = features.mdi() && supportsMdi && sharedChunkBufferArena != null; // meaning
+        int occlusionResultPollBudget = occlusionEnabled ? Math.max(0, features.occlusionResultPollBudget()) : 0; // meaning
         VisibleChunkRenderPass pass = new VisibleChunkRenderPass(
             occlusionEnabled,
             mdiEnabled,
@@ -1224,7 +1224,7 @@ public final class GpuChunkRenderer implements AutoCloseable {
     }
 
     private void processVisibleChunkCandidate(VisibleChunkRenderPass pass, Chunk chunk) {
-        GpuChunk gpuChunk = gpuChunks.get(chunk.pos());
+        GpuChunk gpuChunk = gpuChunks.get(chunk.pos()); // meaning
         if (gpuChunk == null || !gpuChunk.valid || gpuChunk.indexCount <= 0) {
             return;
         }
@@ -1257,12 +1257,12 @@ public final class GpuChunkRenderer implements AutoCloseable {
 
         // 正确性优先：使用“chunk 固定 X/Z 范围”的保守包围盒做裁剪，而不是 mesh 的精确 bounds。
         // 原因：mesh bounds 在地形稀疏/坑洞边缘时可能非常薄，若与相机约定存在细微偏差会放大误剔除。
-        double cullMinX = gpuChunk.pos.x() * (double) Section.SIZE;
-        double cullMinZ = gpuChunk.pos.z() * (double) Section.SIZE;
-        double cullMaxX = cullMinX + Section.SIZE;
-        double cullMaxZ = cullMinZ + Section.SIZE;
-        double cullMinY = gpuChunk.fullHeightMeshingUploaded ? World.MIN_Y : gpuChunk.minY;
-        double cullMaxY = gpuChunk.fullHeightMeshingUploaded ? (World.MAX_Y + 1.0) : gpuChunk.maxY;
+        double cullMinX = gpuChunk.pos.x() * (double) Section.SIZE; // meaning
+        double cullMinZ = gpuChunk.pos.z() * (double) Section.SIZE; // meaning
+        double cullMaxX = cullMinX + Section.SIZE; // meaning
+        double cullMaxZ = cullMinZ + Section.SIZE; // meaning
+        double cullMinY = gpuChunk.fullHeightMeshingUploaded ? World.MIN_Y : gpuChunk.minY; // meaning
+        double cullMaxY = gpuChunk.fullHeightMeshingUploaded ? (World.MAX_Y + 1.0) : gpuChunk.maxY; // meaning
         Frustum.AabbVisibilityResult visibility = frustum.classifyAabb(
             cullMinX,
             cullMinY,
@@ -1346,7 +1346,7 @@ public final class GpuChunkRenderer implements AutoCloseable {
             return;
         }
         pass.cullLogsEmitted++;
-        String planeName = planeIndex >= 0 ? Frustum.planeName(planeIndex) : "N/A";
+        String planeName = planeIndex >= 0 ? Frustum.planeName(planeIndex) : "N/A"; // meaning
         System.out.printf(
             "[gpu-cull] chunk=(%d,%d) reason=%s plane=%d planeName=%s cam=(%.2f,%.2f,%.2f) yaw=%.1f pitch=%.1f aabb=[(%.2f,%.2f,%.2f)->(%.2f,%.2f,%.2f)]%n",
             gpuChunk.pos.x(),
@@ -1402,8 +1402,8 @@ public final class GpuChunkRenderer implements AutoCloseable {
         bindArrayBuffer(pass, drawArrayBuffer);
         bindElementBuffer(pass, drawElementBuffer);
 
-        long vertexBaseOffset = gpuChunk.usesSharedArena ? gpuChunk.sharedVertexOffsetBytes : 0L;
-        long indexBaseOffset = gpuChunk.usesSharedArena ? gpuChunk.sharedIndexOffsetBytes : 0L;
+        long vertexBaseOffset = gpuChunk.usesSharedArena ? gpuChunk.sharedVertexOffsetBytes : 0L; // meaning
+        long indexBaseOffset = gpuChunk.usesSharedArena ? gpuChunk.sharedIndexOffsetBytes : 0L; // meaning
         glVertexPointer(3, GL_FLOAT, VERTEX_STRIDE_BYTES, vertexBaseOffset + POSITION_OFFSET_BYTES);
         glColorPointer(4, GL_UNSIGNED_BYTE, VERTEX_STRIDE_BYTES, vertexBaseOffset + COLOR_OFFSET_BYTES);
         glDrawElements(GL_TRIANGLES, gpuChunk.indexCount, GL_UNSIGNED_INT, indexBaseOffset);
@@ -1415,8 +1415,8 @@ public final class GpuChunkRenderer implements AutoCloseable {
             return;
         }
 
-        int sharedVbo = sharedChunkBufferArena.vboId();
-        int sharedIbo = sharedChunkBufferArena.iboId();
+        int sharedVbo = sharedChunkBufferArena.vboId(); // meaning
+        int sharedIbo = sharedChunkBufferArena.iboId(); // meaning
         bindArrayBuffer(pass, sharedVbo);
         bindElementBuffer(pass, sharedIbo);
         if (mdiIndirectBufferId == 0) {
@@ -1476,7 +1476,7 @@ public final class GpuChunkRenderer implements AutoCloseable {
         if (candidates.isEmpty() || occlusionBoxMesh == null) {
             return 0;
         }
-        OcclusionQueryPass pass = beginOcclusionQueryPass();
+        OcclusionQueryPass pass = beginOcclusionQueryPass(); // meaning
         try {
             // 先给当前“隐藏”的块发重采样查询，避免在 query budget 有上限时被可见块长期饿死。
             issueOcclusionQueriesForVisibilityGroup(pass, candidates, true);
@@ -1490,7 +1490,7 @@ public final class GpuChunkRenderer implements AutoCloseable {
     }
 
     private OcclusionQueryPass beginOcclusionQueryPass() {
-        OcclusionQueryPass pass = new OcclusionQueryPass();
+        OcclusionQueryPass pass = new OcclusionQueryPass(); // meaning
         glColorMask(false, false, false, false);
         glDepthMask(false);
         glDisable(GL_CULL_FACE);
@@ -1524,7 +1524,7 @@ public final class GpuChunkRenderer implements AutoCloseable {
     }
 
     private void issueSingleOcclusionQuery(OcclusionQueryPass pass, GpuChunk chunk) {
-        int queryId = chunk.ensureOcclusionQueryId();
+        int queryId = chunk.ensureOcclusionQueryId(); // meaning
         glPushMatrix();
         glTranslated(chunk.minX, chunk.minY, chunk.minZ);
         glScaled(
@@ -1558,7 +1558,7 @@ public final class GpuChunkRenderer implements AutoCloseable {
     // 中文标注（方法）：`uploadMdiCommandsAndDraw`，参数：chunks；用途：执行渲染或图形资源处理：上传、mdi、commands、and、绘制。
     // 中文标注（参数）：`chunks`，含义：用于表示区块集合。
     private void uploadMdiCommandsAndDraw(List<GpuChunk> chunks) {
-        MdiBatchDescriptor batch = buildMdiBatchDescriptor(chunks);
+        MdiBatchDescriptor batch = buildMdiBatchDescriptor(chunks); // meaning
         if (batch == null) {
             return;
         }
@@ -1568,19 +1568,19 @@ public final class GpuChunkRenderer implements AutoCloseable {
     }
 
     private MdiBatchDescriptor buildMdiBatchDescriptor(List<GpuChunk> chunks) {
-        int drawCount = chunks.size();
+        int drawCount = chunks.size(); // meaning
         if (drawCount <= 0 || mdiIndirectBufferId == 0) {
             return null;
         }
-        int commandInts = drawCount * 5;
-        int commandBytes = commandInts * Integer.BYTES;
+        int commandInts = drawCount * 5; // meaning
+        int commandBytes = commandInts * Integer.BYTES; // meaning
         return new MdiBatchDescriptor(drawCount, commandInts, commandBytes);
     }
 
     private void encodeMdiCommands(List<GpuChunk> chunks, int commandInts) {
         ensureMdiCommandScratchCapacity(commandInts);
 
-        int write = 0;
+        int write = 0; // meaning
         for (GpuChunk chunk : chunks) {
             mdiCommandScratch[write++] = chunk.indexCount;
             mdiCommandScratch[write++] = 1; // instanceCount
@@ -1593,7 +1593,7 @@ public final class GpuChunkRenderer implements AutoCloseable {
     private void uploadMdiCommandBuffer(int commandInts, int commandBytes) {
         ensureMdiUploadBufferCapacity(commandBytes);
         mdiCommandUploadBytes.clear();
-        IntBuffer commandIntsBuffer = mdiCommandUploadBytes.asIntBuffer();
+        IntBuffer commandIntsBuffer = mdiCommandUploadBytes.asIntBuffer(); // meaning
         commandIntsBuffer.clear();
         commandIntsBuffer.put(mdiCommandScratch, 0, commandInts);
         mdiCommandUploadBytes.position(0);
@@ -1627,7 +1627,7 @@ public final class GpuChunkRenderer implements AutoCloseable {
             return;
         }
         // 中文标注（局部变量）：`newCapacity`，含义：用于表示new、capacity。
-        int newCapacity = Math.max(64, mdiCommandScratch.length);
+        int newCapacity = Math.max(64, mdiCommandScratch.length); // meaning
         while (newCapacity < requiredInts) {
             newCapacity *= 2;
         }
@@ -1641,7 +1641,7 @@ public final class GpuChunkRenderer implements AutoCloseable {
             return;
         }
         // 中文标注（局部变量）：`newCapacity`，含义：用于表示new、capacity。
-        int newCapacity = Math.max(20 * 64, requiredBytes);
+        int newCapacity = Math.max(20 * 64, requiredBytes); // meaning
         mdiCommandUploadBytes = ByteBuffer.allocateDirect(newCapacity).order(ByteOrder.nativeOrder());
     }
 
@@ -1650,18 +1650,18 @@ public final class GpuChunkRenderer implements AutoCloseable {
     // 中文标注（参数）：`chunksInRange`，含义：用于表示区块集合、in、范围。
     private void emitPerfLine(FrameStats frameStats, int chunksInRange) {
         // 中文标注（局部变量）：`now`，含义：用于表示now。
-        long now = System.nanoTime();
+        long now = System.nanoTime(); // meaning
         perfFrames++;
         // 中文标注（局部变量）：`elapsed`，含义：用于表示已耗时。
-        long elapsed = now - perfWindowStartNanos;
+        long elapsed = now - perfWindowStartNanos; // meaning
         if (elapsed < 1_000_000_000L) {
             return;
         }
 
         // 中文标注（局部变量）：`fps`，含义：用于表示fps。
-        double fps = (perfFrames * 1_000_000_000.0) / elapsed;
+        double fps = (perfFrames * 1_000_000_000.0) / elapsed; // meaning
         // 中文标注（局部变量）：`percentiles`，含义：用于表示percentiles。
-        FrameTimePercentiles percentiles = frameTimePercentiles();
+        FrameTimePercentiles percentiles = frameTimePercentiles(); // meaning
         // 中文标注（局部变量）：`avgLatencyMs`，含义：用于表示平均、latency、ms。
         double avgLatencyMs = perfVisibleLatencySamples == 0
             ? 0.0
@@ -1808,7 +1808,7 @@ public final class GpuChunkRenderer implements AutoCloseable {
         updateRenderCpuEma(renderCpuNanos);
 
         // 中文标注（局部变量）：`queueSize`，含义：用于表示队列、大小。
-        int queueSize = uploadQueue.size();
+        int queueSize = uploadQueue.size(); // meaning
         if (renderCpuMsEma > UPLOAD_BUDGET_REDUCE_MS) {
             adaptiveUploadsPerFrame = Math.max(MIN_UPLOADS_PER_FRAME, adaptiveUploadsPerFrame - 1);
             return;
@@ -1830,7 +1830,7 @@ public final class GpuChunkRenderer implements AutoCloseable {
     // 中文标注（参数）：`renderCpuNanos`，含义：用于表示渲染、CPU、nanos。
     private void updateRenderCpuEma(long renderCpuNanos) {
         // 中文标注（局部变量）：`renderCpuMs`，含义：用于表示渲染、CPU、ms。
-        double renderCpuMs = renderCpuNanos / 1_000_000.0;
+        double renderCpuMs = renderCpuNanos / 1_000_000.0; // meaning
         if (renderCpuMsEma < 0.0) {
             renderCpuMsEma = renderCpuMs;
         } else {
@@ -1841,11 +1841,11 @@ public final class GpuChunkRenderer implements AutoCloseable {
     // 中文标注（方法）：`updateAdaptiveMeshSubmitBudget`，参数：无；用途：更新更新、adaptive、网格、submit、budget相关状态。
     private void updateAdaptiveMeshSubmitBudget() {
         // 中文标注（局部变量）：`queueSize`，含义：用于表示队列、大小。
-        int queueSize = uploadQueue.size();
+        int queueSize = uploadQueue.size(); // meaning
         // 中文标注（局部变量）：`inFlight`，含义：用于表示in、flight。
-        int inFlight = meshingJobsInFlight.get();
+        int inFlight = meshingJobsInFlight.get(); // meaning
         // 中文标注（局部变量）：`healthyInFlightCap`，含义：用于表示healthy、in、flight、cap。
-        int healthyInFlightCap = Math.max(2, meshWorkerCount * 2);
+        int healthyInFlightCap = Math.max(2, meshWorkerCount * 2); // meaning
 
         if (renderCpuMsEma > UPLOAD_BUDGET_REDUCE_MS
             || queueSize > adaptiveUploadsPerFrame * 4
@@ -1879,7 +1879,7 @@ public final class GpuChunkRenderer implements AutoCloseable {
     // 中文标注（方法）：`peekMeshingTask`，参数：无；用途：执行peek、meshing、task相关逻辑。
     private PrioritizedMeshTask peekMeshingTask() {
         // 中文标注（局部变量）：`head`，含义：用于表示head。
-        Runnable head = meshPool.getQueue().peek();
+        Runnable head = meshPool.getQueue().peek(); // meaning
         // 中文标注（局部变量）：`prioritizedMeshTask`，含义：用于表示prioritized、网格、task。
         if (head instanceof PrioritizedMeshTask prioritizedMeshTask) {
             return prioritizedMeshTask;
@@ -1891,7 +1891,7 @@ public final class GpuChunkRenderer implements AutoCloseable {
     // 中文标注（参数）：`renderCpuNanos`，含义：用于表示渲染、CPU、nanos。
     private void recordFrameTime(long renderCpuNanos) {
         // 中文标注（局部变量）：`frameMs`，含义：用于表示帧、ms。
-        double frameMs = renderCpuNanos / 1_000_000.0;
+        double frameMs = renderCpuNanos / 1_000_000.0; // meaning
         frameTimeWindowMs[frameTimeWindowIndex] = frameMs;
         frameTimeWindowIndex = (frameTimeWindowIndex + 1) % frameTimeWindowMs.length;
         if (frameTimeWindowCount < frameTimeWindowMs.length) {
@@ -1922,7 +1922,7 @@ public final class GpuChunkRenderer implements AutoCloseable {
             return 0.0;
         }
         // 中文标注（局部变量）：`index`，含义：用于表示索引。
-        int index = (int) Math.ceil((count - 1) * quantile);
+        int index = (int) Math.ceil((count - 1) * quantile); // meaning
         index = Math.max(0, Math.min(count - 1, index));
         return sortedValues[index];
     }
@@ -1935,23 +1935,23 @@ public final class GpuChunkRenderer implements AutoCloseable {
     // 中文标注（参数）：`lookZ`，含义：用于表示look、Z坐标。
     private double chunkPriorityKey(Chunk chunk, double playerX, double playerZ, double lookX, double lookZ) {
         // 中文标注（局部变量）：`distanceSq`，含义：用于表示distance、sq。
-        double distanceSq = chunkDistanceSq(chunk, playerX, playerZ);
+        double distanceSq = chunkDistanceSq(chunk, playerX, playerZ); // meaning
         // 中文标注（局部变量）：`priority`，含义：用于表示priority。
-        double priority = distanceSq;
+        double priority = distanceSq; // meaning
         if (features.priorityForwardBias()) {
             // 中文标注（局部变量）：`centerX`，含义：用于表示center、X坐标。
-            double centerX = chunk.pos().x() * Section.SIZE + (Section.SIZE * 0.5);
+            double centerX = chunk.pos().x() * Section.SIZE + (Section.SIZE * 0.5); // meaning
             // 中文标注（局部变量）：`centerZ`，含义：用于表示center、Z坐标。
-            double centerZ = chunk.pos().z() * Section.SIZE + (Section.SIZE * 0.5);
+            double centerZ = chunk.pos().z() * Section.SIZE + (Section.SIZE * 0.5); // meaning
             // 中文标注（局部变量）：`dx`，含义：用于表示dx。
-            double dx = centerX - playerX;
+            double dx = centerX - playerX; // meaning
             // 中文标注（局部变量）：`dz`，含义：用于表示dz。
-            double dz = centerZ - playerZ;
+            double dz = centerZ - playerZ; // meaning
             // 中文标注（局部变量）：`len`，含义：用于表示长度。
-            double len = Math.sqrt(dx * dx + dz * dz);
+            double len = Math.sqrt(dx * dx + dz * dz); // meaning
             if (len > 1.0e-6) {
                 // 中文标注（局部变量）：`forwardDot`，含义：用于表示forward、dot。
-                double forwardDot = ((dx / len) * lookX) + ((dz / len) * lookZ);
+                double forwardDot = ((dx / len) * lookX) + ((dz / len) * lookZ); // meaning
                 if (forwardDot > 0.0) {
                     priority -= forwardDot * PRIORITY_FORWARD_BIAS_WEIGHT;
                 }
@@ -1959,7 +1959,7 @@ public final class GpuChunkRenderer implements AutoCloseable {
         }
         if (features.priorityRecentlyVisibleBias()) {
             // 中文标注（局部变量）：`lastVisibleFrame`，含义：用于表示last、visible、帧。
-            Long lastVisibleFrame = recentlyVisibleFrame.get(chunk.pos());
+            Long lastVisibleFrame = recentlyVisibleFrame.get(chunk.pos()); // meaning
             if (lastVisibleFrame != null && frameSequence - lastVisibleFrame <= RECENTLY_VISIBLE_BIAS_FRAMES) {
                 priority -= PRIORITY_RECENT_VISIBLE_BIAS;
             }
@@ -1973,7 +1973,7 @@ public final class GpuChunkRenderer implements AutoCloseable {
             return;
         }
         // 中文标注（局部变量）：`caps`，含义：用于表示caps。
-        GLCapabilities caps = GL.getCapabilities();
+        GLCapabilities caps = GL.getCapabilities(); // meaning
         supportsMdiCore43 = caps.OpenGL43;
         supportsMdiArb = caps.GL_ARB_multi_draw_indirect;
         supportsMdi = supportsMdiCore43 || supportsMdiArb;
@@ -1981,13 +1981,13 @@ public final class GpuChunkRenderer implements AutoCloseable {
         supportsPersistentMapping = caps.OpenGL44 || caps.GL_ARB_buffer_storage;
 
         // 中文标注（局部变量）：`mdiEnabled`，含义：用于表示mdi、enabled。
-        boolean mdiEnabled = features.mdi() && supportsMdi && features.sharedChunkArena();
+        boolean mdiEnabled = features.mdi() && supportsMdi && features.sharedChunkArena(); // meaning
         // 中文标注（局部变量）：`capMinY`，含义：用于表示cap、最小、Y坐标。
-        int capMinY = latestMeshCaptureMinY;
+        int capMinY = latestMeshCaptureMinY; // meaning
         // 中文标注（局部变量）：`capMaxY`，含义：用于表示cap、最大、Y坐标。
-        int capMaxY = latestMeshCaptureMaxY;
+        int capMaxY = latestMeshCaptureMaxY; // meaning
         // 中文标注（局部变量）：`capBandKey`，含义：用于表示cap、带、键。
-        int capBandKey = latestMeshCaptureBandKey;
+        int capBandKey = latestMeshCaptureBandKey; // meaning
         System.out.printf(
             "[gpu-cap] farPlane=%.1f yr=%d..%d bandKey=%d meshBuildKeySchema=v+lod+band+fh+mch meshConfigHash=%d fullHeightMeshing=%s(fullHeightKey=%s,value=%s) disableChunkFrustumCull=%s(disableCullKey=%s,value=%s) mdiSupported=%s mdiCore43=%s mdiArb=%s mdiEnabled=%s occlusionSupported=%s occlusionEnabled=%s(occlusionKey=%s,value=%s) occlusionPollBudget=%d persistentMappingSupported=%s persistentMappingEnabled=%s priorityBiasEnabled=%s adaptiveUploadBudget=%s adaptiveMeshSubmitBudget=%s orphaningUpload=%s lodEnabled=%s lodStartChunks=%d lodHysteresis=%d sharedChunkArena=%s sharedArenaVertexMB=%d sharedArenaIndexMB=%d%n",
             FAR_PLANE,
@@ -2024,7 +2024,7 @@ public final class GpuChunkRenderer implements AutoCloseable {
             features.sharedChunkArenaIndexMb()
         );
         emitCapabilitySupportWarnings();
-        CapabilityInitResources capabilityResources = createCapabilityInitResources();
+        CapabilityInitResources capabilityResources = createCapabilityInitResources(); // meaning
         occlusionBoxMesh = capabilityResources.occlusionBoxMesh();
         sharedChunkBufferArena = capabilityResources.sharedChunkBufferArena();
         glCapabilitiesLogged = true;
@@ -2046,8 +2046,8 @@ public final class GpuChunkRenderer implements AutoCloseable {
     }
 
     private CapabilityInitResources createCapabilityInitResources() {
-        OcclusionBoxMesh createdOcclusionBoxMesh = null;
-        SharedChunkBufferArena createdSharedChunkBufferArena = null;
+        OcclusionBoxMesh createdOcclusionBoxMesh = null; // meaning
+        SharedChunkBufferArena createdSharedChunkBufferArena = null; // meaning
         try {
             if (features.occlusionQuery() && supportsOcclusionQuery) {
                 createdOcclusionBoxMesh = new OcclusionBoxMesh();
@@ -2089,11 +2089,11 @@ public final class GpuChunkRenderer implements AutoCloseable {
         }
 
         // 中文标注（局部变量）：`vertexShader`，含义：用于表示顶点、着色器。
-        int vertexShader = 0;
+        int vertexShader = 0; // meaning
         // 中文标注（局部变量）：`fragmentShader`，含义：用于表示fragment、着色器。
-        int fragmentShader = 0;
+        int fragmentShader = 0; // meaning
         // 中文标注（局部变量）：`program`，含义：用于表示program。
-        int program = 0;
+        int program = 0; // meaning
         try {
             vertexShader = compileShader(GL20.GL_VERTEX_SHADER, AMBIENT_VERTEX_SHADER_SOURCE, "vertex");
             fragmentShader = compileShader(GL20.GL_FRAGMENT_SHADER, AMBIENT_FRAGMENT_SHADER_SOURCE, "fragment");
@@ -2104,9 +2104,9 @@ public final class GpuChunkRenderer implements AutoCloseable {
             GL20.glLinkProgram(program);
 
             // 中文标注（局部变量）：`linkStatus`，含义：用于表示link、status。
-            int linkStatus = GL20.glGetProgrami(program, GL20.GL_LINK_STATUS);
+            int linkStatus = GL20.glGetProgrami(program, GL20.GL_LINK_STATUS); // meaning
             // 中文标注（局部变量）：`programLog`，含义：用于表示program、log。
-            String programLog = GL20.glGetProgramInfoLog(program);
+            String programLog = GL20.glGetProgramInfoLog(program); // meaning
             if (linkStatus == 0) {
                 if (programLog != null && !programLog.isBlank()) {
                     System.err.println("[gpu-shader] ambient program link failed:\n" + programLog);
@@ -2118,7 +2118,7 @@ public final class GpuChunkRenderer implements AutoCloseable {
             }
 
             // 中文标注（局部变量）：`uniformLoc`，含义：用于表示uniform、loc。
-            int uniformLoc = GL20.glGetUniformLocation(program, "uAmbient");
+            int uniformLoc = GL20.glGetUniformLocation(program, "uAmbient"); // meaning
             if (uniformLoc < 0) {
                 throw new IllegalStateException("Ambient shader missing uniform uAmbient");
             }
@@ -2145,13 +2145,13 @@ public final class GpuChunkRenderer implements AutoCloseable {
     // 中文标注（参数）：`label`，含义：用于表示label。
     private static int compileShader(int shaderType, String source, String label) {
         // 中文标注（局部变量）：`shaderId`，含义：用于表示着色器、标识。
-        int shaderId = GL20.glCreateShader(shaderType);
+        int shaderId = GL20.glCreateShader(shaderType); // meaning
         GL20.glShaderSource(shaderId, source);
         GL20.glCompileShader(shaderId);
         // 中文标注（局部变量）：`compileStatus`，含义：用于表示compile、status。
-        int compileStatus = GL20.glGetShaderi(shaderId, GL20.GL_COMPILE_STATUS);
+        int compileStatus = GL20.glGetShaderi(shaderId, GL20.GL_COMPILE_STATUS); // meaning
         // 中文标注（局部变量）：`shaderLog`，含义：用于表示着色器、log。
-        String shaderLog = GL20.glGetShaderInfoLog(shaderId);
+        String shaderLog = GL20.glGetShaderInfoLog(shaderId); // meaning
         if (compileStatus == 0) {
             if (shaderLog != null && !shaderLog.isBlank()) {
                 System.err.println("[gpu-shader] ambient " + label + " compile failed:\n" + shaderLog);
@@ -2170,15 +2170,15 @@ public final class GpuChunkRenderer implements AutoCloseable {
     // 中文标注（参数）：`height`，含义：用于表示高度。
     private static void configureProjection(int width, int height) {
         // 中文标注（局部变量）：`aspect`，含义：用于表示aspect。
-        double aspect = (double) width / (double) height;
+        double aspect = (double) width / (double) height; // meaning
         // 中文标注（局部变量）：`top`，含义：用于表示顶面。
-        double top = NEAR_PLANE * Math.tan(Math.toRadians(VERTICAL_FOV_DEGREES * 0.5));
+        double top = NEAR_PLANE * Math.tan(Math.toRadians(VERTICAL_FOV_DEGREES * 0.5)); // meaning
         // 中文标注（局部变量）：`bottom`，含义：用于表示底面。
-        double bottom = -top;
+        double bottom = -top; // meaning
         // 中文标注（局部变量）：`right`，含义：用于表示right。
-        double right = top * aspect;
+        double right = top * aspect; // meaning
         // 中文标注（局部变量）：`left`，含义：用于表示left。
-        double left = -right;
+        double left = -right; // meaning
 
         glMatrixMode(GL_PROJECTION);
         glLoadIdentity();
@@ -2202,13 +2202,13 @@ public final class GpuChunkRenderer implements AutoCloseable {
     // 中文标注（参数）：`playerZ`，含义：用于表示玩家、Z坐标。
     private static double chunkDistanceSq(Chunk chunk, double playerX, double playerZ) {
         // 中文标注（局部变量）：`centerX`，含义：用于表示center、X坐标。
-        double centerX = chunk.pos().x() * Section.SIZE + (Section.SIZE * 0.5);
+        double centerX = chunk.pos().x() * Section.SIZE + (Section.SIZE * 0.5); // meaning
         // 中文标注（局部变量）：`centerZ`，含义：用于表示center、Z坐标。
-        double centerZ = chunk.pos().z() * Section.SIZE + (Section.SIZE * 0.5);
+        double centerZ = chunk.pos().z() * Section.SIZE + (Section.SIZE * 0.5); // meaning
         // 中文标注（局部变量）：`dx`，含义：用于表示dx。
-        double dx = centerX - playerX;
+        double dx = centerX - playerX; // meaning
         // 中文标注（局部变量）：`dz`，含义：用于表示dz。
-        double dz = centerZ - playerZ;
+        double dz = centerZ - playerZ; // meaning
         return dx * dx + dz * dz;
     }
 
@@ -2221,30 +2221,30 @@ public final class GpuChunkRenderer implements AutoCloseable {
             return 0;
         }
         // 中文标注（局部变量）：`centerX`，含义：用于表示center、X坐标。
-        double centerX = chunk.pos().x() * Section.SIZE + (Section.SIZE * 0.5);
+        double centerX = chunk.pos().x() * Section.SIZE + (Section.SIZE * 0.5); // meaning
         // 中文标注（局部变量）：`centerZ`，含义：用于表示center、Z坐标。
-        double centerZ = chunk.pos().z() * Section.SIZE + (Section.SIZE * 0.5);
+        double centerZ = chunk.pos().z() * Section.SIZE + (Section.SIZE * 0.5); // meaning
         // 中文标注（局部变量）：`dxChunks`，含义：用于表示dx、区块集合。
-        int dxChunks = (int) Math.floor(Math.abs(centerX - playerX) / Section.SIZE);
+        int dxChunks = (int) Math.floor(Math.abs(centerX - playerX) / Section.SIZE); // meaning
         // 中文标注（局部变量）：`dzChunks`，含义：用于表示dz、区块集合。
-        int dzChunks = (int) Math.floor(Math.abs(centerZ - playerZ) / Section.SIZE);
+        int dzChunks = (int) Math.floor(Math.abs(centerZ - playerZ) / Section.SIZE); // meaning
         // 中文标注（局部变量）：`chebyshev`，含义：用于表示chebyshev。
-        int chebyshev = Math.max(dxChunks, dzChunks);
+        int chebyshev = Math.max(dxChunks, dzChunks); // meaning
         // 中文标注（局部变量）：`threshold`，含义：用于表示threshold。
-        int threshold = Math.max(1, features.lodStartChunkDistance());
+        int threshold = Math.max(1, features.lodStartChunkDistance()); // meaning
         // 中文标注（局部变量）：`hysteresis`，含义：用于表示hysteresis。
-        int hysteresis = Math.max(0, features.lodHysteresisChunks());
+        int hysteresis = Math.max(0, features.lodHysteresisChunks()); // meaning
         // 中文标注（局部变量）：`previous`，含义：用于表示previous。
-        Integer previous = lodSelectionCache.get(chunk.pos());
+        Integer previous = lodSelectionCache.get(chunk.pos()); // meaning
         // 中文标注（局部变量）：`resolved`，含义：用于表示resolved。
-        int resolved;
+        int resolved; // meaning
         if (previous != null && previous > 0) {
             // 中文标注（局部变量）：`exitThreshold`，含义：用于表示exit、threshold。
-            int exitThreshold = Math.max(0, threshold - hysteresis);
+            int exitThreshold = Math.max(0, threshold - hysteresis); // meaning
             resolved = chebyshev > exitThreshold ? 1 : 0;
         } else {
             // 中文标注（局部变量）：`enterThreshold`，含义：用于表示enter、threshold。
-            int enterThreshold = threshold + hysteresis;
+            int enterThreshold = threshold + hysteresis; // meaning
             resolved = chebyshev >= enterThreshold ? 1 : 0;
         }
         lodSelectionCache.put(chunk.pos(), resolved);
@@ -2260,7 +2260,7 @@ public final class GpuChunkRenderer implements AutoCloseable {
     // 中文标注（参数）：`meshConfigHash`，含义：用于表示网格、config、hash。
     private static long meshBuildKey(long version, int lodLevel, int bandKey, boolean fullHeightMeshing, int meshConfigHash) {
         // 中文标注（局部变量）：`key`，含义：用于表示键。
-        long key = version;
+        long key = version; // meaning
         key = key * 31L + lodLevel;
         key = key * 1315423911L + (bandKey & 0xFFFF_FFFFL);
         key = key * 31L + (fullHeightMeshing ? 1L : 0L);
@@ -2275,11 +2275,11 @@ public final class GpuChunkRenderer implements AutoCloseable {
             return World.MIN_Y;
         }
         // 中文标注（局部变量）：`playerBlockY`，含义：用于表示玩家、方块、Y坐标。
-        int playerBlockY = (int) Math.floor(playerY);
+        int playerBlockY = (int) Math.floor(playerY); // meaning
         // 中文标注（局部变量）：`margin`，含义：用于表示margin。
-        int margin = 32;
+        int margin = 32; // meaning
         // 中文标注（局部变量）：`below`，含义：用于表示below。
-        int below = (int) Math.ceil(FAR_PLANE) + margin;
+        int below = (int) Math.ceil(FAR_PLANE) + margin; // meaning
         return Math.max(World.MIN_Y, playerBlockY - below);
     }
 
@@ -2290,11 +2290,11 @@ public final class GpuChunkRenderer implements AutoCloseable {
             return World.MAX_Y;
         }
         // 中文标注（局部变量）：`playerBlockY`，含义：用于表示玩家、方块、Y坐标。
-        int playerBlockY = (int) Math.floor(playerY);
+        int playerBlockY = (int) Math.floor(playerY); // meaning
         // 中文标注（局部变量）：`margin`，含义：用于表示margin。
-        int margin = 32;
+        int margin = 32; // meaning
         // 中文标注（局部变量）：`above`，含义：用于表示above。
-        int above = (int) Math.ceil(FAR_PLANE) + margin;
+        int above = (int) Math.ceil(FAR_PLANE) + margin; // meaning
         return Math.min(World.MAX_Y, playerBlockY + above);
     }
 
@@ -2305,12 +2305,12 @@ public final class GpuChunkRenderer implements AutoCloseable {
         // 当前世界高度跨度 < 4096，使用 12bit+12bit 打包，避免 hash 碰撞导致错误复用 mesh。
         // 若未来高度跨度扩大，再退回普通 hash。
         // 中文标注（局部变量）：`worldSpan`，含义：用于表示世界、span。
-        int worldSpan = World.MAX_Y - World.MIN_Y + 1;
+        int worldSpan = World.MAX_Y - World.MIN_Y + 1; // meaning
         if (worldSpan <= 4096) {
             // 中文标注（局部变量）：`minOffset`，含义：用于表示最小、偏移。
-            int minOffset = minY - World.MIN_Y;
+            int minOffset = minY - World.MIN_Y; // meaning
             // 中文标注（局部变量）：`maxOffset`，含义：用于表示最大、偏移。
-            int maxOffset = maxY - World.MIN_Y;
+            int maxOffset = maxY - World.MIN_Y; // meaning
             if (minOffset >= 0 && minOffset < 4096 && maxOffset >= 0 && maxOffset < 4096) {
                 return (minOffset << 12) | maxOffset;
             }
@@ -2321,7 +2321,7 @@ public final class GpuChunkRenderer implements AutoCloseable {
     // 中文标注（方法）：`mebibytesToBytesSaturated`，参数：mebibytes；用途：安全转换配置容量，避免 int 溢出。
     // 中文标注（参数）：`mebibytes`，含义：用于表示mb 数值。
     private static int mebibytesToBytesSaturated(int mebibytes) {
-        long bytes = Math.max(1L, (long) mebibytes) * 1024L * 1024L;
+        long bytes = Math.max(1L, (long) mebibytes) * 1024L * 1024L; // meaning
         return (int) Math.min(Integer.MAX_VALUE, bytes);
     }
 
@@ -2364,25 +2364,25 @@ public final class GpuChunkRenderer implements AutoCloseable {
     }
 
     private static final class VisibleChunkRenderPass {
-        private int drawCalls;
-        private int visibleChunks;
-        private int lodVisibleChunks;
-        private int totalTriangles;
-        private int totalCandidateTriangles;
-        private int frustumCandidateTriangles;
-        private int stateChanges = 4; // enable/disable client states (vertex+color)
-        private int boundArrayBuffer;
-        private int boundElementBuffer;
-        private int boundIndirectBuffer;
-        private int occlusionResultPollBudget;
-        private int cullLogsEmitted;
-        private final boolean occlusionEnabled;
-        private final boolean mdiEnabled;
-        private final double cameraX;
-        private final double cameraY;
-        private final double cameraZ;
-        private final float cameraYaw;
-        private final float cameraPitch;
+        private int drawCalls; // meaning
+        private int visibleChunks; // meaning
+        private int lodVisibleChunks; // meaning
+        private int totalTriangles; // meaning
+        private int totalCandidateTriangles; // meaning
+        private int frustumCandidateTriangles; // meaning
+        private int stateChanges = 4; // meaning
+        private int boundArrayBuffer; // meaning
+        private int boundElementBuffer; // meaning
+        private int boundIndirectBuffer; // meaning
+        private int occlusionResultPollBudget; // meaning
+        private int cullLogsEmitted; // meaning
+        private final boolean occlusionEnabled; // meaning
+        private final boolean mdiEnabled; // meaning
+        private final double cameraX; // meaning
+        private final double cameraY; // meaning
+        private final double cameraZ; // meaning
+        private final float cameraYaw; // meaning
+        private final float cameraPitch; // meaning
 
         private VisibleChunkRenderPass(
             boolean occlusionEnabled,
@@ -2418,8 +2418,8 @@ public final class GpuChunkRenderer implements AutoCloseable {
     }
 
     private static final class OcclusionQueryPass {
-        private int stateChanges;
-        private int issued;
+        private int stateChanges; // meaning
+        private int issued; // meaning
 
         private boolean reachedBudget() {
             return issued >= OCCLUSION_MAX_QUERIES_PER_FRAME;
@@ -2530,49 +2530,49 @@ public final class GpuChunkRenderer implements AutoCloseable {
         // 中文标注（方法）：`load`，参数：无；用途：获取或读取加载。
         private static GpuConfig load() {
             // 中文标注（局部变量）：`priorityForwardBias`，含义：用于表示priority、forward、bias。
-            ResolvedBoolean priorityForwardBias = flagCompat("vc.gpu.priorityForwardBias", "voxelcraft.gpu.priorityForwardBias", true);
+            ResolvedBoolean priorityForwardBias = flagCompat("vc.gpu.priorityForwardBias", "voxelcraft.gpu.priorityForwardBias", true); // meaning
             // 中文标注（局部变量）：`priorityRecentlyVisibleBias`，含义：用于表示priority、recently、visible、bias。
-            ResolvedBoolean priorityRecentlyVisibleBias = flagCompat("vc.gpu.priorityRecentlyVisibleBias", "voxelcraft.gpu.priorityRecentlyVisibleBias", true);
+            ResolvedBoolean priorityRecentlyVisibleBias = flagCompat("vc.gpu.priorityRecentlyVisibleBias", "voxelcraft.gpu.priorityRecentlyVisibleBias", true); // meaning
             // 中文标注（局部变量）：`adaptiveUploadBudget`，含义：用于表示adaptive、上传、budget。
-            ResolvedBoolean adaptiveUploadBudget = flagCompat("vc.gpu.adaptiveUploadBudget", "voxelcraft.gpu.adaptiveUploadBudget", true);
+            ResolvedBoolean adaptiveUploadBudget = flagCompat("vc.gpu.adaptiveUploadBudget", "voxelcraft.gpu.adaptiveUploadBudget", true); // meaning
             // 中文标注（局部变量）：`adaptiveMeshSubmitBudget`，含义：用于表示adaptive、网格、submit、budget。
-            ResolvedBoolean adaptiveMeshSubmitBudget = flagCompat("vc.gpu.adaptiveMeshSubmitBudget", "voxelcraft.gpu.adaptiveMeshSubmitBudget", true);
+            ResolvedBoolean adaptiveMeshSubmitBudget = flagCompat("vc.gpu.adaptiveMeshSubmitBudget", "voxelcraft.gpu.adaptiveMeshSubmitBudget", true); // meaning
             // 中文标注（局部变量）：`orphaningUpload`，含义：用于表示orphaning、上传。
-            ResolvedBoolean orphaningUpload = flagCompat("vc.gpu.orphaningUpload", "voxelcraft.gpu.orphaningUpload", true);
+            ResolvedBoolean orphaningUpload = flagCompat("vc.gpu.orphaningUpload", "voxelcraft.gpu.orphaningUpload", true); // meaning
             // 中文标注（局部变量）：`mdi`，含义：用于表示mdi。
-            ResolvedBoolean mdi = flagCompat("vc.gpu.mdi", "voxelcraft.gpu.mdi", false);
+            ResolvedBoolean mdi = flagCompat("vc.gpu.mdi", "voxelcraft.gpu.mdi", false); // meaning
             // 中文标注（局部变量）：`occlusionQuery`，含义：用于表示occlusion、query。
-            ResolvedBoolean occlusionQuery = flagCompat("vc.gpu.occlusionQuery", "voxelcraft.gpu.occlusionQuery", false);
+            ResolvedBoolean occlusionQuery = flagCompat("vc.gpu.occlusionQuery", "voxelcraft.gpu.occlusionQuery", false); // meaning
             // 中文标注（局部变量）：`occlusionResultPollBudget`，含义：用于表示occlusion、结果、poll、budget。
-            int occlusionResultPollBudget = intFlagCompat("vc.gpu.occlusionPollBudget", "voxelcraft.gpu.occlusionPollBudget", DEFAULT_OCCLUSION_RESULT_POLL_BUDGET);
+            int occlusionResultPollBudget = intFlagCompat("vc.gpu.occlusionPollBudget", "voxelcraft.gpu.occlusionPollBudget", DEFAULT_OCCLUSION_RESULT_POLL_BUDGET); // meaning
             // 中文标注（局部变量）：`persistentMapping`，含义：用于表示persistent、mapping。
-            ResolvedBoolean persistentMapping = flagCompat("vc.gpu.persistentMapping", "voxelcraft.gpu.persistentMapping", false);
+            ResolvedBoolean persistentMapping = flagCompat("vc.gpu.persistentMapping", "voxelcraft.gpu.persistentMapping", false); // meaning
             // 中文标注（局部变量）：`uploadTimeBudgetMs`，含义：用于表示上传、时间、budget、ms。
-            double uploadTimeBudgetMs = doubleFlagCompat("vc.gpu.uploadBudgetMs", "voxelcraft.gpu.uploadBudgetMs", DEFAULT_UPLOAD_TIME_BUDGET_MS);
+            double uploadTimeBudgetMs = doubleFlagCompat("vc.gpu.uploadBudgetMs", "voxelcraft.gpu.uploadBudgetMs", DEFAULT_UPLOAD_TIME_BUDGET_MS); // meaning
             // 中文标注（局部变量）：`fullHeightMeshing`，含义：用于表示full、高度、meshing。
-            ResolvedBoolean fullHeightMeshing = flagCompat("vc.gpu.fullHeightMeshing", "voxelcraft.gpu.fullHeightMeshing", false);
+            ResolvedBoolean fullHeightMeshing = flagCompat("vc.gpu.fullHeightMeshing", "voxelcraft.gpu.fullHeightMeshing", false); // meaning
             // 中文标注（局部变量）：`disableChunkFrustumCull`，含义：用于表示disable、区块、视锥体、cull。
-            ResolvedBoolean disableChunkFrustumCull = flagCompat("vc.gpu.disableChunkFrustumCull", "voxelcraft.gpu.disableChunkFrustumCull", false);
-            ResolvedBoolean disableChunkOcclusionCull = flagCompat("vc.gpu.disableChunkOcclusionCull", "voxelcraft.gpu.disableChunkOcclusionCull", false);
-            ResolvedBoolean disableFaceCulling = flagCompat("vc.gpu.disableFaceCulling", "voxelcraft.gpu.disableFaceCulling", false);
-            ResolvedBoolean hud = flagCompat("vc.gpu.hud", "voxelcraft.gpu.hud", true);
+            ResolvedBoolean disableChunkFrustumCull = flagCompat("vc.gpu.disableChunkFrustumCull", "voxelcraft.gpu.disableChunkFrustumCull", false); // meaning
+            ResolvedBoolean disableChunkOcclusionCull = flagCompat("vc.gpu.disableChunkOcclusionCull", "voxelcraft.gpu.disableChunkOcclusionCull", false); // meaning
+            ResolvedBoolean disableFaceCulling = flagCompat("vc.gpu.disableFaceCulling", "voxelcraft.gpu.disableFaceCulling", false); // meaning
+            ResolvedBoolean hud = flagCompat("vc.gpu.hud", "voxelcraft.gpu.hud", true); // meaning
             ResolvedBoolean applyAmbientToBlocks = flagCompat(
                 "vc.lighting.applyAmbientToBlocks",
                 "voxelcraft.lighting.applyAmbientToBlocks",
                 true
             );
             // 中文标注（局部变量）：`lod`，含义：用于表示细节层级。
-            ResolvedBoolean lod = flagCompat("vc.gpu.lod", "voxelcraft.gpu.lod", false);
+            ResolvedBoolean lod = flagCompat("vc.gpu.lod", "voxelcraft.gpu.lod", false); // meaning
             // 中文标注（局部变量）：`lodStartChunkDistance`，含义：用于表示细节层级、开始、区块、distance。
-            int lodStartChunkDistance = intFlagCompat("vc.gpu.lodStartChunks", "voxelcraft.gpu.lodStartChunks", DEFAULT_LOD_START_CHUNK_DISTANCE);
+            int lodStartChunkDistance = intFlagCompat("vc.gpu.lodStartChunks", "voxelcraft.gpu.lodStartChunks", DEFAULT_LOD_START_CHUNK_DISTANCE); // meaning
             // 中文标注（局部变量）：`lodHysteresisChunks`，含义：用于表示细节层级、hysteresis、区块集合。
-            int lodHysteresisChunks = intFlagCompat("vc.gpu.lodHysteresisChunks", "voxelcraft.gpu.lodHysteresisChunks", DEFAULT_LOD_HYSTERESIS_CHUNKS);
+            int lodHysteresisChunks = intFlagCompat("vc.gpu.lodHysteresisChunks", "voxelcraft.gpu.lodHysteresisChunks", DEFAULT_LOD_HYSTERESIS_CHUNKS); // meaning
             // 中文标注（局部变量）：`sharedChunkArena`，含义：用于表示shared、区块、arena。
-            ResolvedBoolean sharedChunkArena = flagCompat("vc.gpu.sharedChunkArena", "voxelcraft.gpu.sharedChunkArena", false);
+            ResolvedBoolean sharedChunkArena = flagCompat("vc.gpu.sharedChunkArena", "voxelcraft.gpu.sharedChunkArena", false); // meaning
             // 中文标注（局部变量）：`sharedChunkArenaVertexMb`，含义：用于表示shared、区块、arena、顶点、mb。
-            int sharedChunkArenaVertexMb = intFlagCompat("vc.gpu.sharedArenaVertexMB", "voxelcraft.gpu.sharedArenaVertexMB", DEFAULT_SHARED_ARENA_VERTEX_MB);
+            int sharedChunkArenaVertexMb = intFlagCompat("vc.gpu.sharedArenaVertexMB", "voxelcraft.gpu.sharedArenaVertexMB", DEFAULT_SHARED_ARENA_VERTEX_MB); // meaning
             // 中文标注（局部变量）：`sharedChunkArenaIndexMb`，含义：用于表示shared、区块、arena、索引、mb。
-            int sharedChunkArenaIndexMb = intFlagCompat("vc.gpu.sharedArenaIndexMB", "voxelcraft.gpu.sharedArenaIndexMB", DEFAULT_SHARED_ARENA_INDEX_MB);
+            int sharedChunkArenaIndexMb = intFlagCompat("vc.gpu.sharedArenaIndexMB", "voxelcraft.gpu.sharedArenaIndexMB", DEFAULT_SHARED_ARENA_INDEX_MB); // meaning
 
             // 中文标注（局部变量）：`meshConfigHash`，含义：用于表示网格、config、hash。
             int meshConfigHash = computeMeshConfigHash(
@@ -2627,7 +2627,7 @@ public final class GpuChunkRenderer implements AutoCloseable {
             int lodHysteresisChunks
         ) {
             // 中文标注（局部变量）：`hash`，含义：用于表示hash。
-            int hash = 17;
+            int hash = 17; // meaning
             hash = hash * 31 + (fullHeightMeshing ? 1 : 0);
             hash = hash * 31 + (lod ? 1 : 0);
             hash = hash * 31 + lodStartChunkDistance;
@@ -2641,12 +2641,12 @@ public final class GpuChunkRenderer implements AutoCloseable {
         // 中文标注（参数）：`defaultValue`，含义：用于表示默认、值。
         private static ResolvedBoolean flagCompat(String key, String legacyKey, boolean defaultValue) {
             // 中文标注（局部变量）：`raw`，含义：用于表示raw。
-            String raw = System.getProperty(key);
+            String raw = System.getProperty(key); // meaning
             if (raw != null) {
                 return new ResolvedBoolean(parseBoolean(raw, defaultValue), key, Boolean.toString(parseBoolean(raw, defaultValue)));
             }
             // 中文标注（局部变量）：`legacyRaw`，含义：用于表示legacy、raw。
-            String legacyRaw = System.getProperty(legacyKey);
+            String legacyRaw = System.getProperty(legacyKey); // meaning
             if (legacyRaw != null) {
                 return new ResolvedBoolean(parseBoolean(legacyRaw, defaultValue), legacyKey, Boolean.toString(parseBoolean(legacyRaw, defaultValue)));
             }
@@ -2659,12 +2659,12 @@ public final class GpuChunkRenderer implements AutoCloseable {
         // 中文标注（参数）：`defaultValue`，含义：用于表示默认、值。
         private static int intFlagCompat(String key, String legacyKey, int defaultValue) {
             // 中文标注（局部变量）：`raw`，含义：用于表示raw。
-            String raw = System.getProperty(key);
+            String raw = System.getProperty(key); // meaning
             if (raw != null) {
                 return parseInt(raw, defaultValue);
             }
             // 中文标注（局部变量）：`legacyRaw`，含义：用于表示legacy、raw。
-            String legacyRaw = System.getProperty(legacyKey);
+            String legacyRaw = System.getProperty(legacyKey); // meaning
             if (legacyRaw != null) {
                 return parseInt(legacyRaw, defaultValue);
             }
@@ -2677,12 +2677,12 @@ public final class GpuChunkRenderer implements AutoCloseable {
         // 中文标注（参数）：`defaultValue`，含义：用于表示默认、值。
         private static double doubleFlagCompat(String key, String legacyKey, double defaultValue) {
             // 中文标注（局部变量）：`raw`，含义：用于表示raw。
-            String raw = System.getProperty(key);
+            String raw = System.getProperty(key); // meaning
             if (raw != null) {
                 return parseDouble(raw, defaultValue);
             }
             // 中文标注（局部变量）：`legacyRaw`，含义：用于表示legacy、raw。
-            String legacyRaw = System.getProperty(legacyKey);
+            String legacyRaw = System.getProperty(legacyKey); // meaning
             if (legacyRaw != null) {
                 return parseDouble(legacyRaw, defaultValue);
             }
@@ -2694,7 +2694,7 @@ public final class GpuChunkRenderer implements AutoCloseable {
         // 中文标注（参数）：`defaultValue`，含义：用于表示默认、值。
         private static boolean parseBoolean(String raw, boolean defaultValue) {
             // 中文标注（局部变量）：`normalized`，含义：用于表示normalized。
-            String normalized = raw.trim().toLowerCase();
+            String normalized = raw.trim().toLowerCase(); // meaning
             if (normalized.equals("1") || normalized.equals("true") || normalized.equals("yes") || normalized.equals("on")) {
                 return true;
             }
@@ -2722,7 +2722,7 @@ public final class GpuChunkRenderer implements AutoCloseable {
         private static double parseDouble(String raw, double defaultValue) {
             try {
                 // 中文标注（局部变量）：`parsed`，含义：用于表示parsed。
-                double parsed = Double.parseDouble(raw.trim());
+                double parsed = Double.parseDouble(raw.trim()); // meaning
                 if (Double.isFinite(parsed) && parsed >= 0.0) {
                     return parsed;
                 }
@@ -2743,15 +2743,15 @@ public final class GpuChunkRenderer implements AutoCloseable {
     // 中文标注（类）：`PrioritizedMeshTask`，职责：封装prioritized、网格、task相关逻辑。
     private static final class PrioritizedMeshTask implements Runnable, Comparable<PrioritizedMeshTask> {
         // 中文标注（字段）：`priorityKey`，含义：用于表示priority、键。
-        private final double priorityKey;
+        private final double priorityKey; // meaning
         // 中文标注（字段）：`sequence`，含义：用于表示sequence。
-        private final long sequence;
+        private final long sequence; // meaning
         // 中文标注（字段）：`delegate`，含义：用于表示delegate。
-        private final Runnable delegate;
+        private final Runnable delegate; // meaning
         // 中文标注（字段）：`cancelAction`，含义：用于表示取消、动作。
-        private final Runnable cancelAction;
+        private final Runnable cancelAction; // meaning
         // 中文标注（字段）：`completedOrCancelled`，含义：用于表示已完成或已取消。
-        private final AtomicBoolean completedOrCancelled = new AtomicBoolean();
+        private final AtomicBoolean completedOrCancelled = new AtomicBoolean(); // meaning
 
         // 中文标注（构造方法）：`PrioritizedMeshTask`，参数：priorityKey、sequence、delegate、cancelAction；用途：初始化`PrioritizedMeshTask`实例。
         // 中文标注（参数）：`priorityKey`，含义：用于表示priority、键。
@@ -2794,7 +2794,7 @@ public final class GpuChunkRenderer implements AutoCloseable {
         // 中文标注（参数）：`other`，含义：用于表示other。
         public int compareTo(PrioritizedMeshTask other) {
             // 中文标注（局部变量）：`byPriority`，含义：用于表示by、priority。
-            int byPriority = Double.compare(priorityKey, other.priorityKey);
+            int byPriority = Double.compare(priorityKey, other.priorityKey); // meaning
             if (byPriority != 0) {
                 return byPriority;
             }
@@ -2805,69 +2805,69 @@ public final class GpuChunkRenderer implements AutoCloseable {
     // 中文标注（类）：`GpuChunk`，职责：封装GPU、区块相关逻辑。
     private static final class GpuChunk {
         // 中文标注（字段）：`pos`，含义：用于表示位置。
-        private final ChunkPos pos;
+        private final ChunkPos pos; // meaning
         // 中文标注（字段）：`vboId`，含义：用于表示vbo、标识。
-        private int vboId;
+        private int vboId; // meaning
         // 中文标注（字段）：`iboId`，含义：用于表示ibo、标识。
-        private int iboId;
+        private int iboId; // meaning
         // 中文标注（字段）：`occlusionQueryId`，含义：用于表示occlusion、query、标识。
-        private int occlusionQueryId;
+        private int occlusionQueryId; // meaning
         // 中文标注（字段）：`indexCount`，含义：用于表示索引、数量。
-        private int indexCount;
+        private int indexCount; // meaning
         // 中文标注（字段）：`triangleCount`，含义：用于表示triangle、数量。
-        private int triangleCount;
+        private int triangleCount; // meaning
         // 中文标注（字段）：`versionUploaded`，含义：用于表示版本、uploaded。
-        private long versionUploaded = Long.MIN_VALUE;
+        private long versionUploaded = Long.MIN_VALUE; // meaning
         // 中文标注（字段）：`lodLevelUploaded`，含义：用于表示细节层级、级别、uploaded。
-        private int lodLevelUploaded;
+        private int lodLevelUploaded; // meaning
         // 中文标注（字段）：`bandKeyUploaded`，含义：用于表示带、键、uploaded。
-        private int bandKeyUploaded;
+        private int bandKeyUploaded; // meaning
         // 中文标注（字段）：`fullHeightMeshingUploaded`，含义：用于表示full、高度、meshing、uploaded。
-        private boolean fullHeightMeshingUploaded;
+        private boolean fullHeightMeshingUploaded; // meaning
         // 中文标注（字段）：`meshConfigHashUploaded`，含义：用于表示网格、config、hash、uploaded。
-        private int meshConfigHashUploaded;
+        private int meshConfigHashUploaded; // meaning
         // 中文标注（字段）：`valid`，含义：用于表示valid。
-        private boolean valid;
+        private boolean valid; // meaning
         // 中文标注（字段）：`usesSharedArena`，含义：用于表示uses、shared、arena。
-        private boolean usesSharedArena;
+        private boolean usesSharedArena; // meaning
         // 中文标注（字段）：`sharedVertexOffsetBytes`，含义：用于表示shared、顶点、偏移、字节数据。
-        private long sharedVertexOffsetBytes;
+        private long sharedVertexOffsetBytes; // meaning
         // 中文标注（字段）：`sharedIndexOffsetBytes`，含义：用于表示shared、索引、偏移、字节数据。
-        private long sharedIndexOffsetBytes;
+        private long sharedIndexOffsetBytes; // meaning
         // 中文标注（字段）：`sharedAllocation`，含义：用于表示shared、allocation。
-        private SharedChunkBufferArena.Allocation sharedAllocation;
+        private SharedChunkBufferArena.Allocation sharedAllocation; // meaning
         // 中文标注（字段）：`lastUploadSharedArenaAllocFailure`，含义：用于表示last、上传、shared、arena、alloc、failure。
-        private boolean lastUploadSharedArenaAllocFailure;
+        private boolean lastUploadSharedArenaAllocFailure; // meaning
         // 中文标注（字段）：`lastUploadSharedArenaFallback`，含义：用于表示last、上传、shared、arena、fallback。
-        private boolean lastUploadSharedArenaFallback;
+        private boolean lastUploadSharedArenaFallback; // meaning
         // 中文标注（字段）：`occlusionQueryPending`，含义：用于表示occlusion、query、pending。
-        private boolean occlusionQueryPending;
+        private boolean occlusionQueryPending; // meaning
         // 中文标注（字段）：`occlusionVisible`，含义：用于表示occlusion、visible。
-        private boolean occlusionVisible = true;
+        private boolean occlusionVisible = true; // meaning
         // 中文标注（字段）：`occlusionHiddenStreak`，含义：用于表示occlusion、hidden、streak。
-        private int occlusionHiddenStreak;
+        private int occlusionHiddenStreak; // meaning
         // 中文标注（字段）：`occlusionLastQueryFrame`，含义：用于表示occlusion、last、query、帧。
-        private long occlusionLastQueryFrame = Long.MIN_VALUE;
+        private long occlusionLastQueryFrame = Long.MIN_VALUE; // meaning
         // 中文标注（字段）：`vboCapacityBytes`，含义：用于表示vbo、capacity、字节数据。
-        private int vboCapacityBytes;
+        private int vboCapacityBytes; // meaning
         // 中文标注（字段）：`iboCapacityBytes`，含义：用于表示ibo、capacity、字节数据。
-        private int iboCapacityBytes;
+        private int iboCapacityBytes; // meaning
         // 中文标注（字段）：`lastMeshSubmitNanos`，含义：用于表示last、网格、submit、nanos。
-        private long lastMeshSubmitNanos;
+        private long lastMeshSubmitNanos; // meaning
         // 中文标注（字段）：`lastVisibleLatencyRecordedVersion`，含义：用于表示last、visible、latency、recorded、版本。
-        private long lastVisibleLatencyRecordedVersion = Long.MIN_VALUE;
+        private long lastVisibleLatencyRecordedVersion = Long.MIN_VALUE; // meaning
         // 中文标注（字段）：`minX`，含义：用于表示最小、X坐标。
-        private double minX;
+        private double minX; // meaning
         // 中文标注（字段）：`minY`，含义：用于表示最小、Y坐标。
-        private double minY;
+        private double minY; // meaning
         // 中文标注（字段）：`minZ`，含义：用于表示最小、Z坐标。
-        private double minZ;
+        private double minZ; // meaning
         // 中文标注（字段）：`maxX`，含义：用于表示最大、X坐标。
-        private double maxX;
+        private double maxX; // meaning
         // 中文标注（字段）：`maxY`，含义：用于表示最大、Y坐标。
-        private double maxY;
+        private double maxY; // meaning
         // 中文标注（字段）：`maxZ`，含义：用于表示最大、Z坐标。
-        private double maxZ;
+        private double maxZ; // meaning
 
         // 中文标注（构造方法）：`GpuChunk`，参数：pos；用途：初始化`GpuChunk`实例。
         // 中文标注（参数）：`pos`，含义：用于表示位置。
@@ -2891,27 +2891,27 @@ public final class GpuChunkRenderer implements AutoCloseable {
             SharedChunkBufferArena sharedArena
         ) {
             // 中文标注（局部变量）：`uploadBytes`，含义：用于表示上传、字节数据。
-            long uploadBytes = 0L;
+            long uploadBytes = 0L; // meaning
             // 中文标注（局部变量）：`bufferReallocs`，含义：用于表示缓冲区、reallocs。
-            int bufferReallocs = 0;
+            int bufferReallocs = 0; // meaning
             // 中文标注（局部变量）：`bufferOrphans`，含义：用于表示缓冲区、orphans。
-            int bufferOrphans = 0;
+            int bufferOrphans = 0; // meaning
             // 中文标注（局部变量）：`bufferSubDatas`，含义：用于表示缓冲区、sub、datas。
-            int bufferSubDatas = 0;
+            int bufferSubDatas = 0; // meaning
             lastUploadSharedArenaAllocFailure = false;
             lastUploadSharedArenaFallback = false;
             if (meshData.indexCount() > 0) {
                 // 中文标注（局部变量）：`vertexBytes`，含义：用于表示顶点、字节数据。
-                ByteBuffer vertexBytes = meshData.vertexBytes();
+                ByteBuffer vertexBytes = meshData.vertexBytes(); // meaning
                 // 中文标注（局部变量）：`indexBytes`，含义：用于表示索引、字节数据。
-                ByteBuffer indexBytes = meshData.indexBytes();
+                ByteBuffer indexBytes = meshData.indexBytes(); // meaning
                 if (vertexBytes == null || indexBytes == null) {
                     throw new IllegalStateException("Non-empty mesh missing upload buffers for chunk " + pos);
                 }
 
                 if (sharedArena != null) {
                     // 中文标注（局部变量）：`sharedUploaded`，含义：用于表示shared、uploaded。
-                    boolean sharedUploaded = uploadToSharedArena(sharedArena, meshData, vertexBytes, indexBytes);
+                    boolean sharedUploaded = uploadToSharedArena(sharedArena, meshData, vertexBytes, indexBytes); // meaning
                     if (sharedUploaded) {
                         bufferSubDatas += 2;
                         uploadBytes += meshData.vertexByteCount();
@@ -2971,11 +2971,11 @@ public final class GpuChunkRenderer implements AutoCloseable {
         }
 
         // 中文标注（字段）：`localUploadBufferReallocs`，含义：用于表示局部、上传、缓冲区、reallocs。
-        private int localUploadBufferReallocs;
+        private int localUploadBufferReallocs; // meaning
         // 中文标注（字段）：`localUploadBufferOrphans`，含义：用于表示局部、上传、缓冲区、orphans。
-        private int localUploadBufferOrphans;
+        private int localUploadBufferOrphans; // meaning
         // 中文标注（字段）：`localUploadBufferSubDatas`，含义：用于表示局部、上传、缓冲区、sub、datas。
-        private int localUploadBufferSubDatas;
+        private int localUploadBufferSubDatas; // meaning
 
         // 中文标注（方法）：`uploadToLocalBuffers`，参数：meshData、vertexBytes、indexBytes、orphaningUpload；用途：执行渲染或图形资源处理：上传、to、局部、buffers。
         private long uploadToLocalBuffers(
@@ -3050,9 +3050,9 @@ public final class GpuChunkRenderer implements AutoCloseable {
                 return false;
             }
             // 中文标注（局部变量）：`vertexBytesNeeded`，含义：用于表示顶点、字节数据、needed。
-            int vertexBytesNeeded = meshData.vertexByteCount();
+            int vertexBytesNeeded = meshData.vertexByteCount(); // meaning
             // 中文标注（局部变量）：`indexBytesNeeded`，含义：用于表示索引、字节数据、needed。
-            int indexBytesNeeded = meshData.indexByteCount();
+            int indexBytesNeeded = meshData.indexByteCount(); // meaning
             if (sharedAllocation == null
                 || sharedAllocation.vertexCapacityBytes() < vertexBytesNeeded
                 || sharedAllocation.indexCapacityBytes() < indexBytesNeeded) {
@@ -3061,7 +3061,7 @@ public final class GpuChunkRenderer implements AutoCloseable {
                     sharedAllocation = null;
                 }
                 // 中文标注（局部变量）：`allocation`，含义：用于表示allocation。
-                SharedChunkBufferArena.Allocation allocation = sharedArena.allocate(vertexBytesNeeded, indexBytesNeeded);
+                SharedChunkBufferArena.Allocation allocation = sharedArena.allocate(vertexBytesNeeded, indexBytesNeeded); // meaning
                 if (allocation == null) {
                     return false;
                 }
@@ -3131,7 +3131,7 @@ public final class GpuChunkRenderer implements AutoCloseable {
                 return true;
             }
             // 中文标注（局部变量）：`samples`，含义：用于表示samples。
-            int samples = glGetQueryObjecti(occlusionQueryId, GL_QUERY_RESULT);
+            int samples = glGetQueryObjecti(occlusionQueryId, GL_QUERY_RESULT); // meaning
             occlusionQueryPending = false;
             if (samples > 0) {
                 occlusionVisible = true;
@@ -3222,32 +3222,32 @@ public final class GpuChunkRenderer implements AutoCloseable {
         };
 
         // 中文标注（字段）：`vboId`，含义：用于表示vbo、标识。
-        private final int vboId;
+        private final int vboId; // meaning
         // 中文标注（字段）：`iboId`，含义：用于表示ibo、标识。
-        private final int iboId;
+        private final int iboId; // meaning
         // 中文标注（字段）：`indexCount`，含义：用于表示索引、数量。
-        private final int indexCount;
+        private final int indexCount; // meaning
 
         // 中文标注（构造方法）：`OcclusionBoxMesh`，参数：无；用途：初始化`OcclusionBoxMesh`实例。
         private OcclusionBoxMesh() {
             // 中文标注（局部变量）：`createdVboId`，含义：用于表示已创建 vbo 标识。
-            int createdVboId = 0;
+            int createdVboId = 0; // meaning
             // 中文标注（局部变量）：`createdIboId`，含义：用于表示已创建 ibo 标识。
-            int createdIboId = 0;
+            int createdIboId = 0; // meaning
             try {
                 createdVboId = glGenBuffers();
                 createdIboId = glGenBuffers();
 
                 // 中文标注（局部变量）：`vb`，含义：用于表示vb。
-                ByteBuffer vb = ByteBuffer.allocateDirect(UNIT_CUBE_VERTICES.length * Float.BYTES).order(ByteOrder.nativeOrder());
+                ByteBuffer vb = ByteBuffer.allocateDirect(UNIT_CUBE_VERTICES.length * Float.BYTES).order(ByteOrder.nativeOrder()); // meaning
                 // 中文标注（局部变量）：`vf`，含义：用于表示vf。
-                FloatBuffer vf = vb.asFloatBuffer();
+                FloatBuffer vf = vb.asFloatBuffer(); // meaning
                 vf.put(UNIT_CUBE_VERTICES).flip();
 
                 // 中文标注（局部变量）：`ib`，含义：用于表示ib。
-                ByteBuffer ib = ByteBuffer.allocateDirect(UNIT_CUBE_INDICES.length * Integer.BYTES).order(ByteOrder.nativeOrder());
+                ByteBuffer ib = ByteBuffer.allocateDirect(UNIT_CUBE_INDICES.length * Integer.BYTES).order(ByteOrder.nativeOrder()); // meaning
                 // 中文标注（局部变量）：`ii`，含义：用于表示ii。
-                IntBuffer ii = ib.asIntBuffer();
+                IntBuffer ii = ib.asIntBuffer(); // meaning
                 ii.put(UNIT_CUBE_INDICES).flip();
 
                 glBindBuffer(GL_ARRAY_BUFFER, createdVboId);
@@ -3291,34 +3291,34 @@ public final class GpuChunkRenderer implements AutoCloseable {
     // 中文标注（类）：`SharedChunkBufferArena`，职责：封装shared、区块、缓冲区、arena相关逻辑。
     private static final class SharedChunkBufferArena {
         // 中文标注（字段）：`vboId`，含义：用于表示vbo、标识。
-        private final int vboId;
+        private final int vboId; // meaning
         // 中文标注（字段）：`iboId`，含义：用于表示ibo、标识。
-        private final int iboId;
+        private final int iboId; // meaning
         // 中文标注（字段）：`vertexCapacityBytes`，含义：用于表示顶点、capacity、字节数据。
-        private final int vertexCapacityBytes;
+        private final int vertexCapacityBytes; // meaning
         // 中文标注（字段）：`indexCapacityBytes`，含义：用于表示索引、capacity、字节数据。
-        private final int indexCapacityBytes;
+        private final int indexCapacityBytes; // meaning
         // 中文标注（字段）：`freeVertexRanges`，含义：用于表示free、顶点、ranges。
-        private final ArrayList<Range> freeVertexRanges = new ArrayList<>();
+        private final ArrayList<Range> freeVertexRanges = new ArrayList<>(); // meaning
         // 中文标注（字段）：`freeIndexRanges`，含义：用于表示free、索引、ranges。
-        private final ArrayList<Range> freeIndexRanges = new ArrayList<>();
+        private final ArrayList<Range> freeIndexRanges = new ArrayList<>(); // meaning
         // 中文标注（字段）：`usedVertexBytes`，含义：用于表示used、顶点、字节数据。
-        private int usedVertexBytes;
+        private int usedVertexBytes; // meaning
         // 中文标注（字段）：`usedIndexBytes`，含义：用于表示used、索引、字节数据。
-        private int usedIndexBytes;
+        private int usedIndexBytes; // meaning
 
         // 中文标注（构造方法）：`SharedChunkBufferArena`，参数：vertexCapacityBytes、indexCapacityBytes；用途：初始化`SharedChunkBufferArena`实例。
         // 中文标注（参数）：`vertexCapacityBytes`，含义：用于表示顶点、capacity、字节数据。
         // 中文标注（参数）：`indexCapacityBytes`，含义：用于表示索引、capacity、字节数据。
         private SharedChunkBufferArena(int vertexCapacityBytes, int indexCapacityBytes) {
             // 中文标注（局部变量）：`resolvedVertexCapacityBytes`，含义：用于表示解析后的顶点容量。
-            int resolvedVertexCapacityBytes = Math.max(64 * 1024, vertexCapacityBytes);
+            int resolvedVertexCapacityBytes = Math.max(64 * 1024, vertexCapacityBytes); // meaning
             // 中文标注（局部变量）：`resolvedIndexCapacityBytes`，含义：用于表示解析后的索引容量。
-            int resolvedIndexCapacityBytes = Math.max(64 * 1024, indexCapacityBytes);
+            int resolvedIndexCapacityBytes = Math.max(64 * 1024, indexCapacityBytes); // meaning
             // 中文标注（局部变量）：`createdVboId`，含义：用于表示已创建 vbo 标识。
-            int createdVboId = 0;
+            int createdVboId = 0; // meaning
             // 中文标注（局部变量）：`createdIboId`，含义：用于表示已创建 ibo 标识。
-            int createdIboId = 0;
+            int createdIboId = 0; // meaning
             try {
                 createdVboId = glGenBuffers();
                 createdIboId = glGenBuffers();
@@ -3364,12 +3364,12 @@ public final class GpuChunkRenderer implements AutoCloseable {
                 return null;
             }
             // 中文标注（局部变量）：`vertexRange`，含义：用于表示顶点、范围。
-            Range vertexRange = takeRange(freeVertexRanges, align(vertexBytes, 16));
+            Range vertexRange = takeRange(freeVertexRanges, align(vertexBytes, 16)); // meaning
             if (vertexRange == null) {
                 return null;
             }
             // 中文标注（局部变量）：`indexRange`，含义：用于表示索引、范围。
-            Range indexRange = takeRange(freeIndexRanges, align(indexBytes, 16));
+            Range indexRange = takeRange(freeIndexRanges, align(indexBytes, 16)); // meaning
             if (indexRange == null) {
                 putRange(freeVertexRanges, vertexRange);
                 return null;
@@ -3455,7 +3455,7 @@ public final class GpuChunkRenderer implements AutoCloseable {
                 return 0;
             }
             // 中文标注（局部变量）：`mask`，含义：用于表示掩码。
-            int mask = alignment - 1;
+            int mask = alignment - 1; // meaning
             return (value + mask) & ~mask;
         }
 
@@ -3467,14 +3467,14 @@ public final class GpuChunkRenderer implements AutoCloseable {
                 return new Range(0, 0);
             }
             // 中文标注（局部变量）：`i`，含义：用于表示i。
-            for (int i = 0; i < freeRanges.size(); i++) {
+            for (int i = 0; i < freeRanges.size(); i++) { // meaning
                 // 中文标注（局部变量）：`range`，含义：用于表示范围。
-                Range range = freeRanges.get(i);
+                Range range = freeRanges.get(i); // meaning
                 if (range.length < bytes) {
                     continue;
                 }
                 // 中文标注（局部变量）：`allocated`，含义：用于表示allocated。
-                Range allocated = new Range(range.offset, bytes);
+                Range allocated = new Range(range.offset, bytes); // meaning
                 if (range.length == bytes) {
                     freeRanges.remove(i);
                 } else {
@@ -3493,18 +3493,18 @@ public final class GpuChunkRenderer implements AutoCloseable {
                 return;
             }
             // 中文标注（局部变量）：`insertAt`，含义：用于表示insert、at。
-            int insertAt = 0;
+            int insertAt = 0; // meaning
             while (insertAt < freeRanges.size() && freeRanges.get(insertAt).offset < returned.offset) {
                 insertAt++;
             }
             freeRanges.add(insertAt, returned);
             // 中文标注（局部变量）：`mergeIndex`，含义：用于表示merge、索引。
-            int mergeIndex = Math.max(0, insertAt - 1);
+            int mergeIndex = Math.max(0, insertAt - 1); // meaning
             while (mergeIndex < freeRanges.size() - 1) {
                 // 中文标注（局部变量）：`left`，含义：用于表示left。
-                Range left = freeRanges.get(mergeIndex);
+                Range left = freeRanges.get(mergeIndex); // meaning
                 // 中文标注（局部变量）：`right`，含义：用于表示right。
-                Range right = freeRanges.get(mergeIndex + 1);
+                Range right = freeRanges.get(mergeIndex + 1); // meaning
                 if (left.offset + left.length != right.offset) {
                     mergeIndex++;
                     continue;
@@ -3523,9 +3523,9 @@ public final class GpuChunkRenderer implements AutoCloseable {
         // 中文标注（类）：`Allocation`，职责：封装allocation相关逻辑。
         private static final class Allocation {
             // 中文标注（字段）：`vertexRange`，含义：用于表示顶点、范围。
-            private final Range vertexRange;
+            private final Range vertexRange; // meaning
             // 中文标注（字段）：`indexRange`，含义：用于表示索引、范围。
-            private final Range indexRange;
+            private final Range indexRange; // meaning
 
             // 中文标注（构造方法）：`Allocation`，参数：vertexRange、indexRange；用途：初始化`Allocation`实例。
             // 中文标注（参数）：`vertexRange`，含义：用于表示顶点、范围。

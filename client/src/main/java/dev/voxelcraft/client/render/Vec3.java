@@ -40,7 +40,7 @@ public record Vec3(double x, double y, double z) {
     // 中文标注（方法）：`normalized`，参数：无；用途：执行normalized相关逻辑。
     public Vec3 normalized() {
         // 中文标注（局部变量）：`length`，含义：用于表示长度。
-        double length = length();
+        double length = length(); // meaning
         if (length == 0.0) {
             return new Vec3(0.0, 0.0, 0.0);
         }

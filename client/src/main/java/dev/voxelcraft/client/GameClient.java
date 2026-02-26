@@ -29,40 +29,40 @@ import java.awt.event.MouseEvent;
 // 中文标注（类）：`GameClient`，职责：封装game、客户端相关逻辑。
 public final class GameClient implements AutoCloseable {
     // 中文标注（字段）：`INTERACTION_REACH`，含义：用于表示interaction、reach。
-    private static final double INTERACTION_REACH = 6.0;
+    private static final double INTERACTION_REACH = 6.0; // meaning
     // 中文标注（字段）：`NETWORK_STATE_SEND_INTERVAL_SECONDS`，含义：用于表示网络、状态、send、interval、seconds。
-    private static final double NETWORK_STATE_SEND_INTERVAL_SECONDS = 0.05;
+    private static final double NETWORK_STATE_SEND_INTERVAL_SECONDS = 0.05; // meaning
     // 中文标注（字段）：`NETWORK_CHUNK_RADIUS`，含义：用于表示网络、区块、radius。
-    private static final int NETWORK_CHUNK_RADIUS = 27;
+    private static final int NETWORK_CHUNK_RADIUS = 27; // meaning
     // 中文标注（字段）：`LOCAL_CHUNK_RADIUS`，含义：用于表示局部、区块、radius。
-    private static final int LOCAL_CHUNK_RADIUS = 27;
+    private static final int LOCAL_CHUNK_RADIUS = 27; // meaning
     // 中文标注（字段）：`LOCAL_CHUNK_GENERATION_BUDGET_PER_TICK`，含义：用于表示局部、区块、generation、budget、per、刻。
-    private static final int LOCAL_CHUNK_GENERATION_BUDGET_PER_TICK = 2;
+    private static final int LOCAL_CHUNK_GENERATION_BUDGET_PER_TICK = 2; // meaning
     private static final boolean WORMHOLE_FEATURE_ENABLED = booleanPropertyCompat(
         "vc.wormhole.enabled",
         "voxelcraft.wormhole.enabled",
         false
     );
-    private static final int WORMHOLE_TOGGLE_KEY = KeyEvent.VK_V;
-    private static final double WORMHOLE_EXIT_ROOM_HALF_EXTENT = 3.0;
-    private static final double WORMHOLE_NORTH_DRIFT = +0.8;
-    private static final double WORMHOLE_EAST_DRIFT = +2.0;
-    private static final double WORMHOLE_SOUTH_DRIFT = -0.8;
-    private static final double WORMHOLE_WEST_DRIFT = -2.0;
-    private static final double WORMHOLE_SNAP_HYSTERESIS = 0.60;
+    private static final int WORMHOLE_TOGGLE_KEY = KeyEvent.VK_V; // meaning
+    private static final double WORMHOLE_EXIT_ROOM_HALF_EXTENT = 3.0; // meaning
+    private static final double WORMHOLE_NORTH_DRIFT = +0.8; // meaning
+    private static final double WORMHOLE_EAST_DRIFT = +2.0; // meaning
+    private static final double WORMHOLE_SOUTH_DRIFT = -0.8; // meaning
+    private static final double WORMHOLE_WEST_DRIFT = -2.0; // meaning
+    private static final double WORMHOLE_SNAP_HYSTERESIS = 0.60; // meaning
 
     // 中文标注（字段）：`game`，含义：用于表示game。
-    private final Game game = new Game();
+    private final Game game = new Game(); // meaning
     // 中文标注（字段）：`playerController`，含义：用于表示玩家、控制器。
-    private final PlayerController playerController = new PlayerController();
+    private final PlayerController playerController = new PlayerController(); // meaning
     // 中文标注（字段）：`worldView`，含义：用于表示世界、view。
-    private ClientWorldView worldView = new ClientWorldView(game.world());
+    private ClientWorldView worldView = new ClientWorldView(game.world()); // meaning
     // 中文标注（字段）：`renderSystem`，含义：用于表示渲染、system。
-    private ChunkRenderSystem renderSystem = new ChunkRenderSystem();
+    private ChunkRenderSystem renderSystem = new ChunkRenderSystem(); // meaning
     // 中文标注（字段）：`lightEngine`，含义：用于表示光照、engine。
-    private LightEngine lightEngine = new LightEngine();
+    private LightEngine lightEngine = new LightEngine(); // meaning
     // 中文标注（字段）：`hardwareStatsSampler`，含义：用于表示hardware、stats、sampler。
-    private final HardwareStatsSampler hardwareStatsSampler = new HardwareStatsSampler();
+    private final HardwareStatsSampler hardwareStatsSampler = new HardwareStatsSampler(); // meaning
 
     // 中文标注（字段）：`hotbarBlocks`，含义：用于表示hotbar、方块集合。
     private final Block[] hotbarBlocks = {
@@ -73,50 +73,50 @@ public final class GameClient implements AutoCloseable {
         Blocks.WOOD
     };
     // 中文标注（字段）：`hotbarDownLastTick`，含义：用于表示hotbar、down、last、刻。
-    private final boolean[] hotbarDownLastTick = new boolean[hotbarBlocks.length];
+    private final boolean[] hotbarDownLastTick = new boolean[hotbarBlocks.length]; // meaning
 
     // 中文标注（字段）：`networkClient`，含义：用于表示网络、客户端。
-    private NetworkClient networkClient;
+    private NetworkClient networkClient; // meaning
 
     // 中文标注（字段）：`targetedBlock`，含义：用于表示targeted、方块。
-    private BlockHitResult targetedBlock;
+    private BlockHitResult targetedBlock; // meaning
     // 中文标注（字段）：`selectedBlock`，含义：用于表示selected、方块。
-    private Block selectedBlock = hotbarBlocks[0];
+    private Block selectedBlock = hotbarBlocks[0]; // meaning
     // 中文标注（字段）：`selectedHotbarSlot`，含义：用于表示selected、hotbar、slot。
-    private int selectedHotbarSlot;
+    private int selectedHotbarSlot; // meaning
     // 中文标注（字段）：`networkStatusLine`，含义：用于表示网络、status、line。
-    private String networkStatusLine = "singleplayer";
+    private String networkStatusLine = "singleplayer"; // meaning
     // 中文标注（字段）：`hardwareSnapshot`，含义：用于表示hardware、快照。
-    private HardwareStatsSampler.Snapshot hardwareSnapshot = hardwareStatsSampler.sample();
+    private HardwareStatsSampler.Snapshot hardwareSnapshot = hardwareStatsSampler.sample(); // meaning
 
     // 中文标注（字段）：`networkStateSendAccumulator`，含义：用于表示网络、状态、send、accumulator。
-    private double networkStateSendAccumulator;
+    private double networkStateSendAccumulator; // meaning
     // 中文标注（字段）：`hardwareSampleAccumulator`，含义：用于表示hardware、sample、accumulator。
-    private double hardwareSampleAccumulator;
+    private double hardwareSampleAccumulator; // meaning
     // 中文标注（字段）：`smoothedFrameMs`，含义：用于表示smoothed、帧、ms。
-    private double smoothedFrameMs = 16.7;
+    private double smoothedFrameMs = 16.7; // meaning
     // 中文标注（字段）：`smoothedFps`，含义：用于表示smoothed、fps。
-    private double smoothedFps = 60.0;
+    private double smoothedFps = 60.0; // meaning
     // 中文标注（字段）：`lastRequestedChunkX`，含义：用于表示last、requested、区块、X坐标。
-    private int lastRequestedChunkX = Integer.MIN_VALUE;
+    private int lastRequestedChunkX = Integer.MIN_VALUE; // meaning
     // 中文标注（字段）：`lastRequestedChunkZ`，含义：用于表示last、requested、区块、Z坐标。
-    private int lastRequestedChunkZ = Integer.MIN_VALUE;
+    private int lastRequestedChunkZ = Integer.MIN_VALUE; // meaning
     // 中文标注（字段）：`breakButtonDownLastTick`，含义：用于表示break、button、down、last、刻。
-    private boolean breakButtonDownLastTick;
+    private boolean breakButtonDownLastTick; // meaning
     // 中文标注（字段）：`placeButtonDownLastTick`，含义：用于表示place、button、down、last、刻。
-    private boolean placeButtonDownLastTick;
+    private boolean placeButtonDownLastTick; // meaning
     // 中文标注（字段）：`lastEnsureLocalChunksNanos`，含义：用于表示last、ensure、局部、区块集合、nanos。
-    private long lastEnsureLocalChunksNanos;
+    private long lastEnsureLocalChunksNanos; // meaning
     // 中文标注（字段）：`lastChunkGenerationDrainNanos`，含义：用于表示last、区块、generation、drain、nanos。
-    private long lastChunkGenerationDrainNanos;
-    private boolean inWormhole;
-    private int entryW;
-    private double wormholeEntryX;
-    private double wormholeEntryY;
-    private double wormholeEntryZ;
-    private double wormholeWPhase;
-    private int wormholeWCandidate;
-    private double wormholeDwPerSecond;
+    private long lastChunkGenerationDrainNanos; // meaning
+    private boolean inWormhole; // meaning
+    private int entryW; // meaning
+    private double wormholeEntryX; // meaning
+    private double wormholeEntryY; // meaning
+    private double wormholeEntryZ; // meaning
+    private double wormholeWPhase; // meaning
+    private int wormholeWCandidate; // meaning
+    private double wormholeDwPerSecond; // meaning
 
     // 中文标注（构造方法）：`GameClient`，参数：无；用途：初始化`GameClient`实例。
     public GameClient() {
@@ -141,7 +141,7 @@ public final class GameClient implements AutoCloseable {
         }
 
         // 中文标注（局部变量）：`frameMs`，含义：用于表示帧、ms。
-        double frameMs = deltaSeconds * 1_000.0;
+        double frameMs = deltaSeconds * 1_000.0; // meaning
         if (frameMs > 0.0) {
             smoothedFrameMs = smoothedFrameMs * 0.88 + frameMs * 0.12;
             smoothedFps = smoothedFps * 0.88 + (1_000.0 / frameMs) * 0.12;
@@ -158,11 +158,11 @@ public final class GameClient implements AutoCloseable {
         tickWormholeIfActive(deltaSeconds);
 
         // 中文标注（局部变量）：`ensureStarted`，含义：用于表示ensure、started。
-        long ensureStarted = System.nanoTime();
+        long ensureStarted = System.nanoTime(); // meaning
         ensureLocalChunksAroundPlayer();
         lastEnsureLocalChunksNanos = System.nanoTime() - ensureStarted;
         // 中文标注（局部变量）：`chunkDrainStarted`，含义：用于表示区块、drain、started。
-        long chunkDrainStarted = System.nanoTime();
+        long chunkDrainStarted = System.nanoTime(); // meaning
         worldView.drainChunkGenerationBudget(LOCAL_CHUNK_GENERATION_BUDGET_PER_TICK);
         lastChunkGenerationDrainNanos = System.nanoTime() - chunkDrainStarted;
         requestChunksIfNeeded(false);
@@ -191,7 +191,7 @@ public final class GameClient implements AutoCloseable {
         drawBackground(graphics, width, height);
 
         // 中文标注（局部变量）：`stats`，含义：用于表示stats。
-        RenderStats stats = renderSystem.draw(graphics, width, height, worldView, playerController, ambientLight());
+        RenderStats stats = renderSystem.draw(graphics, width, height, worldView, playerController, ambientLight()); // meaning
         if (targetedBlock != null) {
             renderSystem.drawSelectionBox(graphics, width, height, playerController, targetedBlock.targetBlock());
         }
@@ -297,7 +297,7 @@ public final class GameClient implements AutoCloseable {
             return;
         }
 
-        ClientWorldView oldWorldView = worldView;
+        ClientWorldView oldWorldView = worldView; // meaning
         oldWorldView.close();
         game.switchW(newW);
         worldView = new ClientWorldView(game.world());
@@ -332,13 +332,13 @@ public final class GameClient implements AutoCloseable {
         }
 
         // 中文标注（局部变量）：`blockX`，含义：用于表示方块、X坐标。
-        int blockX = (int) Math.floor(playerController.x());
+        int blockX = (int) Math.floor(playerController.x()); // meaning
         // 中文标注（局部变量）：`blockZ`，含义：用于表示方块、Z坐标。
-        int blockZ = (int) Math.floor(playerController.z());
+        int blockZ = (int) Math.floor(playerController.z()); // meaning
         // 中文标注（局部变量）：`chunkX`，含义：用于表示区块、X坐标。
-        int chunkX = Math.floorDiv(blockX, Section.SIZE);
+        int chunkX = Math.floorDiv(blockX, Section.SIZE); // meaning
         // 中文标注（局部变量）：`chunkZ`，含义：用于表示区块、Z坐标。
-        int chunkZ = Math.floorDiv(blockZ, Section.SIZE);
+        int chunkZ = Math.floorDiv(blockZ, Section.SIZE); // meaning
 
         if (!force && chunkX == lastRequestedChunkX && chunkZ == lastRequestedChunkZ) {
             return;
@@ -356,13 +356,13 @@ public final class GameClient implements AutoCloseable {
         }
 
         // 中文标注（局部变量）：`blockX`，含义：用于表示方块、X坐标。
-        int blockX = (int) Math.floor(playerController.x());
+        int blockX = (int) Math.floor(playerController.x()); // meaning
         // 中文标注（局部变量）：`blockZ`，含义：用于表示方块、Z坐标。
-        int blockZ = (int) Math.floor(playerController.z());
+        int blockZ = (int) Math.floor(playerController.z()); // meaning
         // 中文标注（局部变量）：`chunkX`，含义：用于表示区块、X坐标。
-        int chunkX = Math.floorDiv(blockX, Section.SIZE);
+        int chunkX = Math.floorDiv(blockX, Section.SIZE); // meaning
         // 中文标注（局部变量）：`chunkZ`，含义：用于表示区块、Z坐标。
-        int chunkZ = Math.floorDiv(blockZ, Section.SIZE);
+        int chunkZ = Math.floorDiv(blockZ, Section.SIZE); // meaning
         worldView.ensureChunkRadius(chunkX, chunkZ, LOCAL_CHUNK_RADIUS);
     }
 
@@ -395,8 +395,8 @@ public final class GameClient implements AutoCloseable {
     }
 
     private void tickWormhole(double deltaSeconds) {
-        double x = playerController.x();
-        double z = playerController.z();
+        double x = playerController.x(); // meaning
+        double z = playerController.z(); // meaning
         if (z < -4.0 && Math.abs(x) <= 2.0) {
             wormholeDwPerSecond = WORMHOLE_NORTH_DRIFT;
         } else if (z > 4.0 && Math.abs(x) <= 2.0) {
@@ -437,12 +437,12 @@ public final class GameClient implements AutoCloseable {
     }
 
     private void tryExitWormhole() {
-        double x = playerController.x();
-        double z = playerController.z();
+        double x = playerController.x(); // meaning
+        double z = playerController.z(); // meaning
         if (Math.abs(x) > WORMHOLE_EXIT_ROOM_HALF_EXTENT || Math.abs(z) > WORMHOLE_EXIT_ROOM_HALF_EXTENT) {
             return;
         }
-        int wOut = wormholeWCandidate;
+        int wOut = wormholeWCandidate; // meaning
         inWormhole = false;
         wormholeDwPerSecond = 0.0;
         switchSlice(wOut);
@@ -453,17 +453,17 @@ public final class GameClient implements AutoCloseable {
     }
 
     private void teleportToSafeAnchor(double anchorX, double anchorY, double anchorZ) {
-        double[] safe = findSafeStandingPosition(anchorX, anchorY, anchorZ);
+        double[] safe = findSafeStandingPosition(anchorX, anchorY, anchorZ); // meaning
         playerController.teleport(safe[0], safe[1], safe[2]);
     }
 
     private double[] findSafeStandingPosition(double anchorX, double anchorY, double anchorZ) {
-        int baseX = (int) Math.floor(anchorX);
-        int baseZ = (int) Math.floor(anchorZ);
-        int baseY = clampInt((int) Math.floor(anchorY), World.MIN_Y + 2, World.MAX_Y - 3);
-        int[] offsets = {0, 1, -1, 2, -2, 3, -3, 4, -4};
+        int baseX = (int) Math.floor(anchorX); // meaning
+        int baseZ = (int) Math.floor(anchorZ); // meaning
+        int baseY = clampInt((int) Math.floor(anchorY), World.MIN_Y + 2, World.MAX_Y - 3); // meaning
+        int[] offsets = {0, 1, -1, 2, -2, 3, -3, 4, -4}; // meaning
 
-        for (int radius = 0; radius <= 4; radius++) {
+        for (int radius = 0; radius <= 4; radius++) { // meaning
             for (int dx : offsets) {
                 if (Math.abs(dx) > radius) {
                     continue;
@@ -472,10 +472,10 @@ public final class GameClient implements AutoCloseable {
                     if (Math.abs(dz) > radius) {
                         continue;
                     }
-                    int x = baseX + dx;
-                    int z = baseZ + dz;
-                    for (int dy = -4; dy <= 16; dy++) {
-                        int feetY = baseY + dy;
+                    int x = baseX + dx; // meaning
+                    int z = baseZ + dz; // meaning
+                    for (int dy = -4; dy <= 16; dy++) { // meaning
+                        int feetY = baseY + dy; // meaning
                         if (canStandAt(x, feetY, z)) {
                             return new double[] {x + 0.5, feetY, z + 0.5};
                         }
@@ -484,8 +484,8 @@ public final class GameClient implements AutoCloseable {
             }
         }
 
-        int surfaceY = findSurfaceY(baseX, baseZ);
-        double fallbackY = Math.max(surfaceY + 1.0, 6.0);
+        int surfaceY = findSurfaceY(baseX, baseZ); // meaning
+        double fallbackY = Math.max(surfaceY + 1.0, 6.0); // meaning
         return new double[] {baseX + 0.5, fallbackY, baseZ + 0.5};
     }
 
@@ -508,9 +508,9 @@ public final class GameClient implements AutoCloseable {
     // 中文标注（参数）：`input`，含义：用于表示输入。
     private void handleBlockSelection(InputState input) {
         // 中文标注（局部变量）：`slot`，含义：用于表示slot。
-        for (int slot = 0; slot < hotbarBlocks.length; slot++) {
+        for (int slot = 0; slot < hotbarBlocks.length; slot++) { // meaning
             // 中文标注（局部变量）：`keyDown`，含义：用于表示键、down。
-            boolean keyDown = isHotbarKeyDown(input, slot);
+            boolean keyDown = isHotbarKeyDown(input, slot); // meaning
             if (keyDown && !hotbarDownLastTick[slot]) {
                 selectedHotbarSlot = slot;
                 selectedBlock = hotbarBlocks[slot];
@@ -528,15 +528,15 @@ public final class GameClient implements AutoCloseable {
             return;
         }
         // 中文标注（局部变量）：`hit`，含义：用于表示命中。
-        BlockHitResult hit = targetedBlock;
+        BlockHitResult hit = targetedBlock; // meaning
         if (hit == null) {
             return;
         }
 
         // 中文标注（局部变量）：`breakButtonDown`，含义：用于表示break、button、down。
-        boolean breakButtonDown = input.isMouseDown(MouseEvent.BUTTON1);
+        boolean breakButtonDown = input.isMouseDown(MouseEvent.BUTTON1); // meaning
         // 中文标注（局部变量）：`placeButtonDown`，含义：用于表示place、button、down。
-        boolean placeButtonDown = input.isMouseDown(MouseEvent.BUTTON3);
+        boolean placeButtonDown = input.isMouseDown(MouseEvent.BUTTON3); // meaning
 
         if (breakButtonDown && !breakButtonDownLastTick) {
             if (worldView.setBlock(hit.targetBlock(), Blocks.AIR)) {
@@ -546,7 +546,7 @@ public final class GameClient implements AutoCloseable {
 
         if (placeButtonDown && !placeButtonDownLastTick && hit.placementBlock() != null) {
             // 中文标注（局部变量）：`placePos`，含义：用于表示place、位置。
-            BlockPos placePos = hit.placementBlock();
+            BlockPos placePos = hit.placementBlock(); // meaning
             if (canPlaceBlock(placePos) && worldView.setBlock(placePos, selectedBlock)) {
                 sendNetworkBlockUpdate(placePos, selectedBlock);
             }
@@ -577,7 +577,7 @@ public final class GameClient implements AutoCloseable {
         }
 
         // 中文标注（局部变量）：`blockBounds`，含义：用于表示方块、bounds。
-        AABB blockBounds = new AABB(pos.x(), pos.y(), pos.z(), pos.x() + 1.0, pos.y() + 1.0, pos.z() + 1.0);
+        AABB blockBounds = new AABB(pos.x(), pos.y(), pos.z(), pos.x() + 1.0, pos.y() + 1.0, pos.z() + 1.0); // meaning
         return !playerController.boundingBox().intersects(blockBounds);
     }
 
@@ -585,43 +585,43 @@ public final class GameClient implements AutoCloseable {
     // 中文标注（参数）：`maxDistance`，含义：用于表示最大、distance。
     private BlockHitResult raycastFromPlayer(double maxDistance) {
         // 中文标注（局部变量）：`originX`，含义：用于表示origin、X坐标。
-        double originX = playerController.eyeX();
+        double originX = playerController.eyeX(); // meaning
         // 中文标注（局部变量）：`originY`，含义：用于表示origin、Y坐标。
-        double originY = playerController.eyeY();
+        double originY = playerController.eyeY(); // meaning
         // 中文标注（局部变量）：`originZ`，含义：用于表示origin、Z坐标。
-        double originZ = playerController.eyeZ();
+        double originZ = playerController.eyeZ(); // meaning
 
         // 中文标注（局部变量）：`dirX`，含义：用于表示dir、X坐标。
-        double dirX = playerController.lookDirX();
+        double dirX = playerController.lookDirX(); // meaning
         // 中文标注（局部变量）：`dirY`，含义：用于表示dir、Y坐标。
-        double dirY = playerController.lookDirY();
+        double dirY = playerController.lookDirY(); // meaning
         // 中文标注（局部变量）：`dirZ`，含义：用于表示dir、Z坐标。
-        double dirZ = playerController.lookDirZ();
+        double dirZ = playerController.lookDirZ(); // meaning
 
         // 中文标注（局部变量）：`lastX`，含义：用于表示last、X坐标。
-        int lastX = (int) Math.floor(originX);
+        int lastX = (int) Math.floor(originX); // meaning
         // 中文标注（局部变量）：`lastY`，含义：用于表示last、Y坐标。
-        int lastY = (int) Math.floor(originY);
+        int lastY = (int) Math.floor(originY); // meaning
         // 中文标注（局部变量）：`lastZ`，含义：用于表示last、Z坐标。
-        int lastZ = (int) Math.floor(originZ);
+        int lastZ = (int) Math.floor(originZ); // meaning
 
         // 中文标注（局部变量）：`step`，含义：用于表示step。
-        double step = 0.05;
+        double step = 0.05; // meaning
         // 中文标注（局部变量）：`distance`，含义：用于表示distance。
-        for (double distance = 0.0; distance <= maxDistance; distance += step) {
+        for (double distance = 0.0; distance <= maxDistance; distance += step) { // meaning
             // 中文标注（局部变量）：`sampleX`，含义：用于表示sample、X坐标。
-            double sampleX = originX + dirX * distance;
+            double sampleX = originX + dirX * distance; // meaning
             // 中文标注（局部变量）：`sampleY`，含义：用于表示sample、Y坐标。
-            double sampleY = originY + dirY * distance;
+            double sampleY = originY + dirY * distance; // meaning
             // 中文标注（局部变量）：`sampleZ`，含义：用于表示sample、Z坐标。
-            double sampleZ = originZ + dirZ * distance;
+            double sampleZ = originZ + dirZ * distance; // meaning
 
             // 中文标注（局部变量）：`blockX`，含义：用于表示方块、X坐标。
-            int blockX = (int) Math.floor(sampleX);
+            int blockX = (int) Math.floor(sampleX); // meaning
             // 中文标注（局部变量）：`blockY`，含义：用于表示方块、Y坐标。
-            int blockY = (int) Math.floor(sampleY);
+            int blockY = (int) Math.floor(sampleY); // meaning
             // 中文标注（局部变量）：`blockZ`，含义：用于表示方块、Z坐标。
-            int blockZ = (int) Math.floor(sampleZ);
+            int blockZ = (int) Math.floor(sampleZ); // meaning
 
             if (worldView.isWithinWorldY(blockY) && worldView.isSolid(blockX, blockY, blockZ)) {
                 return new BlockHitResult(
@@ -664,16 +664,16 @@ public final class GameClient implements AutoCloseable {
     // 中文标注（方法）：`initializeSpawn`，参数：无；用途：执行initialize、spawn相关逻辑。
     private void initializeSpawn() {
         // 中文标注（局部变量）：`spawnBlockX`，含义：用于表示spawn、方块、X坐标。
-        int spawnBlockX = 0;
+        int spawnBlockX = 0; // meaning
         // 中文标注（局部变量）：`spawnBlockZ`，含义：用于表示spawn、方块、Z坐标。
-        int spawnBlockZ = 0;
+        int spawnBlockZ = 0; // meaning
         // Budgeted local chunk generation now only queues work, so force the center chunk to exist
         // before scanning for surface height; otherwise spawn may be computed against an empty world.
         worldView.world().getOrGenerateChunk(0, 0);
         // 中文标注（局部变量）：`surfaceY`，含义：用于表示surface、Y坐标。
-        int surfaceY = findSurfaceY(spawnBlockX, spawnBlockZ);
+        int surfaceY = findSurfaceY(spawnBlockX, spawnBlockZ); // meaning
         // 中文标注（局部变量）：`spawnY`，含义：用于表示spawn、Y坐标。
-        double spawnY = Math.max(surfaceY + 1.0, 6.0);
+        double spawnY = Math.max(surfaceY + 1.0, 6.0); // meaning
         playerController.setSpawn(spawnBlockX + 0.5, spawnY, spawnBlockZ + 0.5);
         worldView.ensureChunkRadius(0, 0, LOCAL_CHUNK_RADIUS);
     }
@@ -683,7 +683,7 @@ public final class GameClient implements AutoCloseable {
     // 中文标注（参数）：`z`，含义：用于表示Z坐标。
     private int findSurfaceY(int x, int z) {
         // 中文标注（局部变量）：`y`，含义：用于表示Y坐标。
-        for (int y = World.MAX_Y; y >= World.MIN_Y; y--) {
+        for (int y = World.MAX_Y; y >= World.MIN_Y; y--) { // meaning
             if (worldView.isSolid(x, y, z)) {
                 return y;
             }
@@ -697,18 +697,18 @@ public final class GameClient implements AutoCloseable {
     // 中文标注（参数）：`height`，含义：用于表示高度。
     private void drawBackground(Graphics2D graphics, int width, int height) {
         // 中文标注（局部变量）：`ambient`，含义：用于表示环境光。
-        float ambient = lightEngine.ambient();
+        float ambient = lightEngine.ambient(); // meaning
 
         // 中文标注（局部变量）：`skyTop`，含义：用于表示天空、顶面。
-        Color skyTop = shade(new Color(94, 170, 240), ambient);
+        Color skyTop = shade(new Color(94, 170, 240), ambient); // meaning
         // 中文标注（局部变量）：`skyBottom`，含义：用于表示天空、底面。
-        Color skyBottom = shade(new Color(178, 225, 255), ambient);
+        Color skyBottom = shade(new Color(178, 225, 255), ambient); // meaning
 
         graphics.setPaint(new GradientPaint(0, 0, skyTop, 0, height, skyBottom));
         graphics.fillRect(0, 0, width, height);
 
         // 中文标注（局部变量）：`horizonY`，含义：用于表示horizon、Y坐标。
-        int horizonY = (int) (height * 0.72);
+        int horizonY = (int) (height * 0.72); // meaning
         graphics.setColor(shade(new Color(84, 140, 72), ambient * 0.85f));
         graphics.fillRect(0, horizonY, width, height - horizonY);
     }
@@ -719,9 +719,9 @@ public final class GameClient implements AutoCloseable {
     // 中文标注（参数）：`height`，含义：用于表示高度。
     private void drawCrosshair(Graphics2D graphics, int width, int height) {
         // 中文标注（局部变量）：`centerX`，含义：用于表示center、X坐标。
-        int centerX = width / 2;
+        int centerX = width / 2; // meaning
         // 中文标注（局部变量）：`centerY`，含义：用于表示center、Y坐标。
-        int centerY = height / 2;
+        int centerY = height / 2; // meaning
 
         graphics.setColor(new Color(255, 255, 255, 230));
         graphics.drawLine(centerX - 8, centerY, centerX + 8, centerY);
@@ -734,43 +734,43 @@ public final class GameClient implements AutoCloseable {
     // 中文标注（参数）：`height`，含义：用于表示高度。
     private void drawHotbar(Graphics2D graphics, int width, int height) {
         // 中文标注（局部变量）：`slotSize`，含义：用于表示slot、大小。
-        int slotSize = 54;
+        int slotSize = 54; // meaning
         // 中文标注（局部变量）：`gap`，含义：用于表示gap。
-        int gap = 9;
+        int gap = 9; // meaning
         // 中文标注（局部变量）：`slots`，含义：用于表示slots。
-        int slots = hotbarBlocks.length;
+        int slots = hotbarBlocks.length; // meaning
         // 中文标注（局部变量）：`totalWidth`，含义：用于表示total、宽度。
-        int totalWidth = slots * slotSize + (slots - 1) * gap;
+        int totalWidth = slots * slotSize + (slots - 1) * gap; // meaning
         // 中文标注（局部变量）：`left`，含义：用于表示left。
-        int left = (width - totalWidth) / 2;
+        int left = (width - totalWidth) / 2; // meaning
         // 中文标注（局部变量）：`top`，含义：用于表示顶面。
-        int top = height - slotSize - 26;
+        int top = height - slotSize - 26; // meaning
 
         graphics.setFont(new Font(Font.MONOSPACED, Font.BOLD, 12));
         // 中文标注（局部变量）：`slot`，含义：用于表示slot。
-        for (int slot = 0; slot < slots; slot++) {
+        for (int slot = 0; slot < slots; slot++) { // meaning
             // 中文标注（局部变量）：`slotX`，含义：用于表示slot、X坐标。
-            int slotX = left + slot * (slotSize + gap);
+            int slotX = left + slot * (slotSize + gap); // meaning
             // 中文标注（局部变量）：`selected`，含义：用于表示selected。
-            boolean selected = slot == selectedHotbarSlot;
+            boolean selected = slot == selectedHotbarSlot; // meaning
             graphics.setColor(selected ? new Color(255, 255, 255, 215) : new Color(20, 24, 28, 170));
             graphics.fillRoundRect(slotX, top, slotSize, slotSize, 8, 8);
             graphics.setColor(selected ? new Color(20, 24, 28, 220) : new Color(235, 235, 235, 180));
             graphics.drawRoundRect(slotX, top, slotSize, slotSize, 8, 8);
 
             // 中文标注（局部变量）：`keyText`，含义：用于表示键、text。
-            String keyText = Integer.toString(slot + 1);
+            String keyText = Integer.toString(slot + 1); // meaning
             graphics.setColor(selected ? new Color(10, 10, 10, 230) : new Color(255, 255, 255, 220));
             graphics.drawString(keyText, slotX + 6, top + 14);
 
             // 中文标注（局部变量）：`label`，含义：用于表示label。
-            String label = hotbarLabel(hotbarBlocks[slot]);
+            String label = hotbarLabel(hotbarBlocks[slot]); // meaning
             // 中文标注（局部变量）：`textWidth`，含义：用于表示text、宽度。
-            int textWidth = graphics.getFontMetrics().stringWidth(label);
+            int textWidth = graphics.getFontMetrics().stringWidth(label); // meaning
             // 中文标注（局部变量）：`textX`，含义：用于表示text、X坐标。
-            int textX = slotX + (slotSize - textWidth) / 2;
+            int textX = slotX + (slotSize - textWidth) / 2; // meaning
             // 中文标注（局部变量）：`textY`，含义：用于表示text、Y坐标。
-            int textY = top + 33;
+            int textY = top + 33; // meaning
             graphics.drawString(label, textX, textY);
         }
     }
@@ -786,7 +786,7 @@ public final class GameClient implements AutoCloseable {
         graphics.setColor(Color.WHITE);
         graphics.drawString(String.format("XYZ: %.2f %.2f %.2f", playerController.x(), playerController.y(), playerController.z()), 24, 34);
         graphics.drawString(String.format("Yaw/Pitch: %.1f / %.1f", playerController.yaw(), playerController.pitch()), 24, 54);
-        String driftLabel = wormholeDwPerSecond >= 0.0 ? "ANA" : "KATA";
+        String driftLabel = wormholeDwPerSecond >= 0.0 ? "ANA" : "KATA"; // meaning
         graphics.drawString(inWormhole
                 ? String.format("W-phase: %.2f  snap=%d  drift=%.2f (%s)", wormholeWPhase, wormholeWCandidate, wormholeDwPerSecond, driftLabel)
                 : "W: " + game.w(),
@@ -847,11 +847,11 @@ public final class GameClient implements AutoCloseable {
     // 中文标注（参数）：`amount`，含义：用于表示amount。
     private static Color shade(Color color, float amount) {
         // 中文标注（局部变量）：`red`，含义：用于表示red。
-        int red = clamp((int) (color.getRed() * amount));
+        int red = clamp((int) (color.getRed() * amount)); // meaning
         // 中文标注（局部变量）：`green`，含义：用于表示green。
-        int green = clamp((int) (color.getGreen() * amount));
+        int green = clamp((int) (color.getGreen() * amount)); // meaning
         // 中文标注（局部变量）：`blue`，含义：用于表示blue。
-        int blue = clamp((int) (color.getBlue() * amount));
+        int blue = clamp((int) (color.getBlue() * amount)); // meaning
         return new Color(red, green, blue);
     }
 
@@ -862,14 +862,14 @@ public final class GameClient implements AutoCloseable {
     }
 
     private static boolean booleanPropertyCompat(String key, String legacyKey, boolean defaultValue) {
-        String raw = System.getProperty(key);
+        String raw = System.getProperty(key); // meaning
         if (raw == null) {
             raw = System.getProperty(legacyKey);
         }
         if (raw == null) {
             return defaultValue;
         }
-        String normalized = raw.trim().toLowerCase();
+        String normalized = raw.trim().toLowerCase(); // meaning
         if (normalized.equals("1") || normalized.equals("true") || normalized.equals("yes") || normalized.equals("on")) {
             return true;
         }

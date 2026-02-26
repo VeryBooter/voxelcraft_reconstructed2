@@ -13,14 +13,14 @@ class WorldMutationTest {
     @Test
     void setBlockUpdatesStateAndVersion() {
         // 中文标注（局部变量）：`world`，含义：用于表示世界。
-        World world = new World(12345L);
+        World world = new World(12345L); // meaning
         // 中文标注（局部变量）：`pos`，含义：用于表示位置。
-        BlockPos pos = new BlockPos(2, 10, -3);
+        BlockPos pos = new BlockPos(2, 10, -3); // meaning
 
         // 中文标注（局部变量）：`beforeVersion`，含义：用于表示before、版本。
-        long beforeVersion = world.blockUpdateVersion();
+        long beforeVersion = world.blockUpdateVersion(); // meaning
         // 中文标注（局部变量）：`changed`，含义：用于表示changed。
-        boolean changed = world.setBlock(pos, Blocks.STONE);
+        boolean changed = world.setBlock(pos, Blocks.STONE); // meaning
 
         Assertions.assertTrue(changed);
         Assertions.assertEquals(Blocks.STONE, world.getBlock(pos));
@@ -31,18 +31,18 @@ class WorldMutationTest {
     @Test
     void settingSameBlockDoesNotBumpVersion() {
         // 中文标注（局部变量）：`world`，含义：用于表示世界。
-        World world = new World(12345L);
+        World world = new World(12345L); // meaning
         // 中文标注（局部变量）：`surfaceY`，含义：用于表示surface、Y坐标。
-        int surfaceY = findSurfaceY(world, 0, 0);
+        int surfaceY = findSurfaceY(world, 0, 0); // meaning
         // 中文标注（局部变量）：`pos`，含义：用于表示位置。
-        BlockPos pos = new BlockPos(0, surfaceY, 0);
+        BlockPos pos = new BlockPos(0, surfaceY, 0); // meaning
         // 中文标注（局部变量）：`existing`，含义：用于表示existing。
-        var existing = world.getBlock(pos);
+        var existing = world.getBlock(pos); // meaning
 
         // 中文标注（局部变量）：`beforeVersion`，含义：用于表示before、版本。
-        long beforeVersion = world.blockUpdateVersion();
+        long beforeVersion = world.blockUpdateVersion(); // meaning
         // 中文标注（局部变量）：`changed`，含义：用于表示changed。
-        boolean changed = world.setBlock(pos, existing);
+        boolean changed = world.setBlock(pos, existing); // meaning
 
         Assertions.assertFalse(changed);
         Assertions.assertEquals(beforeVersion, world.blockUpdateVersion());
@@ -52,7 +52,7 @@ class WorldMutationTest {
     @Test
     void setBlockOutsideHeightIsIgnored() {
         // 中文标注（局部变量）：`world`，含义：用于表示世界。
-        World world = new World(12345L);
+        World world = new World(12345L); // meaning
 
         Assertions.assertFalse(world.setBlock(new BlockPos(0, World.MIN_Y - 1, 0), Blocks.STONE));
         Assertions.assertFalse(world.setBlock(new BlockPos(0, World.MAX_Y + 1, 0), Blocks.STONE));
@@ -62,9 +62,9 @@ class WorldMutationTest {
     @Test
     void negativeCoordinatesMapToCorrectChunks() {
         // 中文标注（局部变量）：`world`，含义：用于表示世界。
-        World world = new World(12345L);
+        World world = new World(12345L); // meaning
         // 中文标注（局部变量）：`pos`，含义：用于表示位置。
-        BlockPos pos = new BlockPos(-1, 12, -1);
+        BlockPos pos = new BlockPos(-1, 12, -1); // meaning
 
         world.setBlock(pos, Blocks.DIRT);
 
@@ -75,12 +75,12 @@ class WorldMutationTest {
     @Test
     void readingFarChunkTriggersGeneration() {
         // 中文标注（局部变量）：`world`，含义：用于表示世界。
-        World world = new World(12345L);
+        World world = new World(12345L); // meaning
         // 中文标注（局部变量）：`beforeVersion`，含义：用于表示before、版本。
-        long beforeVersion = world.blockUpdateVersion();
+        long beforeVersion = world.blockUpdateVersion(); // meaning
 
         // 中文标注（局部变量）：`pos`，含义：用于表示位置。
-        BlockPos pos = new BlockPos(400, 0, 400);
+        BlockPos pos = new BlockPos(400, 0, 400); // meaning
         Assertions.assertNotEquals(Blocks.AIR, world.getBlock(pos));
         Assertions.assertTrue(world.blockUpdateVersion() > beforeVersion);
     }
@@ -91,7 +91,7 @@ class WorldMutationTest {
     // 中文标注（参数）：`z`，含义：用于表示Z坐标。
     private static int findSurfaceY(World world, int x, int z) {
         // 中文标注（局部变量）：`y`，含义：用于表示Y坐标。
-        for (int y = 96; y >= World.MIN_Y; y--) {
+        for (int y = 96; y >= World.MIN_Y; y--) { // meaning
             if (world.getBlock(new BlockPos(x, y, z)) != Blocks.AIR) {
                 return y;
             }

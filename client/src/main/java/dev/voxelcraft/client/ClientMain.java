@@ -13,7 +13,7 @@ public final class ClientMain {
     // 中文标注（参数）：`args`，含义：用于表示args。
     public static void main(String[] args) {
         // 中文标注（局部变量）：`config`，含义：用于表示config。
-        VoxelcraftClientApp.LaunchConfig config = VoxelcraftClientApp.LaunchConfig.parse(args);
+        VoxelcraftClientApp.LaunchConfig config = VoxelcraftClientApp.LaunchConfig.parse(args); // meaning
         new VoxelcraftClientApp(config).run();
     }
 }

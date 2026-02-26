@@ -13,13 +13,13 @@ class WorldGenerationTest {
     @Test
     void generatedColumnHasExpectedSurfaceLayers() {
         // 中文标注（局部变量）：`world`，含义：用于表示世界。
-        World world = new World(12345L);
+        World world = new World(12345L); // meaning
         // 中文标注（局部变量）：`surfaceY`，含义：用于表示surface、Y坐标。
-        int surfaceY = findSurfaceY(world, 0, 0);
+        int surfaceY = findSurfaceY(world, 0, 0); // meaning
         // 中文标注（局部变量）：`top`，含义：用于表示顶面。
-        var top = world.getBlock(new BlockPos(0, surfaceY, 0));
+        var top = world.getBlock(new BlockPos(0, surfaceY, 0)); // meaning
         // 中文标注（局部变量）：`below`，含义：用于表示below。
-        var below = world.getBlock(new BlockPos(0, surfaceY - 1, 0));
+        var below = world.getBlock(new BlockPos(0, surfaceY - 1, 0)); // meaning
 
         Assertions.assertTrue(surfaceY >= 1);
         Assertions.assertNotEquals(Blocks.AIR, top);
@@ -31,7 +31,7 @@ class WorldGenerationTest {
     @Test
     void terrainHasHeightVariationAcrossColumns() {
         // 中文标注（局部变量）：`world`，含义：用于表示世界。
-        World world = new World(12345L);
+        World world = new World(12345L); // meaning
         // 中文标注（局部变量）：`samples`，含义：用于表示samples。
         int[][] samples = {
             {0, 0},
@@ -43,13 +43,13 @@ class WorldGenerationTest {
         };
 
         // 中文标注（局部变量）：`minSurface`，含义：用于表示最小、surface。
-        int minSurface = Integer.MAX_VALUE;
+        int minSurface = Integer.MAX_VALUE; // meaning
         // 中文标注（局部变量）：`maxSurface`，含义：用于表示最大、surface。
-        int maxSurface = Integer.MIN_VALUE;
+        int maxSurface = Integer.MIN_VALUE; // meaning
         // 中文标注（局部变量）：`sample`，含义：用于表示sample。
         for (int[] sample : samples) {
             // 中文标注（局部变量）：`surfaceY`，含义：用于表示surface、Y坐标。
-            int surfaceY = findSurfaceY(world, sample[0], sample[1]);
+            int surfaceY = findSurfaceY(world, sample[0], sample[1]); // meaning
             minSurface = Math.min(minSurface, surfaceY);
             maxSurface = Math.max(maxSurface, surfaceY);
         }
@@ -61,7 +61,7 @@ class WorldGenerationTest {
     @Test
     void outOfBoundsYReturnsAir() {
         // 中文标注（局部变量）：`world`，含义：用于表示世界。
-        World world = new World(12345L);
+        World world = new World(12345L); // meaning
         Assertions.assertEquals(Blocks.AIR, world.getBlock(new BlockPos(0, World.MIN_Y - 1, 0)));
         Assertions.assertEquals(Blocks.AIR, world.getBlock(new BlockPos(0, World.MAX_Y + 1, 0)));
     }
@@ -72,7 +72,7 @@ class WorldGenerationTest {
     // 中文标注（参数）：`z`，含义：用于表示Z坐标。
     private static int findSurfaceY(World world, int x, int z) {
         // 中文标注（局部变量）：`y`，含义：用于表示Y坐标。
-        for (int y = 96; y >= World.MIN_Y; y--) {
+        for (int y = 96; y >= World.MIN_Y; y--) { // meaning
             if (world.getBlock(new BlockPos(x, y, z)) != Blocks.AIR) {
                 return y;
             }

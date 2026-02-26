@@ -11,9 +11,9 @@ import java.util.Objects;
 // 中文标注（类）：`BlockState`，职责：封装方块、状态相关逻辑。
 public final class BlockState {
     // 中文标注（字段）：`block`，含义：用于表示方块。
-    private final Block block;
+    private final Block block; // meaning
     // 中文标注（字段）：`values`，含义：用于表示values。
-    private final Map<StateProperty<?>, Object> values;
+    private final Map<StateProperty<?>, Object> values; // meaning
 
     // 中文标注（构造方法）：`BlockState`，参数：block、values；用途：初始化`BlockState`实例。
     // 中文标注（参数）：`block`，含义：用于表示方块。
@@ -40,7 +40,7 @@ public final class BlockState {
     // 中文标注（参数）：`value`，含义：用于表示值。
     public <T> BlockState with(StateProperty<T> property, T value) {
         // 中文标注（局部变量）：`next`，含义：用于表示next。
-        HashMap<StateProperty<?>, Object> next = new HashMap<>(values);
+        HashMap<StateProperty<?>, Object> next = new HashMap<>(values); // meaning
         next.put(property, value);
         return new BlockState(block, next);
     }

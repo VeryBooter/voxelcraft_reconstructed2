@@ -23,7 +23,7 @@ public final class PacketIO {
         Objects.requireNonNull(value, "value");
 
         // 中文标注（局部变量）：`bytes`，含义：用于表示字节数据。
-        byte[] bytes = value.getBytes(StandardCharsets.UTF_8);
+        byte[] bytes = value.getBytes(StandardCharsets.UTF_8); // meaning
         if (bytes.length > 65_535) {
             throw new IOException("String payload exceeds 65535 bytes");
         }
@@ -37,9 +37,9 @@ public final class PacketIO {
     public static String readString(DataInputStream in) throws IOException {
         Objects.requireNonNull(in, "in");
         // 中文标注（局部变量）：`length`，含义：用于表示长度。
-        int length = in.readUnsignedShort();
+        int length = in.readUnsignedShort(); // meaning
         // 中文标注（局部变量）：`bytes`，含义：用于表示字节数据。
-        byte[] bytes = new byte[length];
+        byte[] bytes = new byte[length]; // meaning
         in.readFully(bytes);
         return new String(bytes, StandardCharsets.UTF_8);
     }

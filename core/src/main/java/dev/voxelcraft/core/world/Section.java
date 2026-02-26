@@ -10,11 +10,11 @@ import java.util.Arrays;
 // 中文标注（类）：`Section`，职责：封装分段相关逻辑。
 public final class Section {
     // 中文标注（字段）：`SIZE`，含义：用于表示大小。
-    public static final int SIZE = 16;
+    public static final int SIZE = 16; // meaning
     // 中文标注（字段）：`blocks`，含义：用于表示方块集合。
-    private Block[] blocks;
+    private Block[] blocks; // meaning
     // 中文标注（字段）：`uniformBlock`，含义：用于表示uniform、方块。
-    private Block uniformBlock;
+    private Block uniformBlock; // meaning
 
     // 中文标注（方法）：`getBlock`，参数：x、y、z；用途：获取或读取方块。
     // 中文标注（参数）：`x`，含义：用于表示X坐标。
@@ -34,13 +34,13 @@ public final class Section {
     // 中文标注（参数）：`block`，含义：用于表示方块。
     public void setBlock(int x, int y, int z, Block block) {
         // 中文标注（局部变量）：`value`，含义：用于表示值。
-        Block value = blockOrNull(block);
+        Block value = blockOrNull(block); // meaning
         // 中文标注（局部变量）：`blockIndex`，含义：用于表示方块、索引。
-        int blockIndex = index(x, y, z);
+        int blockIndex = index(x, y, z); // meaning
 
         if (blocks == null) {
             // 中文标注（局部变量）：`existing`，含义：用于表示existing。
-            Block existing = blockOrAir(uniformBlock);
+            Block existing = blockOrAir(uniformBlock); // meaning
             if (existing == blockOrAir(value)) {
                 return;
             }

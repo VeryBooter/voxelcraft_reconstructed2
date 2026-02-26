@@ -9,17 +9,17 @@ import dev.voxelcraft.core.world.World;
 // 中文标注（类）：`LightEngine`，职责：封装光照、engine相关逻辑。
 public final class LightEngine {
     // 中文标注（字段）：`ambient`，含义：用于表示环境光。
-    private float ambient = 1.0f;
+    private float ambient = 1.0f; // meaning
 
     // 中文标注（方法）：`tick`，参数：worldView；用途：更新刻相关状态。
     // 中文标注（参数）：`worldView`，含义：用于表示世界、view。
     public void tick(ClientWorldView worldView) {
         // 中文标注（局部变量）：`ticks`，含义：用于表示ticks。
-        long ticks = worldView.world().ticks();
+        long ticks = worldView.world().ticks(); // meaning
         // 中文标注（局部变量）：`dayPhase`，含义：用于表示day、phase。
-        double dayPhase = (ticks % 24_000L) / 24_000.0;
+        double dayPhase = (ticks % 24_000L) / 24_000.0; // meaning
         // 中文标注（局部变量）：`wave`，含义：用于表示wave。
-        double wave = Math.cos(dayPhase * Math.PI * 2.0);
+        double wave = Math.cos(dayPhase * Math.PI * 2.0); // meaning
         ambient = (float) (0.6 + 0.4 * ((wave + 1.0) * 0.5));
     }
 

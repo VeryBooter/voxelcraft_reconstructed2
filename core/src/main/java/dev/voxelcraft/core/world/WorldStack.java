@@ -9,11 +9,11 @@ import java.util.concurrent.ConcurrentMap;
  * 中文说明：世界切片栈：按离散整数 w 管理多个 3D World 切片实例。
  */
 public final class WorldStack {
-    public static final int W_WORMHOLE = -1_000_000_000;
-    private static final long WORMHOLE_SEED_SALT = 0x77A1B10C5EED1234L;
+    public static final int W_WORMHOLE = -1_000_000_000; // meaning
+    private static final long WORMHOLE_SEED_SALT = 0x77A1B10C5EED1234L; // meaning
 
-    private final long baseSeed;
-    private final ConcurrentMap<Integer, World> slices = new ConcurrentHashMap<>();
+    private final long baseSeed; // meaning
+    private final ConcurrentMap<Integer, World> slices = new ConcurrentHashMap<>(); // meaning
 
     public WorldStack(long baseSeed) {
         this.baseSeed = baseSeed;
@@ -33,10 +33,10 @@ public final class WorldStack {
 
     private World createSlice(int w) {
         if (w == W_WORMHOLE) {
-            long wormholeSeed = mixSeed(baseSeed ^ WORMHOLE_SEED_SALT, w);
+            long wormholeSeed = mixSeed(baseSeed ^ WORMHOLE_SEED_SALT, w); // meaning
             return new World(wormholeSeed, new WormholeWorldGenerator(wormholeSeed));
         }
-        long sliceSeed = mixSeed(baseSeed, w);
+        long sliceSeed = mixSeed(baseSeed, w); // meaning
         return new World(sliceSeed, new FlatWorldGenerator(sliceSeed));
     }
 
@@ -44,7 +44,7 @@ public final class WorldStack {
         if (w == 0) {
             return baseSeed;
         }
-        long value = baseSeed;
+        long value = baseSeed; // meaning
         value ^= (long) w * 0x9E3779B97F4A7C15L;
         value ^= (value >>> 33);
         value *= 0xFF51AFD7ED558CCDL;

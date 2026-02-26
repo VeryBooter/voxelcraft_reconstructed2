@@ -9,16 +9,16 @@ import java.util.List;
 // 中文标注（类）：`Mesh`，职责：封装网格相关逻辑。
 public final class Mesh {
     // 中文标注（字段）：`chunks`，含义：用于表示区块集合。
-    private final List<ChunkBatch> chunks;
+    private final List<ChunkBatch> chunks; // meaning
     // 中文标注（字段）：`faceCount`，含义：用于表示面、数量。
-    private final int faceCount;
+    private final int faceCount; // meaning
 
     // 中文标注（构造方法）：`Mesh`，参数：chunks；用途：初始化`Mesh`实例。
     // 中文标注（参数）：`chunks`，含义：用于表示区块集合。
     public Mesh(List<ChunkBatch> chunks) {
         this.chunks = List.copyOf(chunks);
         // 中文标注（局部变量）：`totalFaces`，含义：用于表示total、面集合。
-        int totalFaces = 0;
+        int totalFaces = 0; // meaning
         // 中文标注（局部变量）：`chunk`，含义：用于表示区块。
         for (ChunkBatch chunk : this.chunks) {
             totalFaces += chunk.faceCount();

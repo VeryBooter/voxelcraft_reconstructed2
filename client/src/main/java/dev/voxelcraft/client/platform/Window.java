@@ -28,27 +28,27 @@ import javax.swing.WindowConstants;
 // 中文标注（类）：`Window`，职责：封装窗口相关逻辑。
 public final class Window implements AutoCloseable {
     // 中文标注（字段）：`HIDDEN_CURSOR`，含义：用于表示hidden、cursor。
-    private static final Cursor HIDDEN_CURSOR = createHiddenCursor();
+    private static final Cursor HIDDEN_CURSOR = createHiddenCursor(); // meaning
 
     // 中文标注（字段）：`frame`，含义：用于表示帧。
-    private final JFrame frame;
+    private final JFrame frame; // meaning
     // 中文标注（字段）：`canvas`，含义：用于表示canvas。
-    private final Canvas canvas;
+    private final Canvas canvas; // meaning
     // 中文标注（字段）：`input`，含义：用于表示输入。
-    private final InputState input = new InputState();
+    private final InputState input = new InputState(); // meaning
     // 中文标注（字段）：`mouseRobot`，含义：用于表示鼠标、robot。
-    private final Robot mouseRobot;
+    private final Robot mouseRobot; // meaning
     // 中文标注（字段）：`keyDispatcher`，含义：用于表示键、dispatcher。
-    private final KeyEventDispatcher keyDispatcher;
+    private final KeyEventDispatcher keyDispatcher; // meaning
 
     // 中文标注（字段）：`open`，含义：用于表示open。
-    private volatile boolean open = true;
+    private volatile boolean open = true; // meaning
     // 中文标注（字段）：`mouseCaptured`，含义：用于表示鼠标、captured。
-    private volatile boolean mouseCaptured;
+    private volatile boolean mouseCaptured; // meaning
     // 中文标注（字段）：`suppressCenterEvent`，含义：用于表示suppress、center、event。
-    private volatile boolean suppressCenterEvent;
+    private volatile boolean suppressCenterEvent; // meaning
     // 中文标注（字段）：`bufferStrategy`，含义：用于表示缓冲区、strategy。
-    private BufferStrategy bufferStrategy;
+    private BufferStrategy bufferStrategy; // meaning
 
     // 中文标注（构造方法）：`Window`，参数：title、width、height；用途：初始化`Window`实例。
     // 中文标注（参数）：`title`，含义：用于表示title。
@@ -157,7 +157,7 @@ public final class Window implements AutoCloseable {
             }
 
             // 中文标注（局部变量）：`eventId`，含义：用于表示event、标识。
-            int eventId = event.getID();
+            int eventId = event.getID(); // meaning
             if (eventId == KeyEvent.KEY_PRESSED) {
                 input.onKeyPressed(event.getKeyCode());
             } else if (eventId == KeyEvent.KEY_RELEASED) {
@@ -190,7 +190,7 @@ public final class Window implements AutoCloseable {
     // 中文标注（方法）：`beginRender`，参数：无；用途：执行begin、渲染相关逻辑。
     public Graphics2D beginRender() {
         // 中文标注（局部变量）：`strategy`，含义：用于表示strategy。
-        BufferStrategy strategy = bufferStrategy;
+        BufferStrategy strategy = bufferStrategy; // meaning
         if (strategy == null) {
             canvas.createBufferStrategy(2);
             strategy = canvas.getBufferStrategy();
@@ -204,7 +204,7 @@ public final class Window implements AutoCloseable {
     public void endRender(Graphics2D graphics) {
         graphics.dispose();
         // 中文标注（局部变量）：`strategy`，含义：用于表示strategy。
-        BufferStrategy strategy = bufferStrategy;
+        BufferStrategy strategy = bufferStrategy; // meaning
         if (strategy != null) {
             strategy.show();
         }
@@ -255,9 +255,9 @@ public final class Window implements AutoCloseable {
         }
 
         // 中文标注（局部变量）：`centerX`，含义：用于表示center、X坐标。
-        int centerX = canvas.getWidth() / 2;
+        int centerX = canvas.getWidth() / 2; // meaning
         // 中文标注（局部变量）：`centerY`，含义：用于表示center、Y坐标。
-        int centerY = canvas.getHeight() / 2;
+        int centerY = canvas.getHeight() / 2; // meaning
         if (suppressCenterEvent && event.getX() == centerX && event.getY() == centerY) {
             suppressCenterEvent = false;
             return;
@@ -265,9 +265,9 @@ public final class Window implements AutoCloseable {
         suppressCenterEvent = false;
 
         // 中文标注（局部变量）：`deltaX`，含义：用于表示增量、X坐标。
-        int deltaX = event.getX() - centerX;
+        int deltaX = event.getX() - centerX; // meaning
         // 中文标注（局部变量）：`deltaY`，含义：用于表示增量、Y坐标。
-        int deltaY = event.getY() - centerY;
+        int deltaY = event.getY() - centerY; // meaning
         if (deltaX == 0 && deltaY == 0) {
             return;
         }
@@ -305,14 +305,14 @@ public final class Window implements AutoCloseable {
         }
 
         // 中文标注（局部变量）：`centerX`，含义：用于表示center、X坐标。
-        int centerX = Math.max(0, canvas.getWidth() / 2);
+        int centerX = Math.max(0, canvas.getWidth() / 2); // meaning
         // 中文标注（局部变量）：`centerY`，含义：用于表示center、Y坐标。
-        int centerY = Math.max(0, canvas.getHeight() / 2);
+        int centerY = Math.max(0, canvas.getHeight() / 2); // meaning
         input.setMousePosition(centerX, centerY);
 
         try {
             // 中文标注（局部变量）：`locationOnScreen`，含义：用于表示location、on、screen。
-            Point locationOnScreen = canvas.getLocationOnScreen();
+            Point locationOnScreen = canvas.getLocationOnScreen(); // meaning
             suppressCenterEvent = true;
             mouseRobot.mouseMove(locationOnScreen.x + centerX, locationOnScreen.y + centerY);
         // 中文标注（异常参数）：`ignored`，含义：用于表示ignored。
@@ -325,7 +325,7 @@ public final class Window implements AutoCloseable {
     private static Cursor createHiddenCursor() {
         try {
             // 中文标注（局部变量）：`image`，含义：用于表示image。
-            BufferedImage image = new BufferedImage(16, 16, BufferedImage.TYPE_INT_ARGB);
+            BufferedImage image = new BufferedImage(16, 16, BufferedImage.TYPE_INT_ARGB); // meaning
             return Toolkit.getDefaultToolkit().createCustomCursor(image, new Point(0, 0), "voxelcraft-hidden-cursor");
         // 中文标注（异常参数）：`ignored`，含义：用于表示ignored。
         } catch (RuntimeException ignored) {

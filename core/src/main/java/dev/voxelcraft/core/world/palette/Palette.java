@@ -12,21 +12,21 @@ import java.util.Objects;
 // 中文标注（类）：`Palette`，职责：封装palette相关逻辑。
 public final class Palette<T> {
     // 中文标注（字段）：`valueToId`，含义：用于表示值、to、标识。
-    private final Map<T, Integer> valueToId = new HashMap<>();
+    private final Map<T, Integer> valueToId = new HashMap<>(); // meaning
     // 中文标注（字段）：`idToValue`，含义：用于表示标识、to、值。
-    private final List<T> idToValue = new ArrayList<>();
+    private final List<T> idToValue = new ArrayList<>(); // meaning
 
     // 中文标注（方法）：`idFor`，参数：value；用途：执行标识、for相关逻辑。
     // 中文标注（参数）：`value`，含义：用于表示值。
     public int idFor(T value) {
         Objects.requireNonNull(value, "value");
         // 中文标注（局部变量）：`existing`，含义：用于表示existing。
-        Integer existing = valueToId.get(value);
+        Integer existing = valueToId.get(value); // meaning
         if (existing != null) {
             return existing;
         }
         // 中文标注（局部变量）：`id`，含义：用于表示标识。
-        int id = idToValue.size();
+        int id = idToValue.size(); // meaning
         idToValue.add(value);
         valueToId.put(value, id);
         return id;

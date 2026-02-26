@@ -8,19 +8,19 @@ import dev.voxelcraft.core.world.Section;
  * 中文说明：虫洞世界生成器：在原点附近生成固定十字形走廊/河道空间（3D），用于 wPhase 漂移中介。
  */
 public final class WormholeWorldGenerator implements WorldGenerator {
-    private static final int FLOOR_Y = 64;
-    private static final int CEILING_Y = 71;
-    private static final int WALL_MIN_Y = FLOOR_Y + 1;
-    private static final int WALL_MAX_Y = CEILING_Y - 1;
+    private static final int FLOOR_Y = 64; // meaning
+    private static final int CEILING_Y = 71; // meaning
+    private static final int WALL_MIN_Y = FLOOR_Y + 1; // meaning
+    private static final int WALL_MAX_Y = CEILING_Y - 1; // meaning
 
-    private static final int CENTER_INTERIOR_HALF = 3;
-    private static final int CENTER_ENVELOPE_HALF = 4;
-    private static final int CORRIDOR_INTERIOR_HALF = 2;
-    private static final int CORRIDOR_ENVELOPE_HALF = 3;
-    private static final int CORRIDOR_EXTENT = 32;
-    private static final int CORRIDOR_GAP = 4;
+    private static final int CENTER_INTERIOR_HALF = 3; // meaning
+    private static final int CENTER_ENVELOPE_HALF = 4; // meaning
+    private static final int CORRIDOR_INTERIOR_HALF = 2; // meaning
+    private static final int CORRIDOR_ENVELOPE_HALF = 3; // meaning
+    private static final int CORRIDOR_EXTENT = 32; // meaning
+    private static final int CORRIDOR_GAP = 4; // meaning
 
-    private final long seed;
+    private final long seed; // meaning
 
     public WormholeWorldGenerator(long seed) {
         this.seed = seed;
@@ -28,16 +28,16 @@ public final class WormholeWorldGenerator implements WorldGenerator {
 
     @Override
     public void generate(Chunk chunk) {
-        int chunkBaseX = chunk.pos().x() * Section.SIZE;
-        int chunkBaseZ = chunk.pos().z() * Section.SIZE;
+        int chunkBaseX = chunk.pos().x() * Section.SIZE; // meaning
+        int chunkBaseZ = chunk.pos().z() * Section.SIZE; // meaning
 
-        for (int localX = 0; localX < Section.SIZE; localX++) {
-            int worldX = chunkBaseX + localX;
-            for (int localZ = 0; localZ < Section.SIZE; localZ++) {
-                int worldZ = chunkBaseZ + localZ;
+        for (int localX = 0; localX < Section.SIZE; localX++) { // meaning
+            int worldX = chunkBaseX + localX; // meaning
+            for (int localZ = 0; localZ < Section.SIZE; localZ++) { // meaning
+                int worldZ = chunkBaseZ + localZ; // meaning
 
-                boolean interior = isWormholeInterior(worldX, worldZ);
-                boolean envelope = isWormholeEnvelope(worldX, worldZ);
+                boolean interior = isWormholeInterior(worldX, worldZ); // meaning
+                boolean envelope = isWormholeEnvelope(worldX, worldZ); // meaning
                 if (!interior && !envelope) {
                     continue;
                 }
@@ -47,7 +47,7 @@ public final class WormholeWorldGenerator implements WorldGenerator {
                 chunk.setBlock(localX, CEILING_Y, localZ, Blocks.STONE);
 
                 // Interior volume is air; envelope-only cells become walls.
-                for (int y = WALL_MIN_Y; y <= WALL_MAX_Y; y++) {
+                for (int y = WALL_MIN_Y; y <= WALL_MAX_Y; y++) { // meaning
                     if (interior) {
                         chunk.setBlock(localX, y, localZ, Blocks.AIR);
                     } else {

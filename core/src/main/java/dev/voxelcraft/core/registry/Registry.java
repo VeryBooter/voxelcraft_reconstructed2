@@ -12,11 +12,11 @@ import java.util.Objects;
 // 中文标注（类）：`Registry`，职责：封装注册表相关逻辑。
 public final class Registry<T> {
     // 中文标注（字段）：`debugName`，含义：用于表示debug、名称。
-    private final String debugName;
+    private final String debugName; // meaning
     // 中文标注（字段）：`entries`，含义：用于表示entries。
-    private final Map<ResourceLocation, T> entries = new LinkedHashMap<>();
+    private final Map<ResourceLocation, T> entries = new LinkedHashMap<>(); // meaning
     // 中文标注（字段）：`frozen`，含义：用于表示frozen。
-    private boolean frozen;
+    private boolean frozen; // meaning
 
     // 中文标注（构造方法）：`Registry`，参数：debugName；用途：初始化`Registry`实例。
     // 中文标注（参数）：`debugName`，含义：用于表示debug、名称。
@@ -41,7 +41,7 @@ public final class Registry<T> {
     // 中文标注（参数）：`id`，含义：用于表示标识。
     public synchronized T get(ResourceLocation id) {
         // 中文标注（局部变量）：`value`，含义：用于表示值。
-        T value = entries.get(id);
+        T value = entries.get(id); // meaning
         if (value == null) {
             throw new IllegalStateException("Missing registry key in " + debugName + ": " + id);
         }

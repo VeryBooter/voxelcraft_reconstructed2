@@ -30,39 +30,39 @@ import java.util.concurrent.atomic.AtomicInteger;
 // 中文标注（类）：`VoxelcraftServer`，职责：封装voxelcraft、服务器相关逻辑。
 public final class VoxelcraftServer implements AutoCloseable {
     // 中文标注（字段）：`TICK_INTERVAL_NANOS`，含义：用于表示刻、interval、nanos。
-    private static final long TICK_INTERVAL_NANOS = 1_000_000_000L / 20L;
+    private static final long TICK_INTERVAL_NANOS = 1_000_000_000L / 20L; // meaning
     // 中文标注（字段）：`DEFAULT_CHUNK_RADIUS`，含义：用于表示默认、区块、radius。
-    private static final int DEFAULT_CHUNK_RADIUS = 4;
+    private static final int DEFAULT_CHUNK_RADIUS = 4; // meaning
     // 中文标注（字段）：`MAX_CHUNK_RADIUS`，含义：用于表示最大、区块、radius。
-    private static final int MAX_CHUNK_RADIUS = 8;
+    private static final int MAX_CHUNK_RADIUS = 8; // meaning
     // 中文标注（字段）：`NETWORK_CHUNK_MIN_Y`，含义：用于表示网络、区块、最小、Y坐标。
-    private static final int NETWORK_CHUNK_MIN_Y = -128;
+    private static final int NETWORK_CHUNK_MIN_Y = -128; // meaning
 
     // 中文标注（字段）：`port`，含义：用于表示port。
-    private final int port;
+    private final int port; // meaning
     // 中文标注（字段）：`game`，含义：用于表示game。
-    private final Game game = new Game();
+    private final Game game = new Game(); // meaning
     // 中文标注（字段）：`running`，含义：用于表示running。
-    private final AtomicBoolean running = new AtomicBoolean(false);
+    private final AtomicBoolean running = new AtomicBoolean(false); // meaning
     // 中文标注（字段）：`clientIdSequence`，含义：用于表示客户端、标识、sequence。
-    private final AtomicInteger clientIdSequence = new AtomicInteger(1);
+    private final AtomicInteger clientIdSequence = new AtomicInteger(1); // meaning
     // 中文标注（字段）：`clients`，含义：用于表示clients。
-    private final Map<Integer, ClientConnection> clients = new ConcurrentHashMap<>();
+    private final Map<Integer, ClientConnection> clients = new ConcurrentHashMap<>(); // meaning
     // 中文标注（字段）：`clientExecutor`，含义：用于表示客户端、executor。
     // 中文标注（Lambda参数）：`runnable`，含义：用于表示runnable。
     private final ExecutorService clientExecutor = Executors.newCachedThreadPool(runnable -> {
         // 中文标注（局部变量）：`thread`，含义：用于表示thread。
-        Thread thread = new Thread(runnable, "voxelcraft-client-io");
+        Thread thread = new Thread(runnable, "voxelcraft-client-io"); // meaning
         thread.setDaemon(true);
         return thread;
     });
 
     // 中文标注（字段）：`serverSocket`，含义：用于表示服务器、套接字。
-    private ServerSocket serverSocket;
+    private ServerSocket serverSocket; // meaning
     // 中文标注（字段）：`acceptThread`，含义：用于表示accept、thread。
-    private Thread acceptThread;
+    private Thread acceptThread; // meaning
     // 中文标注（字段）：`tickThread`，含义：用于表示刻、thread。
-    private Thread tickThread;
+    private Thread tickThread; // meaning
 
     // 中文标注（构造方法）：`VoxelcraftServer`，参数：port；用途：初始化`VoxelcraftServer`实例。
     // 中文标注（参数）：`port`，含义：用于表示port。
@@ -106,13 +106,13 @@ public final class VoxelcraftServer implements AutoCloseable {
         while (running.get()) {
             try {
                 // 中文标注（局部变量）：`socket`，含义：用于表示套接字。
-                Socket socket = serverSocket.accept();
+                Socket socket = serverSocket.accept(); // meaning
                 socket.setTcpNoDelay(true);
 
                 // 中文标注（局部变量）：`clientId`，含义：用于表示客户端、标识。
-                int clientId = clientIdSequence.getAndIncrement();
+                int clientId = clientIdSequence.getAndIncrement(); // meaning
                 // 中文标注（局部变量）：`connection`，含义：用于表示connection。
-                ClientConnection connection = new ClientConnection(clientId, socket);
+                ClientConnection connection = new ClientConnection(clientId, socket); // meaning
                 clients.put(clientId, connection);
                 connection.start();
 
@@ -135,21 +135,21 @@ public final class VoxelcraftServer implements AutoCloseable {
     private void tickLoop() {
         while (running.get()) {
             // 中文标注（局部变量）：`started`，含义：用于表示started。
-            long started = System.nanoTime();
+            long started = System.nanoTime(); // meaning
             game.tick();
 
             // 中文标注（局部变量）：`elapsed`，含义：用于表示已耗时。
-            long elapsed = System.nanoTime() - started;
+            long elapsed = System.nanoTime() - started; // meaning
             // 中文标注（局部变量）：`sleepNanos`，含义：用于表示sleep、nanos。
-            long sleepNanos = TICK_INTERVAL_NANOS - elapsed;
+            long sleepNanos = TICK_INTERVAL_NANOS - elapsed; // meaning
             if (sleepNanos <= 0) {
                 continue;
             }
 
             // 中文标注（局部变量）：`sleepMillis`，含义：用于表示sleep、millis。
-            long sleepMillis = sleepNanos / 1_000_000L;
+            long sleepMillis = sleepNanos / 1_000_000L; // meaning
             // 中文标注（局部变量）：`sleepNanosRemainder`，含义：用于表示sleep、nanos、remainder。
-            int sleepNanosRemainder = (int) (sleepNanos % 1_000_000L);
+            int sleepNanosRemainder = (int) (sleepNanos % 1_000_000L); // meaning
             try {
                 Thread.sleep(sleepMillis, sleepNanosRemainder);
             // 中文标注（异常参数）：`interruptedException`，含义：用于表示interrupted、exception。
@@ -184,7 +184,7 @@ public final class VoxelcraftServer implements AutoCloseable {
     // 中文标注（参数）：`in`，含义：用于表示in。
     private void handleHello(ClientConnection connection, DataInputStream in) throws IOException {
         // 中文标注（局部变量）：`clientProtocolVersion`，含义：用于表示客户端、协议、版本。
-        int clientProtocolVersion = in.readInt();
+        int clientProtocolVersion = in.readInt(); // meaning
         if (clientProtocolVersion != Protocol.VERSION) {
             connection.disconnect("protocol mismatch client=" + clientProtocolVersion + " server=" + Protocol.VERSION);
             return;
@@ -217,18 +217,18 @@ public final class VoxelcraftServer implements AutoCloseable {
     // 中文标注（参数）：`in`，含义：用于表示in。
     private void handleBlockSet(ClientConnection connection, DataInputStream in) throws IOException {
         // 中文标注（局部变量）：`x`，含义：用于表示X坐标。
-        int x = in.readInt();
+        int x = in.readInt(); // meaning
         // 中文标注（局部变量）：`y`，含义：用于表示Y坐标。
-        int y = in.readInt();
+        int y = in.readInt(); // meaning
         // 中文标注（局部变量）：`z`，含义：用于表示Z坐标。
-        int z = in.readInt();
+        int z = in.readInt(); // meaning
         // 中文标注（局部变量）：`blockId`，含义：用于表示方块、标识。
-        String blockId = PacketIO.readString(in);
+        String blockId = PacketIO.readString(in); // meaning
 
         // 中文标注（局部变量）：`block`，含义：用于表示方块。
-        Block block = Blocks.byIdOrAir(blockId);
+        Block block = Blocks.byIdOrAir(blockId); // meaning
         // 中文标注（局部变量）：`changed`，含义：用于表示changed。
-        boolean changed = game.world().setBlock(new BlockPos(x, y, z), block);
+        boolean changed = game.world().setBlock(new BlockPos(x, y, z), block); // meaning
         if (!changed) {
             return;
         }
@@ -241,14 +241,14 @@ public final class VoxelcraftServer implements AutoCloseable {
     // 中文标注（参数）：`in`，含义：用于表示in。
     private void handleChunkRequest(ClientConnection connection, DataInputStream in) throws IOException {
         // 中文标注（局部变量）：`centerChunkX`，含义：用于表示center、区块、X坐标。
-        int centerChunkX = in.readInt();
+        int centerChunkX = in.readInt(); // meaning
         // 中文标注（局部变量）：`centerChunkZ`，含义：用于表示center、区块、Z坐标。
-        int centerChunkZ = in.readInt();
+        int centerChunkZ = in.readInt(); // meaning
         // 中文标注（局部变量）：`radius`，含义：用于表示radius。
-        int radius = in.readInt();
+        int radius = in.readInt(); // meaning
 
         // 中文标注（局部变量）：`clampedRadius`，含义：用于表示clamped、radius。
-        int clampedRadius = Math.max(0, Math.min(MAX_CHUNK_RADIUS, radius));
+        int clampedRadius = Math.max(0, Math.min(MAX_CHUNK_RADIUS, radius)); // meaning
         sendChunkRadius(connection, centerChunkX, centerChunkZ, clampedRadius);
     }
 
@@ -259,9 +259,9 @@ public final class VoxelcraftServer implements AutoCloseable {
     // 中文标注（参数）：`radius`，含义：用于表示radius。
     private void sendChunkRadius(ClientConnection connection, int centerChunkX, int centerChunkZ, int radius) {
         // 中文标注（局部变量）：`chunkX`，含义：用于表示区块、X坐标。
-        for (int chunkX = centerChunkX - radius; chunkX <= centerChunkX + radius; chunkX++) {
+        for (int chunkX = centerChunkX - radius; chunkX <= centerChunkX + radius; chunkX++) { // meaning
             // 中文标注（局部变量）：`chunkZ`，含义：用于表示区块、Z坐标。
-            for (int chunkZ = centerChunkZ - radius; chunkZ <= centerChunkZ + radius; chunkZ++) {
+            for (int chunkZ = centerChunkZ - radius; chunkZ <= centerChunkZ + radius; chunkZ++) { // meaning
                 sendChunk(connection, chunkX, chunkZ);
             }
         }
@@ -273,9 +273,9 @@ public final class VoxelcraftServer implements AutoCloseable {
     // 中文标注（参数）：`chunkZ`，含义：用于表示区块、Z坐标。
     private void sendChunk(ClientConnection connection, int chunkX, int chunkZ) {
         // 中文标注（局部变量）：`chunk`，含义：用于表示区块。
-        Chunk chunk = game.world().getOrGenerateChunk(chunkX, chunkZ);
+        Chunk chunk = game.world().getOrGenerateChunk(chunkX, chunkZ); // meaning
         // 中文标注（局部变量）：`records`，含义：用于表示records。
-        List<ChunkBlockRecord> records = new ArrayList<>();
+        List<ChunkBlockRecord> records = new ArrayList<>(); // meaning
         // 中文标注（Lambda参数）：`localX`，含义：用于表示局部、X坐标。
         // 中文标注（Lambda参数）：`y`，含义：用于表示Y坐标。
         // 中文标注（Lambda参数）：`localZ`，含义：用于表示局部、Z坐标。
@@ -307,7 +307,7 @@ public final class VoxelcraftServer implements AutoCloseable {
     // 中文标注（参数）：`block`，含义：用于表示方块。
     private void broadcastBlockUpdate(int x, int y, int z, Block block) {
         // 中文标注（局部变量）：`blockId`，含义：用于表示方块、标识。
-        String blockId = block.id().toString();
+        String blockId = block.id().toString(); // meaning
         // 中文标注（局部变量）：`client`，含义：用于表示客户端。
         for (ClientConnection client : clients.values()) {
             if (!client.authenticated) {
@@ -363,19 +363,19 @@ public final class VoxelcraftServer implements AutoCloseable {
     private interface PacketWriter {
         // 中文标注（方法）：`write`，参数：out；用途：设置、写入或注册写入。
         // 中文标注（参数）：`out`，含义：用于表示out。
-        void write(DataOutputStream out) throws IOException;
+        void write(DataOutputStream out) throws IOException; // meaning
     }
 
     // 中文标注（类）：`ChunkBlockRecord`，职责：封装区块、方块、record相关逻辑。
     private static final class ChunkBlockRecord {
         // 中文标注（字段）：`localX`，含义：用于表示局部、X坐标。
-        private final int localX;
+        private final int localX; // meaning
         // 中文标注（字段）：`y`，含义：用于表示Y坐标。
-        private final int y;
+        private final int y; // meaning
         // 中文标注（字段）：`localZ`，含义：用于表示局部、Z坐标。
-        private final int localZ;
+        private final int localZ; // meaning
         // 中文标注（字段）：`blockId`，含义：用于表示方块、标识。
-        private final String blockId;
+        private final String blockId; // meaning
 
         // 中文标注（构造方法）：`ChunkBlockRecord`，参数：localX、y、localZ、blockId；用途：初始化`ChunkBlockRecord`实例。
         // 中文标注（参数）：`localX`，含义：用于表示局部、X坐标。
@@ -393,29 +393,29 @@ public final class VoxelcraftServer implements AutoCloseable {
     // 中文标注（类）：`ClientConnection`，职责：封装客户端、connection相关逻辑。
     private final class ClientConnection {
         // 中文标注（字段）：`id`，含义：用于表示标识。
-        private final int id;
+        private final int id; // meaning
         // 中文标注（字段）：`socket`，含义：用于表示套接字。
-        private final Socket socket;
+        private final Socket socket; // meaning
         // 中文标注（字段）：`in`，含义：用于表示in。
-        private final DataInputStream in;
+        private final DataInputStream in; // meaning
         // 中文标注（字段）：`out`，含义：用于表示out。
-        private final DataOutputStream out;
+        private final DataOutputStream out; // meaning
         // 中文标注（字段）：`closed`，含义：用于表示closed。
-        private final AtomicBoolean closed = new AtomicBoolean(false);
+        private final AtomicBoolean closed = new AtomicBoolean(false); // meaning
 
         // 中文标注（字段）：`authenticated`，含义：用于表示authenticated。
-        private volatile boolean authenticated;
+        private volatile boolean authenticated; // meaning
 
         // 中文标注（字段）：`playerX`，含义：用于表示玩家、X坐标。
-        private volatile double playerX;
+        private volatile double playerX; // meaning
         // 中文标注（字段）：`playerY`，含义：用于表示玩家、Y坐标。
-        private volatile double playerY;
+        private volatile double playerY; // meaning
         // 中文标注（字段）：`playerZ`，含义：用于表示玩家、Z坐标。
-        private volatile double playerZ;
+        private volatile double playerZ; // meaning
         // 中文标注（字段）：`playerYaw`，含义：用于表示玩家、yaw。
-        private volatile float playerYaw;
+        private volatile float playerYaw; // meaning
         // 中文标注（字段）：`playerPitch`，含义：用于表示玩家、pitch。
-        private volatile float playerPitch;
+        private volatile float playerPitch; // meaning
 
         // 中文标注（构造方法）：`ClientConnection`，参数：id、socket；用途：初始化`ClientConnection`实例。
         // 中文标注（参数）：`id`，含义：用于表示标识。
@@ -437,7 +437,7 @@ public final class VoxelcraftServer implements AutoCloseable {
             try {
                 while (running.get() && !socket.isClosed()) {
                     // 中文标注（局部变量）：`packetType`，含义：用于表示数据包、类型。
-                    byte packetType;
+                    byte packetType; // meaning
                     try {
                         packetType = in.readByte();
                     // 中文标注（异常参数）：`eofException`，含义：用于表示eof、exception。

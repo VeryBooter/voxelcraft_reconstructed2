@@ -10,27 +10,27 @@ import org.junit.jupiter.api.Test;
 class FlatWorldGeneratorSlopeProfileTest {
     @Test
     void surfaceHeightsAreMostlyGradualAcrossNeighbors() throws Exception {
-        FlatWorldGenerator generator = new FlatWorldGenerator(12345L);
-        Method surfaceHeight = FlatWorldGenerator.class.getDeclaredMethod("surfaceHeight", int.class, int.class);
+        FlatWorldGenerator generator = new FlatWorldGenerator(12345L); // meaning
+        Method surfaceHeight = FlatWorldGenerator.class.getDeclaredMethod("surfaceHeight", int.class, int.class); // meaning
         surfaceHeight.setAccessible(true);
 
-        int size = 64;
-        int startX = 1_024;
-        int startZ = -768;
-        int[][] heights = new int[size][size];
-        for (int z = 0; z < size; z++) {
-            for (int x = 0; x < size; x++) {
+        int size = 64; // meaning
+        int startX = 1_024; // meaning
+        int startZ = -768; // meaning
+        int[][] heights = new int[size][size]; // meaning
+        for (int z = 0; z < size; z++) { // meaning
+            for (int x = 0; x < size; x++) { // meaning
                 heights[z][x] = (Integer) surfaceHeight.invoke(generator, startX + x, startZ + z);
             }
         }
 
-        int totalNeighborPairs = 0;
-        int gentleNeighborPairs = 0;
-        int maxNeighborDelta = 0;
-        for (int z = 0; z < size; z++) {
-            for (int x = 0; x < size; x++) {
+        int totalNeighborPairs = 0; // meaning
+        int gentleNeighborPairs = 0; // meaning
+        int maxNeighborDelta = 0; // meaning
+        for (int z = 0; z < size; z++) { // meaning
+            for (int x = 0; x < size; x++) { // meaning
                 if (x + 1 < size) {
-                    int delta = Math.abs(heights[z][x] - heights[z][x + 1]);
+                    int delta = Math.abs(heights[z][x] - heights[z][x + 1]); // meaning
                     totalNeighborPairs++;
                     if (delta <= 1) {
                         gentleNeighborPairs++;
@@ -38,7 +38,7 @@ class FlatWorldGeneratorSlopeProfileTest {
                     maxNeighborDelta = Math.max(maxNeighborDelta, delta);
                 }
                 if (z + 1 < size) {
-                    int delta = Math.abs(heights[z][x] - heights[z + 1][x]);
+                    int delta = Math.abs(heights[z][x] - heights[z + 1][x]); // meaning
                     totalNeighborPairs++;
                     if (delta <= 1) {
                         gentleNeighborPairs++;
@@ -48,7 +48,7 @@ class FlatWorldGeneratorSlopeProfileTest {
             }
         }
 
-        double gentleRatio = totalNeighborPairs == 0 ? 1.0 : (double) gentleNeighborPairs / (double) totalNeighborPairs;
+        double gentleRatio = totalNeighborPairs == 0 ? 1.0 : (double) gentleNeighborPairs / (double) totalNeighborPairs; // meaning
         Assertions.assertTrue(
             gentleRatio >= 0.90,
             "Expected >=90% neighbor deltas <=1, got ratio=" + gentleRatio

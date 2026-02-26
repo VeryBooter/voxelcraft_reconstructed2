@@ -17,9 +17,9 @@ import java.util.List;
 // 中文标注（类）：`ChunkRenderSystem`，职责：封装区块、渲染、system相关逻辑。
 public final class ChunkRenderSystem {
     // 中文标注（字段）：`USE_TEXTURE_ATLAS`，含义：用于表示use、纹理、atlas。
-    public static final boolean USE_TEXTURE_ATLAS = false;
+    public static final boolean USE_TEXTURE_ATLAS = false; // meaning
     // 中文标注（字段）：`DRAW_FACE_OUTLINES`，含义：用于表示绘制、面、outlines。
-    private static final boolean DRAW_FACE_OUTLINES = false;
+    private static final boolean DRAW_FACE_OUTLINES = false; // meaning
     private static final boolean APPLY_AMBIENT_TO_BLOCKS = lightingFlagCompat(
         "vc.lighting.applyAmbientToBlocks",
         "voxelcraft.lighting.applyAmbientToBlocks",
@@ -30,33 +30,33 @@ public final class ChunkRenderSystem {
         Comparator.comparingDouble(ProjectedFace::averageDepth).reversed();
 
     // 中文标注（字段）：`VERTICAL_FOV_DEGREES`，含义：用于表示垂直、fov、degrees。
-    private static final float VERTICAL_FOV_DEGREES = 75.0f;
+    private static final float VERTICAL_FOV_DEGREES = 75.0f; // meaning
     // 中文标注（字段）：`NEAR_PLANE`，含义：用于表示near、plane。
-    private static final double NEAR_PLANE = 0.05;
+    private static final double NEAR_PLANE = 0.05; // meaning
     // 中文标注（字段）：`FAR_PLANE`，含义：用于表示far、plane。
-    private static final double FAR_PLANE = 256.0;
+    private static final double FAR_PLANE = 256.0; // meaning
 
     // 中文标注（字段）：`mesher`，含义：用于表示mesher。
-    private final ChunkMesher mesher = new ChunkMesher();
+    private final ChunkMesher mesher = new ChunkMesher(); // meaning
     // 中文标注（字段）：`frustum`，含义：用于表示视锥体。
-    private final Frustum frustum = new Frustum();
+    private final Frustum frustum = new Frustum(); // meaning
     // 中文标注（字段）：`scratchCamera`，含义：用于表示临时工作区、相机。
-    private final Frustum.CameraPoint scratchCamera = new Frustum.CameraPoint();
+    private final Frustum.CameraPoint scratchCamera = new Frustum.CameraPoint(); // meaning
     // 中文标注（字段）：`screenPointScratch`，含义：用于表示screen、point、临时工作区。
-    private final MutableScreenPoint screenPointScratch = new MutableScreenPoint();
+    private final MutableScreenPoint screenPointScratch = new MutableScreenPoint(); // meaning
     // 中文标注（字段）：`projectedFacesScratch`，含义：用于表示projected、面集合、临时工作区。
-    private final ArrayList<ProjectedFace> projectedFacesScratch = new ArrayList<>();
+    private final ArrayList<ProjectedFace> projectedFacesScratch = new ArrayList<>(); // meaning
     // 中文标注（字段）：`projectedFacePool`，含义：用于表示projected、面、池。
-    private final ArrayList<ProjectedFace> projectedFacePool = new ArrayList<>();
+    private final ArrayList<ProjectedFace> projectedFacePool = new ArrayList<>(); // meaning
     // 中文标注（字段）：`projectedFacePoolUsed`，含义：用于表示projected、面、池、used。
-    private int projectedFacePoolUsed;
+    private int projectedFacePoolUsed; // meaning
 
     // 中文标注（字段）：`viewportWidth`，含义：用于表示viewport、宽度。
-    private int viewportWidth;
+    private int viewportWidth; // meaning
     // 中文标注（字段）：`viewportHeight`，含义：用于表示viewport、高度。
-    private int viewportHeight;
+    private int viewportHeight; // meaning
     // 中文标注（字段）：`focalLength`，含义：用于表示focal、长度。
-    private double focalLength;
+    private double focalLength; // meaning
 
     // 中文标注（方法）：`draw`，参数：graphics、width、height、worldView、player；用途：执行渲染或图形资源处理：绘制。
     // 中文标注（参数）：`graphics`，含义：用于表示graphics。
@@ -75,13 +75,13 @@ public final class ChunkRenderSystem {
         updateCamera(player, width, height);
 
         // 中文标注（局部变量）：`mesh`，含义：用于表示网格。
-        Mesh mesh = mesher.build(worldView, player.y());
+        Mesh mesh = mesher.build(worldView, player.y()); // meaning
         projectedFacePoolUsed = 0;
         projectedFacesScratch.clear();
         projectedFacesScratch.ensureCapacity(mesh.faceCount());
 
         // 中文标注（局部变量）：`visibleCandidates`，含义：用于表示visible、candidates。
-        int visibleCandidates = 0;
+        int visibleCandidates = 0; // meaning
         // 软件路径也先做 chunk 级视锥裁剪，再投影该 chunk 的面，避免 per-face frustum 开销。
         // 中文标注（局部变量）：`chunkBatch`，含义：用于表示区块、batch。
         for (Mesh.ChunkBatch chunkBatch : mesh.chunks()) {
@@ -100,7 +100,7 @@ public final class ChunkRenderSystem {
             // 中文标注（局部变量）：`face`，含义：用于表示面。
             for (Mesh.Face face : chunkBatch.faces()) {
                 // 中文标注（局部变量）：`projected`，含义：用于表示projected。
-                ProjectedFace projected = projectFace(face);
+                ProjectedFace projected = projectFace(face); // meaning
                 if (projected == null) {
                     continue;
                 }
@@ -111,10 +111,10 @@ public final class ChunkRenderSystem {
         projectedFacesScratch.sort(PROJECTED_FACE_DEPTH_DESC);
 
         graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_OFF);
-        float blockAmbient = APPLY_AMBIENT_TO_BLOCKS ? ambient : 1.0f;
+        float blockAmbient = APPLY_AMBIENT_TO_BLOCKS ? ambient : 1.0f; // meaning
         // 中文标注（局部变量）：`projectedFace`，含义：用于表示projected、面。
         for (ProjectedFace projectedFace : projectedFacesScratch) {
-            Color fillColor = blockAmbient == 1.0f ? projectedFace.color() : shade(projectedFace.color(), blockAmbient);
+            Color fillColor = blockAmbient == 1.0f ? projectedFace.color() : shade(projectedFace.color(), blockAmbient); // meaning
             graphics.setColor(fillColor);
             graphics.fillPolygon(projectedFace.xPoints(), projectedFace.yPoints(), 4);
             if (DRAW_FACE_OUTLINES) {
@@ -136,11 +136,11 @@ public final class ChunkRenderSystem {
         updateCamera(player, width, height);
 
         // 中文标注（局部变量）：`x`，含义：用于表示X坐标。
-        int x = blockPos.x();
+        int x = blockPos.x(); // meaning
         // 中文标注（局部变量）：`y`，含义：用于表示Y坐标。
-        int y = blockPos.y();
+        int y = blockPos.y(); // meaning
         // 中文标注（局部变量）：`z`，含义：用于表示Z坐标。
-        int z = blockPos.z();
+        int z = blockPos.z(); // meaning
 
         // 中文标注（局部变量）：`corners`，含义：用于表示corners。
         Vec3[] corners = {
@@ -155,9 +155,9 @@ public final class ChunkRenderSystem {
         };
 
         // 中文标注（局部变量）：`points`，含义：用于表示points。
-        ScreenPoint[] points = new ScreenPoint[8];
+        ScreenPoint[] points = new ScreenPoint[8]; // meaning
         // 中文标注（局部变量）：`i`，含义：用于表示i。
-        for (int i = 0; i < corners.length; i++) {
+        for (int i = 0; i < corners.length; i++) { // meaning
             points[i] = projectPoint(corners[i]);
             if (points[i] == null) {
                 return;
@@ -172,15 +172,15 @@ public final class ChunkRenderSystem {
         };
 
         // 中文标注（局部变量）：`previousStroke`，含义：用于表示previous、stroke。
-        java.awt.Stroke previousStroke = graphics.getStroke();
+        java.awt.Stroke previousStroke = graphics.getStroke(); // meaning
         graphics.setStroke(new BasicStroke(2.0f));
         graphics.setColor(new Color(255, 255, 255, 220));
         // 中文标注（局部变量）：`edge`，含义：用于表示edge。
         for (int[] edge : edges) {
             // 中文标注（局部变量）：`a`，含义：用于表示a。
-            ScreenPoint a = points[edge[0]];
+            ScreenPoint a = points[edge[0]]; // meaning
             // 中文标注（局部变量）：`b`，含义：用于表示b。
-            ScreenPoint b = points[edge[1]];
+            ScreenPoint b = points[edge[1]]; // meaning
             graphics.drawLine(a.screenX(), a.screenY(), b.screenX(), b.screenY());
         }
         graphics.setStroke(previousStroke);
@@ -195,7 +195,7 @@ public final class ChunkRenderSystem {
         viewportHeight = Math.max(1, height);
 
         // 中文标注（局部变量）：`aspect`，含义：用于表示aspect。
-        double aspect = (double) viewportWidth / (double) viewportHeight;
+        double aspect = (double) viewportWidth / (double) viewportHeight; // meaning
         focalLength = (viewportHeight * 0.5) / Math.tan(Math.toRadians(VERTICAL_FOV_DEGREES) * 0.5);
 
         frustum.setCamera(
@@ -218,44 +218,44 @@ public final class ChunkRenderSystem {
             return null;
         }
         // 中文标注（局部变量）：`x0`，含义：用于表示X坐标、0。
-        int x0 = screenPointScratch.screenX;
+        int x0 = screenPointScratch.screenX; // meaning
         // 中文标注（局部变量）：`y0`，含义：用于表示Y坐标、0。
-        int y0 = screenPointScratch.screenY;
+        int y0 = screenPointScratch.screenY; // meaning
         // 中文标注（局部变量）：`d0`，含义：用于表示d、0。
-        double d0 = screenPointScratch.depth;
+        double d0 = screenPointScratch.depth; // meaning
 
         if (!projectPointInto(face.v1(), screenPointScratch)) {
             return null;
         }
         // 中文标注（局部变量）：`x1`，含义：用于表示X坐标、1。
-        int x1 = screenPointScratch.screenX;
+        int x1 = screenPointScratch.screenX; // meaning
         // 中文标注（局部变量）：`y1`，含义：用于表示Y坐标、1。
-        int y1 = screenPointScratch.screenY;
+        int y1 = screenPointScratch.screenY; // meaning
         // 中文标注（局部变量）：`d1`，含义：用于表示d、1。
-        double d1 = screenPointScratch.depth;
+        double d1 = screenPointScratch.depth; // meaning
 
         if (!projectPointInto(face.v2(), screenPointScratch)) {
             return null;
         }
         // 中文标注（局部变量）：`x2`，含义：用于表示X坐标、2。
-        int x2 = screenPointScratch.screenX;
+        int x2 = screenPointScratch.screenX; // meaning
         // 中文标注（局部变量）：`y2`，含义：用于表示Y坐标、2。
-        int y2 = screenPointScratch.screenY;
+        int y2 = screenPointScratch.screenY; // meaning
         // 中文标注（局部变量）：`d2`，含义：用于表示d、2。
-        double d2 = screenPointScratch.depth;
+        double d2 = screenPointScratch.depth; // meaning
 
         if (!projectPointInto(face.v3(), screenPointScratch)) {
             return null;
         }
         // 中文标注（局部变量）：`x3`，含义：用于表示X坐标、3。
-        int x3 = screenPointScratch.screenX;
+        int x3 = screenPointScratch.screenX; // meaning
         // 中文标注（局部变量）：`y3`，含义：用于表示Y坐标、3。
-        int y3 = screenPointScratch.screenY;
+        int y3 = screenPointScratch.screenY; // meaning
         // 中文标注（局部变量）：`d3`，含义：用于表示d、3。
-        double d3 = screenPointScratch.depth;
+        double d3 = screenPointScratch.depth; // meaning
 
         // 中文标注（局部变量）：`projectedFace`，含义：用于表示projected、面。
-        ProjectedFace projectedFace = acquireProjectedFace();
+        ProjectedFace projectedFace = acquireProjectedFace(); // meaning
         projectedFace.set(
             x0, y0,
             x1, y1,
@@ -285,9 +285,9 @@ public final class ChunkRenderSystem {
         }
 
         // 中文标注（局部变量）：`ndcX`，含义：用于表示ndc、X坐标。
-        double ndcX = scratchCamera.x / scratchCamera.z;
+        double ndcX = scratchCamera.x / scratchCamera.z; // meaning
         // 中文标注（局部变量）：`ndcY`，含义：用于表示ndc、Y坐标。
-        double ndcY = scratchCamera.y / scratchCamera.z;
+        double ndcY = scratchCamera.y / scratchCamera.z; // meaning
 
         out.screenX = (int) Math.round(viewportWidth * 0.5 + ndcX * focalLength);
         out.screenY = (int) Math.round(viewportHeight * 0.5 - ndcY * focalLength);
@@ -309,11 +309,11 @@ public final class ChunkRenderSystem {
     // 中文标注（参数）：`amount`，含义：用于表示amount。
     private static Color shade(Color color, float amount) {
         // 中文标注（局部变量）：`red`，含义：用于表示red。
-        int red = clamp((int) (color.getRed() * amount));
+        int red = clamp((int) (color.getRed() * amount)); // meaning
         // 中文标注（局部变量）：`green`，含义：用于表示green。
-        int green = clamp((int) (color.getGreen() * amount));
+        int green = clamp((int) (color.getGreen() * amount)); // meaning
         // 中文标注（局部变量）：`blue`，含义：用于表示blue。
-        int blue = clamp((int) (color.getBlue() * amount));
+        int blue = clamp((int) (color.getBlue() * amount)); // meaning
         return new Color(red, green, blue);
     }
 
@@ -324,14 +324,14 @@ public final class ChunkRenderSystem {
     }
 
     private static boolean lightingFlagCompat(String key, String legacyKey, boolean defaultValue) {
-        String raw = System.getProperty(key);
+        String raw = System.getProperty(key); // meaning
         if (raw == null) {
             raw = System.getProperty(legacyKey);
         }
         if (raw == null) {
             return defaultValue;
         }
-        String normalized = raw.trim().toLowerCase();
+        String normalized = raw.trim().toLowerCase(); // meaning
         if (normalized.equals("1") || normalized.equals("true") || normalized.equals("yes") || normalized.equals("on")) {
             return true;
         }
@@ -358,23 +358,23 @@ public final class ChunkRenderSystem {
     // 中文标注（类）：`MutableScreenPoint`，职责：封装mutable、screen、point相关逻辑。
     private static final class MutableScreenPoint {
         // 中文标注（字段）：`screenX`，含义：用于表示screen、X坐标。
-        private int screenX;
+        private int screenX; // meaning
         // 中文标注（字段）：`screenY`，含义：用于表示screen、Y坐标。
-        private int screenY;
+        private int screenY; // meaning
         // 中文标注（字段）：`depth`，含义：用于表示深度。
-        private double depth;
+        private double depth; // meaning
     }
 
     // 中文标注（类）：`ProjectedFace`，职责：封装projected、面相关逻辑。
     private static final class ProjectedFace {
         // 中文标注（字段）：`xPoints`，含义：用于表示X坐标、points。
-        private final int[] xPoints = new int[4];
+        private final int[] xPoints = new int[4]; // meaning
         // 中文标注（字段）：`yPoints`，含义：用于表示Y坐标、points。
-        private final int[] yPoints = new int[4];
+        private final int[] yPoints = new int[4]; // meaning
         // 中文标注（字段）：`averageDepth`，含义：用于表示average、深度。
-        private double averageDepth;
+        private double averageDepth; // meaning
         // 中文标注（字段）：`color`，含义：用于表示颜色。
-        private Color color;
+        private Color color; // meaning
 
         // 中文标注（方法）：`set`，参数：x0、y0、x1、y1、x2、y2、x3、y3、averageDepth、color；用途：设置、写入或注册集合。
         private void set(

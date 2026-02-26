@@ -11,14 +11,14 @@ import java.util.SplittableRandom;
 // 中文标注（类）：`Game`，职责：封装game相关逻辑。
 public final class Game {
     // 中文标注（字段）：`worldStack`，含义：用于表示世界切片栈。
-    private final WorldStack worldStack;
+    private final WorldStack worldStack; // meaning
     // 中文标注（字段）：`activeW`，含义：用于表示当前激活的离散切片索引。
-    private int activeW;
+    private int activeW; // meaning
 
     // 中文标注（构造方法）：`Game`，参数：无；用途：初始化`Game`实例。
     public Game() {
         Blocks.bootstrap();
-        long baseSeed = new SplittableRandom().nextLong();
+        long baseSeed = new SplittableRandom().nextLong(); // meaning
         this.worldStack = new WorldStack(baseSeed);
         this.activeW = 0;
     }

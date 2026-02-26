@@ -11,11 +11,11 @@ import java.util.Objects;
 // 中文标注（类）：`Block`，职责：封装方块相关逻辑。
 public class Block {
     // 中文标注（字段）：`id`，含义：用于表示标识。
-    private final ResourceLocation id;
+    private final ResourceLocation id; // meaning
     // 中文标注（字段）：`solid`，含义：用于表示实体。
-    private final boolean solid;
+    private final boolean solid; // meaning
     // 中文标注（字段）：`defaultState`，含义：用于表示默认、状态。
-    private final BlockState defaultState;
+    private final BlockState defaultState; // meaning
 
     // 中文标注（构造方法）：`Block`，参数：id、solid；用途：初始化`Block`实例。
     // 中文标注（参数）：`id`，含义：用于表示标识。

@@ -9,7 +9,7 @@ import java.net.BindException;
 // 中文标注（类）：`ServerMain`，职责：封装服务器、主相关逻辑。
 public final class ServerMain {
     // 中文标注（字段）：`DEFAULT_PORT`，含义：用于表示默认、port。
-    private static final int DEFAULT_PORT = 25_565;
+    private static final int DEFAULT_PORT = 25_565; // meaning
 
     // 中文标注（构造方法）：`ServerMain`，参数：无；用途：初始化`ServerMain`实例。
     private ServerMain() {
@@ -19,7 +19,7 @@ public final class ServerMain {
     // 中文标注（参数）：`args`，含义：用于表示args。
     public static void main(String[] args) {
         // 中文标注（局部变量）：`port`，含义：用于表示port。
-        int port = parsePort(args);
+        int port = parsePort(args); // meaning
 
         // 中文标注（局部变量）：`server`，含义：用于表示服务器。
         try (VoxelcraftServer server = new VoxelcraftServer(port)) {
@@ -44,11 +44,11 @@ public final class ServerMain {
     // 中文标注（参数）：`args`，含义：用于表示args。
     private static int parsePort(String[] args) {
         // 中文标注（局部变量）：`port`，含义：用于表示port。
-        int port = DEFAULT_PORT;
+        int port = DEFAULT_PORT; // meaning
         // 中文标注（局部变量）：`i`，含义：用于表示i。
-        for (int i = 0; i < args.length; i++) {
+        for (int i = 0; i < args.length; i++) { // meaning
             // 中文标注（局部变量）：`arg`，含义：用于表示arg。
-            String arg = args[i];
+            String arg = args[i]; // meaning
             if ("--port".equals(arg) && i + 1 < args.length) {
                 port = parsePortValue(args[++i], port);
                 continue;
@@ -66,7 +66,7 @@ public final class ServerMain {
     private static int parsePortValue(String raw, int fallback) {
         try {
             // 中文标注（局部变量）：`port`，含义：用于表示port。
-            int port = Integer.parseInt(raw);
+            int port = Integer.parseInt(raw); // meaning
             if (port < 1 || port > 65_535) {
                 return fallback;
             }

@@ -25,57 +25,57 @@ import java.util.concurrent.atomic.AtomicInteger;
 // 中文标注（类）：`ClientWorldView`，职责：封装客户端、世界、view相关逻辑。
 public final class ClientWorldView implements AutoCloseable {
     // 中文标注（字段）：`CHUNK_GEN_SLOW_LOG_THRESHOLD_NANOS`，含义：用于表示区块、gen、slow、log、threshold、nanos。
-    private static final long CHUNK_GEN_SLOW_LOG_THRESHOLD_NANOS = 10_000_000L;
+    private static final long CHUNK_GEN_SLOW_LOG_THRESHOLD_NANOS = 10_000_000L; // meaning
     // 中文标注（字段）：`DEFAULT_ASYNC_CHUNK_GEN_SUBMIT_BUDGET`，含义：用于表示默认、async、区块、gen、submit、budget。
-    private static final int DEFAULT_ASYNC_CHUNK_GEN_SUBMIT_BUDGET = 2;
+    private static final int DEFAULT_ASYNC_CHUNK_GEN_SUBMIT_BUDGET = 2; // meaning
     // 中文标注（字段）：`world`，含义：用于表示世界。
-    private final World world;
+    private final World world; // meaning
     // 中文标注（字段）：`pendingChunkGeneration`，含义：用于表示pending、区块、generation。
-    private final ArrayDeque<ChunkPos> pendingChunkGeneration = new ArrayDeque<>();
+    private final ArrayDeque<ChunkPos> pendingChunkGeneration = new ArrayDeque<>(); // meaning
     // 中文标注（字段）：`pendingChunkGenerationSet`，含义：用于表示pending、区块、generation、集合。
-    private final HashSet<ChunkPos> pendingChunkGenerationSet = new HashSet<>();
+    private final HashSet<ChunkPos> pendingChunkGenerationSet = new HashSet<>(); // meaning
     // 中文标注（字段）：`asyncChunkGenerationEnabled`，含义：用于表示async、区块、generation、enabled。
-    private final boolean asyncChunkGenerationEnabled;
+    private final boolean asyncChunkGenerationEnabled; // meaning
     // 中文标注（字段）：`asyncChunkGenerationSubmitBudgetPerTick`，含义：用于表示async、区块、generation、submit、budget、per、刻。
-    private final int asyncChunkGenerationSubmitBudgetPerTick;
+    private final int asyncChunkGenerationSubmitBudgetPerTick; // meaning
     // 中文标注（字段）：`chunkGenerationPool`，含义：用于表示区块、generation、池。
-    private final ExecutorService chunkGenerationPool;
+    private final ExecutorService chunkGenerationPool; // meaning
     // 中文标注（字段）：`readyGeneratedChunks`，含义：用于表示ready、generated、区块集合。
-    private final ConcurrentLinkedQueue<GeneratedChunk> readyGeneratedChunks = new ConcurrentLinkedQueue<>();
+    private final ConcurrentLinkedQueue<GeneratedChunk> readyGeneratedChunks = new ConcurrentLinkedQueue<>(); // meaning
     // 中文标注（字段）：`inFlightChunkGeneration`，含义：用于表示in、flight、区块、generation。
-    private final ConcurrentHashMap<Long, Boolean> inFlightChunkGeneration = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<Long, Boolean> inFlightChunkGeneration = new ConcurrentHashMap<>(); // meaning
     // 中文标注（字段）：`chunkGenerationJobsInFlight`，含义：用于表示区块、generation、jobs、in、flight。
-    private final AtomicInteger chunkGenerationJobsInFlight = new AtomicInteger();
+    private final AtomicInteger chunkGenerationJobsInFlight = new AtomicInteger(); // meaning
     // 中文标注（字段）：`chunkGenStatsWindowStartNanos`，含义：用于表示区块、gen、stats、窗口、开始、nanos。
-    private long chunkGenStatsWindowStartNanos = System.nanoTime();
+    private long chunkGenStatsWindowStartNanos = System.nanoTime(); // meaning
     // 中文标注（字段）：`chunkGenStatsChunks`，含义：用于表示区块、gen、stats、区块集合。
-    private int chunkGenStatsChunks;
+    private int chunkGenStatsChunks; // meaning
     // 中文标注（字段）：`chunkGenStatsDrainCalls`，含义：用于表示区块、gen、stats、drain、calls。
-    private int chunkGenStatsDrainCalls;
+    private int chunkGenStatsDrainCalls; // meaning
     // 中文标注（字段）：`chunkGenStatsTotalNanos`，含义：用于表示区块、gen、stats、total、nanos。
-    private long chunkGenStatsTotalNanos;
+    private long chunkGenStatsTotalNanos; // meaning
     // 中文标注（字段）：`chunkGenStatsMaxNanos`，含义：用于表示区块、gen、stats、最大、nanos。
-    private long chunkGenStatsMaxNanos;
+    private long chunkGenStatsMaxNanos; // meaning
     // 中文标注（字段）：`chunkGenStatsChunkTotalNanos`，含义：用于表示区块、gen、stats、区块、total、nanos。
-    private long chunkGenStatsChunkTotalNanos;
+    private long chunkGenStatsChunkTotalNanos; // meaning
     // 中文标注（字段）：`chunkGenStatsChunkMaxNanos`，含义：用于表示区块、gen、stats、区块、最大、nanos。
-    private long chunkGenStatsChunkMaxNanos;
+    private long chunkGenStatsChunkMaxNanos; // meaning
     // 中文标注（字段）：`chunkGenStatsAsyncGeneratedChunks`，含义：用于表示区块、gen、stats、async、generated、区块集合。
-    private long chunkGenStatsAsyncGeneratedChunks;
+    private long chunkGenStatsAsyncGeneratedChunks; // meaning
     // 中文标注（字段）：`chunkGenStatsAsyncGenTotalNanos`，含义：用于表示区块、gen、stats、async、gen、total、nanos。
-    private long chunkGenStatsAsyncGenTotalNanos;
+    private long chunkGenStatsAsyncGenTotalNanos; // meaning
     // 中文标注（字段）：`chunkGenStatsAsyncGenMaxNanos`，含义：用于表示区块、gen、stats、async、gen、最大、nanos。
-    private long chunkGenStatsAsyncGenMaxNanos;
+    private long chunkGenStatsAsyncGenMaxNanos; // meaning
     // 中文标注（字段）：`lastChunkGenSubmitNanos`，含义：用于表示last、区块、gen、submit、nanos。
-    private long lastChunkGenSubmitNanos;
+    private long lastChunkGenSubmitNanos; // meaning
     // 中文标注（字段）：`lastChunkInstallNanos`，含义：用于表示last、区块、install、nanos。
-    private long lastChunkInstallNanos;
+    private long lastChunkInstallNanos; // meaning
     // 中文标注（字段）：`lastChunkGenSubmittedCount`，含义：用于表示last、区块、gen、submitted、数量。
-    private int lastChunkGenSubmittedCount;
+    private int lastChunkGenSubmittedCount; // meaning
     // 中文标注（字段）：`lastChunkInstalledCount`，含义：用于表示last、区块、installed、数量。
-    private int lastChunkInstalledCount;
+    private int lastChunkInstalledCount; // meaning
     // 中文标注（字段）：`closing`，含义：用于表示关闭中的生命周期状态。
-    private volatile boolean closing;
+    private volatile boolean closing; // meaning
 
     // 中文标注（构造方法）：`ClientWorldView`，参数：world；用途：初始化`ClientWorldView`实例。
     // 中文标注（参数）：`world`，含义：用于表示世界。
@@ -85,12 +85,12 @@ public final class ClientWorldView implements AutoCloseable {
         this.asyncChunkGenerationSubmitBudgetPerTick = Math.max(1, intProperty("voxelcraft.chunkGenSubmitBudget", DEFAULT_ASYNC_CHUNK_GEN_SUBMIT_BUDGET));
         if (asyncChunkGenerationEnabled) {
             // 中文标注（局部变量）：`workerCount`，含义：用于表示worker、数量。
-            int workerCount = Math.max(1, intProperty("voxelcraft.chunkGenWorkers", Math.max(1, Runtime.getRuntime().availableProcessors() - 1)));
+            int workerCount = Math.max(1, intProperty("voxelcraft.chunkGenWorkers", Math.max(1, Runtime.getRuntime().availableProcessors() - 1))); // meaning
             // 中文标注（Lambda参数）：`runnable`，含义：用于表示runnable。
             // 中文标注（局部变量）：`threadFactory`，含义：用于表示thread、factory。
             ThreadFactory threadFactory = runnable -> {
                 // 中文标注（局部变量）：`thread`，含义：用于表示thread。
-                Thread thread = new Thread(runnable, "voxelcraft-chunk-gen");
+                Thread thread = new Thread(runnable, "voxelcraft-chunk-gen"); // meaning
                 thread.setDaemon(true);
                 return thread;
             };
@@ -113,7 +113,7 @@ public final class ClientWorldView implements AutoCloseable {
     // 中文标注（方法）：`loadedChunks`，参数：无；用途：获取或读取loaded、区块集合。
     public Iterable<Chunk> loadedChunks() {
         // 中文标注（局部变量）：`snapshot`，含义：用于表示快照。
-        List<Chunk> snapshot = new ArrayList<>();
+        List<Chunk> snapshot = new ArrayList<>(); // meaning
         // 中文标注（局部变量）：`chunk`，含义：用于表示区块。
         for (Chunk chunk : world.loadedChunks()) {
             snapshot.add(chunk);
@@ -124,7 +124,7 @@ public final class ClientWorldView implements AutoCloseable {
     // 中文标注（方法）：`loadedChunksSnapshot`，参数：无；用途：获取或读取loaded、区块集合、快照。
     public List<Chunk> loadedChunksSnapshot() {
         // 中文标注（局部变量）：`snapshot`，含义：用于表示快照。
-        List<Chunk> snapshot = new ArrayList<>();
+        List<Chunk> snapshot = new ArrayList<>(); // meaning
         copyLoadedChunksInto(snapshot);
         return snapshot;
     }
@@ -134,7 +134,7 @@ public final class ClientWorldView implements AutoCloseable {
     public void copyLoadedChunksInto(List<Chunk> out) {
         out.clear();
         // 中文标注（局部变量）：`loaded`，含义：用于表示loaded。
-        Collection<Chunk> loaded = world.loadedChunks();
+        Collection<Chunk> loaded = world.loadedChunks(); // meaning
         out.addAll(loaded);
     }
 
@@ -189,7 +189,7 @@ public final class ClientWorldView implements AutoCloseable {
     // 中文标注（参数）：`z`，含义：用于表示Z坐标。
     public boolean isSolid(int x, int y, int z) {
         // 中文标注（局部变量）：`block`，含义：用于表示方块。
-        Block block = peekBlock(x, y, z);
+        Block block = peekBlock(x, y, z); // meaning
         return block != null && block != Blocks.AIR && block.solid();
     }
 
@@ -213,42 +213,42 @@ public final class ClientWorldView implements AutoCloseable {
             return;
         }
         // 中文标注（局部变量）：`startedNanos`，含义：用于表示started、nanos。
-        long startedNanos = System.nanoTime();
+        long startedNanos = System.nanoTime(); // meaning
         // 中文标注（局部变量）：`clampedRadius`，含义：用于表示clamped、radius。
-        int clampedRadius = Math.max(0, radius);
+        int clampedRadius = Math.max(0, radius); // meaning
         // 中文标注（局部变量）：`enqueued`，含义：用于表示enqueued。
-        int enqueued = 0;
+        int enqueued = 0; // meaning
 
         // 中文标注（局部变量）：`ring`，含义：用于表示ring。
-        for (int ring = 0; ring <= clampedRadius; ring++) {
+        for (int ring = 0; ring <= clampedRadius; ring++) { // meaning
             if (ring == 0) {
                 enqueued += enqueueChunkIfMissing(centerChunkX, centerChunkZ);
                 continue;
             }
 
             // 中文标注（局部变量）：`minX`，含义：用于表示最小、X坐标。
-            int minX = centerChunkX - ring;
+            int minX = centerChunkX - ring; // meaning
             // 中文标注（局部变量）：`maxX`，含义：用于表示最大、X坐标。
-            int maxX = centerChunkX + ring;
+            int maxX = centerChunkX + ring; // meaning
             // 中文标注（局部变量）：`minZ`，含义：用于表示最小、Z坐标。
-            int minZ = centerChunkZ - ring;
+            int minZ = centerChunkZ - ring; // meaning
             // 中文标注（局部变量）：`maxZ`，含义：用于表示最大、Z坐标。
-            int maxZ = centerChunkZ + ring;
+            int maxZ = centerChunkZ + ring; // meaning
 
             // 中文标注（局部变量）：`chunkX`，含义：用于表示区块、X坐标。
-            for (int chunkX = minX; chunkX <= maxX; chunkX++) {
+            for (int chunkX = minX; chunkX <= maxX; chunkX++) { // meaning
                 enqueued += enqueueChunkIfMissing(chunkX, minZ);
                 enqueued += enqueueChunkIfMissing(chunkX, maxZ);
             }
             // 中文标注（局部变量）：`chunkZ`，含义：用于表示区块、Z坐标。
-            for (int chunkZ = minZ + 1; chunkZ <= maxZ - 1; chunkZ++) {
+            for (int chunkZ = minZ + 1; chunkZ <= maxZ - 1; chunkZ++) { // meaning
                 enqueued += enqueueChunkIfMissing(minX, chunkZ);
                 enqueued += enqueueChunkIfMissing(maxX, chunkZ);
             }
         }
 
         // 中文标注（局部变量）：`elapsedNanos`，含义：用于表示已耗时、nanos。
-        long elapsedNanos = System.nanoTime() - startedNanos;
+        long elapsedNanos = System.nanoTime() - startedNanos; // meaning
         if (elapsedNanos > CHUNK_GEN_SLOW_LOG_THRESHOLD_NANOS) {
             System.out.printf(
                 "[chunk-gen] ensureChunkRadius center=(%d,%d) r=%d enqueued=%d pending=%d took=%.2fms%n",
@@ -266,7 +266,7 @@ public final class ClientWorldView implements AutoCloseable {
     // 中文标注（参数）：`maxPerTick`，含义：用于表示最大、per、刻。
     public synchronized void drainChunkGenerationBudget(int maxPerTick) {
         // 中文标注（局部变量）：`budget`，含义：用于表示budget。
-        int budget = Math.max(0, maxPerTick);
+        int budget = Math.max(0, maxPerTick); // meaning
         lastChunkGenSubmitNanos = 0L;
         lastChunkInstallNanos = 0L;
         lastChunkGenSubmittedCount = 0;
@@ -277,7 +277,7 @@ public final class ClientWorldView implements AutoCloseable {
         if (budget == 0) {
             if (asyncChunkGenerationEnabled) {
                 // 中文标注（局部变量）：`installStarted`，含义：用于表示install、started。
-                long installStarted = System.nanoTime();
+                long installStarted = System.nanoTime(); // meaning
                 lastChunkInstalledCount = drainReadyChunkInstallBudget(0);
                 lastChunkInstallNanos = System.nanoTime() - installStarted;
             }
@@ -287,12 +287,12 @@ public final class ClientWorldView implements AutoCloseable {
 
         if (asyncChunkGenerationEnabled) {
             // 中文标注（局部变量）：`submitStarted`，含义：用于表示submit、started。
-            long submitStarted = System.nanoTime();
+            long submitStarted = System.nanoTime(); // meaning
             lastChunkGenSubmittedCount = submitChunkGenerationJobs(Math.max(asyncChunkGenerationSubmitBudgetPerTick, budget));
             lastChunkGenSubmitNanos = System.nanoTime() - submitStarted;
 
             // 中文标注（局部变量）：`installStarted`，含义：用于表示install、started。
-            long installStarted = System.nanoTime();
+            long installStarted = System.nanoTime(); // meaning
             lastChunkInstalledCount = drainReadyChunkInstallBudget(budget);
             lastChunkInstallNanos = System.nanoTime() - installStarted;
             emitChunkGenerationStatsIfDue();
@@ -305,12 +305,12 @@ public final class ClientWorldView implements AutoCloseable {
         }
 
         // 中文标注（局部变量）：`startedNanos`，含义：用于表示started、nanos。
-        long startedNanos = System.nanoTime();
+        long startedNanos = System.nanoTime(); // meaning
         // 中文标注（局部变量）：`generated`，含义：用于表示generated。
-        int generated = 0;
+        int generated = 0; // meaning
         while (generated < budget && !pendingChunkGeneration.isEmpty()) {
             // 中文标注（局部变量）：`pos`，含义：用于表示位置。
-            ChunkPos pos = pendingChunkGeneration.pollFirst();
+            ChunkPos pos = pendingChunkGeneration.pollFirst(); // meaning
             if (pos == null) {
                 break;
             }
@@ -319,17 +319,17 @@ public final class ClientWorldView implements AutoCloseable {
                 continue;
             }
             // 中文标注（局部变量）：`singleChunkStartedNanos`，含义：用于表示single、区块、started、nanos。
-            long singleChunkStartedNanos = System.nanoTime();
+            long singleChunkStartedNanos = System.nanoTime(); // meaning
             world.getOrGenerateChunk(pos.x(), pos.z());
             // 中文标注（局部变量）：`singleChunkNanos`，含义：用于表示single、区块、nanos。
-            long singleChunkNanos = System.nanoTime() - singleChunkStartedNanos;
+            long singleChunkNanos = System.nanoTime() - singleChunkStartedNanos; // meaning
             chunkGenStatsChunkTotalNanos += singleChunkNanos;
             chunkGenStatsChunkMaxNanos = Math.max(chunkGenStatsChunkMaxNanos, singleChunkNanos);
             generated++;
         }
 
         // 中文标注（局部变量）：`elapsedNanos`，含义：用于表示已耗时、nanos。
-        long elapsedNanos = System.nanoTime() - startedNanos;
+        long elapsedNanos = System.nanoTime() - startedNanos; // meaning
         if (generated > 0) {
             chunkGenStatsChunks += generated;
             chunkGenStatsDrainCalls++;
@@ -394,9 +394,9 @@ public final class ClientWorldView implements AutoCloseable {
             return 0;
         }
         // 中文标注（局部变量）：`pos`，含义：用于表示位置。
-        ChunkPos pos = new ChunkPos(chunkX, chunkZ);
+        ChunkPos pos = new ChunkPos(chunkX, chunkZ); // meaning
         // 中文标注（局部变量）：`key`，含义：用于表示键。
-        long key = chunkKey(chunkX, chunkZ);
+        long key = chunkKey(chunkX, chunkZ); // meaning
         if (asyncChunkGenerationEnabled && inFlightChunkGeneration.containsKey(key)) {
             return 0;
         }
@@ -415,10 +415,10 @@ public final class ClientWorldView implements AutoCloseable {
         }
 
         // 中文标注（局部变量）：`submitted`，含义：用于表示submitted。
-        int submitted = 0;
+        int submitted = 0; // meaning
         while (submitted < submitBudget && !pendingChunkGeneration.isEmpty()) {
             // 中文标注（局部变量）：`pos`，含义：用于表示位置。
-            ChunkPos pos = pendingChunkGeneration.pollFirst();
+            ChunkPos pos = pendingChunkGeneration.pollFirst(); // meaning
             if (pos == null) {
                 break;
             }
@@ -429,7 +429,7 @@ public final class ClientWorldView implements AutoCloseable {
             }
 
             // 中文标注（局部变量）：`key`，含义：用于表示键。
-            long key = chunkKey(pos.x(), pos.z());
+            long key = chunkKey(pos.x(), pos.z()); // meaning
             if (inFlightChunkGeneration.putIfAbsent(key, Boolean.TRUE) != null) {
                 continue;
             }
@@ -438,19 +438,19 @@ public final class ClientWorldView implements AutoCloseable {
             try {
                 chunkGenerationPool.execute(new ChunkGenerationTask(() -> {
                     // 中文标注（局部变量）：`started`，含义：用于表示started。
-                    long started = System.nanoTime();
+                    long started = System.nanoTime(); // meaning
                     try {
                         // 中文标注（局部变量）：`generatedChunk`，含义：用于表示generated、区块。
-                        Chunk generatedChunk = world.generateChunkDetached(pos.x(), pos.z());
+                        Chunk generatedChunk = world.generateChunkDetached(pos.x(), pos.z()); // meaning
                         // 中文标注（局部变量）：`generationNanos`，含义：用于表示generation、nanos。
-                        long generationNanos = System.nanoTime() - started;
+                        long generationNanos = System.nanoTime() - started; // meaning
                         // close/shutdown 后不再入 ready 队列，避免已关闭对象残留结果和 inFlight 状态。
                         if (closing) {
                             inFlightChunkGeneration.remove(key);
                             return;
                         }
                         // 中文标注（局部变量）：`readyChunk`，含义：用于表示ready、区块。
-                        GeneratedChunk readyChunk = new GeneratedChunk(generatedChunk, generationNanos);
+                        GeneratedChunk readyChunk = new GeneratedChunk(generatedChunk, generationNanos); // meaning
                         readyGeneratedChunks.add(readyChunk);
                         if (closing && readyGeneratedChunks.remove(readyChunk)) {
                             inFlightChunkGeneration.remove(key);
@@ -491,17 +491,17 @@ public final class ClientWorldView implements AutoCloseable {
     // 中文标注（参数）：`maxInstallPerTick`，含义：用于表示最大、install、per、刻。
     private int drainReadyChunkInstallBudget(int maxInstallPerTick) {
         // 中文标注（局部变量）：`budget`，含义：用于表示budget。
-        int budget = Math.max(0, maxInstallPerTick);
+        int budget = Math.max(0, maxInstallPerTick); // meaning
         // 中文标注（局部变量）：`installed`，含义：用于表示installed。
-        int installed = 0;
+        int installed = 0; // meaning
         while (installed < budget) {
             // 中文标注（局部变量）：`ready`，含义：用于表示ready。
-            GeneratedChunk ready = readyGeneratedChunks.poll();
+            GeneratedChunk ready = readyGeneratedChunks.poll(); // meaning
             if (ready == null) {
                 break;
             }
             // 中文标注（局部变量）：`chunk`，含义：用于表示区块。
-            Chunk chunk = ready.chunk();
+            Chunk chunk = ready.chunk(); // meaning
             inFlightChunkGeneration.remove(chunkKey(chunk.pos().x(), chunk.pos().z()));
             if (world.chunkManager().getChunk(chunk.pos().x(), chunk.pos().z()) != null) {
                 continue;
@@ -524,9 +524,9 @@ public final class ClientWorldView implements AutoCloseable {
     // 中文标注（方法）：`emitChunkGenerationStatsIfDue`，参数：无；用途：执行emit、区块、generation、stats、if、due相关逻辑。
     private void emitChunkGenerationStatsIfDue() {
         // 中文标注（局部变量）：`now`，含义：用于表示now。
-        long now = System.nanoTime();
+        long now = System.nanoTime(); // meaning
         // 中文标注（局部变量）：`elapsed`，含义：用于表示已耗时。
-        long elapsed = now - chunkGenStatsWindowStartNanos;
+        long elapsed = now - chunkGenStatsWindowStartNanos; // meaning
         if (elapsed < 1_000_000_000L) {
             return;
         }
@@ -536,11 +536,11 @@ public final class ClientWorldView implements AutoCloseable {
                 ? 0.0
                 : (chunkGenStatsTotalNanos / (double) chunkGenStatsDrainCalls) / 1_000_000.0;
             // 中文标注（局部变量）：`slowestMs`，含义：用于表示slowest、ms。
-            double slowestMs = chunkGenStatsMaxNanos / 1_000_000.0;
+            double slowestMs = chunkGenStatsMaxNanos / 1_000_000.0; // meaning
             // 中文标注（局部变量）：`avgChunkMs`，含义：用于表示平均、区块、ms。
-            double avgChunkMs = (chunkGenStatsChunkTotalNanos / (double) chunkGenStatsChunks) / 1_000_000.0;
+            double avgChunkMs = (chunkGenStatsChunkTotalNanos / (double) chunkGenStatsChunks) / 1_000_000.0; // meaning
             // 中文标注（局部变量）：`slowestChunkMs`，含义：用于表示slowest、区块、ms。
-            double slowestChunkMs = chunkGenStatsChunkMaxNanos / 1_000_000.0;
+            double slowestChunkMs = chunkGenStatsChunkMaxNanos / 1_000_000.0; // meaning
             System.out.printf(
                 "[chunk-gen] chunksPerSec=%d avgChunkMs=%.2f slowestChunkMs=%.2f avgDrainMs=%.2f slowestDrainMs=%.2f pending=%d ready=%d inFlight=%d%n",
                 chunkGenStatsChunks,
@@ -554,11 +554,11 @@ public final class ClientWorldView implements AutoCloseable {
             );
         }
         // 中文标注（局部变量）：`asyncGeneratedChunks`，含义：用于表示async、generated、区块集合。
-        long asyncGeneratedChunks;
+        long asyncGeneratedChunks; // meaning
         // 中文标注（局部变量）：`asyncGenTotalNanos`，含义：用于表示async、gen、total、nanos。
-        long asyncGenTotalNanos;
+        long asyncGenTotalNanos; // meaning
         // 中文标注（局部变量）：`asyncGenMaxNanos`，含义：用于表示async、gen、最大、nanos。
-        long asyncGenMaxNanos;
+        long asyncGenMaxNanos; // meaning
         synchronized (this) {
             asyncGeneratedChunks = chunkGenStatsAsyncGeneratedChunks;
             asyncGenTotalNanos = chunkGenStatsAsyncGenTotalNanos;
@@ -595,7 +595,7 @@ public final class ClientWorldView implements AutoCloseable {
         }
         closing = true;
         if (chunkGenerationPool != null) {
-            List<Runnable> cancelledTasks = chunkGenerationPool.shutdownNow();
+            List<Runnable> cancelledTasks = chunkGenerationPool.shutdownNow(); // meaning
             for (Runnable cancelledTask : cancelledTasks) {
                 if (cancelledTask instanceof ChunkGenerationTask chunkGenerationTask) {
                     chunkGenerationTask.cancel();
@@ -620,12 +620,12 @@ public final class ClientWorldView implements AutoCloseable {
     // 中文标注（参数）：`defaultValue`，含义：用于表示默认、值。
     private static boolean booleanProperty(String key, boolean defaultValue) {
         // 中文标注（局部变量）：`raw`，含义：用于表示raw。
-        String raw = System.getProperty(key);
+        String raw = System.getProperty(key); // meaning
         if (raw == null) {
             return defaultValue;
         }
         // 中文标注（局部变量）：`normalized`，含义：用于表示normalized。
-        String normalized = raw.trim().toLowerCase();
+        String normalized = raw.trim().toLowerCase(); // meaning
         if (normalized.equals("1") || normalized.equals("true") || normalized.equals("yes") || normalized.equals("on")) {
             return true;
         }
@@ -640,7 +640,7 @@ public final class ClientWorldView implements AutoCloseable {
     // 中文标注（参数）：`defaultValue`，含义：用于表示默认、值。
     private static int intProperty(String key, int defaultValue) {
         // 中文标注（局部变量）：`raw`，含义：用于表示raw。
-        String raw = System.getProperty(key);
+        String raw = System.getProperty(key); // meaning
         if (raw == null) {
             return defaultValue;
         }
@@ -661,11 +661,11 @@ public final class ClientWorldView implements AutoCloseable {
     // 中文标注（类）：`ChunkGenerationTask`，职责：封装可取消的异步区块生成任务，确保 close/shutdown 不遗漏状态清理。
     private static final class ChunkGenerationTask implements Runnable {
         // 中文标注（字段）：`delegate`，含义：用于表示delegate。
-        private final Runnable delegate;
+        private final Runnable delegate; // meaning
         // 中文标注（字段）：`cancelAction`，含义：用于表示取消动作。
-        private final Runnable cancelAction;
+        private final Runnable cancelAction; // meaning
         // 中文标注（字段）：`completedOrCancelled`，含义：用于表示已完成或已取消。
-        private final AtomicBoolean completedOrCancelled = new AtomicBoolean();
+        private final AtomicBoolean completedOrCancelled = new AtomicBoolean(); // meaning
 
         // 中文标注（构造方法）：`ChunkGenerationTask`，参数：delegate、cancelAction；用途：初始化`ChunkGenerationTask`实例。
         // 中文标注（参数）：`delegate`，含义：用于表示delegate。

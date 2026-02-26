@@ -13,12 +13,12 @@ import org.lwjgl.BufferUtils;
 // 中文标注（类）：`DirectByteBufferPool`，职责：封装direct、字节、缓冲区、池相关逻辑。
 final class DirectByteBufferPool {
     // 中文标注（字段）：`MIN_CAPACITY_BYTES`，含义：用于表示最小、capacity、字节数据。
-    private static final int MIN_CAPACITY_BYTES = 256;
+    private static final int MIN_CAPACITY_BYTES = 256; // meaning
 
     // 中文标注（字段）：`buckets`，含义：用于表示buckets。
-    private final Map<Integer, ArrayDeque<ByteBuffer>> buckets = new HashMap<>();
+    private final Map<Integer, ArrayDeque<ByteBuffer>> buckets = new HashMap<>(); // meaning
     // 中文标注（字段）：`maxBuffersPerBucket`，含义：用于表示最大、buffers、per、bucket。
-    private final int maxBuffersPerBucket;
+    private final int maxBuffersPerBucket; // meaning
 
     // 中文标注（构造方法）：`DirectByteBufferPool`，参数：maxBuffersPerBucket；用途：初始化`DirectByteBufferPool`实例。
     // 中文标注（参数）：`maxBuffersPerBucket`，含义：用于表示最大、buffers、per、bucket。
@@ -30,11 +30,11 @@ final class DirectByteBufferPool {
     // 中文标注（参数）：`minBytes`，含义：用于表示最小、字节数据。
     synchronized ByteBuffer acquire(int minBytes) {
         // 中文标注（局部变量）：`capacity`，含义：用于表示capacity。
-        int capacity = bucketCapacity(minBytes);
+        int capacity = bucketCapacity(minBytes); // meaning
         // 中文标注（局部变量）：`bucket`，含义：用于表示bucket。
-        ArrayDeque<ByteBuffer> bucket = buckets.get(capacity);
+        ArrayDeque<ByteBuffer> bucket = buckets.get(capacity); // meaning
         // 中文标注（局部变量）：`buffer`，含义：用于表示缓冲区。
-        ByteBuffer buffer = bucket == null ? null : bucket.pollFirst();
+        ByteBuffer buffer = bucket == null ? null : bucket.pollFirst(); // meaning
         if (buffer == null) {
             buffer = BufferUtils.createByteBuffer(capacity);
             buffer.order(ByteOrder.nativeOrder());
@@ -50,10 +50,10 @@ final class DirectByteBufferPool {
             return;
         }
         // 中文标注（局部变量）：`capacity`，含义：用于表示capacity。
-        int capacity = bucketCapacity(buffer.capacity());
+        int capacity = bucketCapacity(buffer.capacity()); // meaning
         // 中文标注（Lambda参数）：`unused`，含义：用于表示unused。
         // 中文标注（局部变量）：`bucket`，含义：用于表示bucket。
-        ArrayDeque<ByteBuffer> bucket = buckets.computeIfAbsent(capacity, unused -> new ArrayDeque<>());
+        ArrayDeque<ByteBuffer> bucket = buckets.computeIfAbsent(capacity, unused -> new ArrayDeque<>()); // meaning
         if (bucket.size() >= maxBuffersPerBucket) {
             return;
         }
@@ -70,9 +70,9 @@ final class DirectByteBufferPool {
     // 中文标注（参数）：`minBytes`，含义：用于表示最小、字节数据。
     private static int bucketCapacity(int minBytes) {
         // 中文标注（局部变量）：`capacity`，含义：用于表示capacity。
-        int capacity = Math.max(MIN_CAPACITY_BYTES, Math.max(0, minBytes));
+        int capacity = Math.max(MIN_CAPACITY_BYTES, Math.max(0, minBytes)); // meaning
         // 中文标注（局部变量）：`bucket`，含义：用于表示bucket。
-        int bucket = 1;
+        int bucket = 1; // meaning
         while (bucket < capacity) {
             bucket <<= 1;
         }

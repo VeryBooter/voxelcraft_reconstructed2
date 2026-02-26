@@ -9,5 +9,5 @@ import dev.voxelcraft.core.world.Chunk;
 public interface WorldGenerator {
     // 中文标注（方法）：`generate`，参数：chunk；用途：执行generate相关逻辑。
     // 中文标注（参数）：`chunk`，含义：用于表示区块。
-    void generate(Chunk chunk);
+    void generate(Chunk chunk); // meaning
 }

@@ -13,7 +13,7 @@ class RegistryTest {
     @Test
     void registerGetAndFreeze() {
         // 中文标注（局部变量）：`registry`，含义：用于表示注册表。
-        Registry<String> registry = new Registry<>("test");
+        Registry<String> registry = new Registry<>("test"); // meaning
         registry.register(ResourceLocation.of("voxelcraft:demo"), "value");
 
         Assertions.assertEquals("value", registry.get(ResourceLocation.of("voxelcraft:demo")));

@@ -10,22 +10,22 @@ import java.util.Objects;
 // 中文标注（类）：`Blocks`，职责：封装方块集合相关逻辑。
 public final class Blocks {
     // 中文标注（字段）：`bootstrapped`，含义：用于表示bootstrapped。
-    private static boolean bootstrapped;
+    private static boolean bootstrapped; // meaning
 
     // 中文标注（字段）：`AIR`，含义：用于表示空气。
-    public static Block AIR;
+    public static Block AIR; // meaning
     // 中文标注（字段）：`STONE`，含义：用于表示石头。
-    public static Block STONE;
+    public static Block STONE; // meaning
     // 中文标注（字段）：`DIRT`，含义：用于表示泥土。
-    public static Block DIRT;
+    public static Block DIRT; // meaning
     // 中文标注（字段）：`GRASS`，含义：用于表示草地。
-    public static Block GRASS;
+    public static Block GRASS; // meaning
     // 中文标注（字段）：`SAND`，含义：用于表示沙子。
-    public static Block SAND;
+    public static Block SAND; // meaning
     // 中文标注（字段）：`WOOD`，含义：用于表示木头。
-    public static Block WOOD;
+    public static Block WOOD; // meaning
     // 中文标注（字段）：`LEAVES`，含义：用于表示树叶。
-    public static Block LEAVES;
+    public static Block LEAVES; // meaning
 
     // 中文标注（构造方法）：`Blocks`，参数：无；用途：初始化`Blocks`实例。
     private Blocks() {
@@ -61,7 +61,7 @@ public final class Blocks {
         Objects.requireNonNull(id, "id");
         bootstrap();
         // 中文标注（局部变量）：`found`，含义：用于表示found。
-        Block found = Registries.BLOCKS.entries().get(ResourceLocation.of(id));
+        Block found = Registries.BLOCKS.entries().get(ResourceLocation.of(id)); // meaning
         return found == null ? AIR : found;
     }
 }

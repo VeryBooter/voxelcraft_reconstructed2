@@ -69,45 +69,45 @@ import static org.lwjgl.system.MemoryUtil.NULL;
 // 中文标注（类）：`GpuClientRuntime`，职责：封装GPU、客户端、运行时相关逻辑。
 public final class GpuClientRuntime implements AutoCloseable {
     // 中文标注（字段）：`TARGET_FPS`，含义：用于表示target、fps。
-    private static final int TARGET_FPS = 60;
+    private static final int TARGET_FPS = 60; // meaning
     // 中文标注（字段）：`MIN_FRAME_SECONDS`，含义：用于表示最小、帧、seconds。
-    private static final double MIN_FRAME_SECONDS = 1.0 / TARGET_FPS;
+    private static final double MIN_FRAME_SECONDS = 1.0 / TARGET_FPS; // meaning
     // 中文标注（字段）：`HITCH_FRAME_MS`，含义：用于表示hitch、帧、ms。
-    private static final double HITCH_FRAME_MS = 50.0;
+    private static final double HITCH_FRAME_MS = 50.0; // meaning
 
     // 中文标注（字段）：`title`，含义：用于表示title。
-    private final String title;
+    private final String title; // meaning
     // 中文标注（字段）：`input`，含义：用于表示输入。
-    private final InputState input = new InputState();
+    private final InputState input = new InputState(); // meaning
     // 中文标注（字段）：`renderer`，含义：用于表示渲染器。
-    private final GpuChunkRenderer renderer = new GpuChunkRenderer();
+    private final GpuChunkRenderer renderer = new GpuChunkRenderer(); // meaning
     // 中文标注（字段）：`frameTimeWindowMs`，含义：用于表示帧、时间、窗口、ms。
-    private final double[] frameTimeWindowMs = new double[512];
+    private final double[] frameTimeWindowMs = new double[512]; // meaning
     // 中文标注（字段）：`frameTimeSortScratchMs`，含义：用于表示帧、时间、sort、临时工作区、ms。
-    private final double[] frameTimeSortScratchMs = new double[512];
+    private final double[] frameTimeSortScratchMs = new double[512]; // meaning
 
     // 中文标注（字段）：`windowHandle`，含义：用于表示窗口、handle。
-    private long windowHandle;
+    private long windowHandle; // meaning
     // 中文标注（字段）：`initialized`，含义：用于表示initialized。
-    private boolean initialized;
+    private boolean initialized; // meaning
     // 中文标注（字段）：`firstMouseSample`，含义：用于表示first、鼠标、sample。
-    private boolean firstMouseSample = true;
+    private boolean firstMouseSample = true; // meaning
     // 中文标注（字段）：`frameTimeWindowIndex`，含义：用于表示帧、时间、窗口、索引。
-    private int frameTimeWindowIndex;
+    private int frameTimeWindowIndex; // meaning
     // 中文标注（字段）：`frameTimeWindowCount`，含义：用于表示帧、时间、窗口、数量。
-    private int frameTimeWindowCount;
+    private int frameTimeWindowCount; // meaning
     // 中文标注（字段）：`framePerfWindowStartNanos`，含义：用于表示帧、perf、窗口、开始、nanos。
-    private long framePerfWindowStartNanos;
+    private long framePerfWindowStartNanos; // meaning
     // 中文标注（字段）：`framePerfFrames`，含义：用于表示帧、perf、frames。
-    private int framePerfFrames;
+    private int framePerfFrames; // meaning
     // 中文标注（字段）：`framePerfWorstMs`，含义：用于表示帧、perf、worst、ms。
-    private double framePerfWorstMs;
+    private double framePerfWorstMs; // meaning
     // 中文标注（字段）：`lastChunkPendingCount`，含义：用于表示last、区块、pending、数量。
-    private int lastChunkPendingCount;
+    private int lastChunkPendingCount; // meaning
     // 中文标注（字段）：`lastChunkReadyCount`，含义：用于表示last、区块、ready、数量。
-    private int lastChunkReadyCount;
+    private int lastChunkReadyCount; // meaning
     // 中文标注（字段）：`lastChunkGenInFlightCount`，含义：用于表示last、区块、gen、in、flight、数量。
-    private int lastChunkGenInFlightCount;
+    private int lastChunkGenInFlightCount; // meaning
 
     // 中文标注（构造方法）：`GpuClientRuntime`，参数：title；用途：初始化`GpuClientRuntime`实例。
     // 中文标注（参数）：`title`，含义：用于表示title。
@@ -121,22 +121,22 @@ public final class GpuClientRuntime implements AutoCloseable {
         initialize();
 
         // 中文标注（局部变量）：`previousNanos`，含义：用于表示previous、nanos。
-        long previousNanos = System.nanoTime();
+        long previousNanos = System.nanoTime(); // meaning
         // 中文标注（局部变量）：`fpsWindowStart`，含义：用于表示fps、窗口、开始。
-        long fpsWindowStart = previousNanos;
+        long fpsWindowStart = previousNanos; // meaning
         // 中文标注（局部变量）：`frames`，含义：用于表示frames。
-        int frames = 0;
+        int frames = 0; // meaning
         framePerfWindowStartNanos = previousNanos;
         framePerfFrames = 0;
         framePerfWorstMs = 0.0;
 
         while (!glfwWindowShouldClose(windowHandle)) {
             // 中文标注（局部变量）：`frameStartedNanos`，含义：用于表示帧、started、nanos。
-            long frameStartedNanos = System.nanoTime();
+            long frameStartedNanos = System.nanoTime(); // meaning
             // 中文标注（局部变量）：`now`，含义：用于表示now。
-            long now = System.nanoTime();
+            long now = System.nanoTime(); // meaning
             // 中文标注（局部变量）：`deltaSeconds`，含义：用于表示增量、seconds。
-            double deltaSeconds = (now - previousNanos) / 1_000_000_000.0;
+            double deltaSeconds = (now - previousNanos) / 1_000_000_000.0; // meaning
             previousNanos = now;
 
             if (deltaSeconds <= 0.0) {
@@ -153,46 +153,46 @@ public final class GpuClientRuntime implements AutoCloseable {
             }
 
             // 中文标注（局部变量）：`tickStartedNanos`，含义：用于表示刻、started、nanos。
-            long tickStartedNanos = System.nanoTime();
+            long tickStartedNanos = System.nanoTime(); // meaning
             gameClient.tick(input, deltaSeconds);
             // 中文标注（局部变量）：`tickNanos`，含义：用于表示刻、nanos。
-            long tickNanos = System.nanoTime() - tickStartedNanos;
+            long tickNanos = System.nanoTime() - tickStartedNanos; // meaning
 
             // 中文标注（局部变量）：`width`，含义：用于表示宽度。
-            int width;
+            int width; // meaning
             // 中文标注（局部变量）：`height`，含义：用于表示高度。
-            int height;
+            int height; // meaning
             // 中文标注（局部变量）：`stack`，含义：用于表示栈。
             try (MemoryStack stack = MemoryStack.stackPush()) {
                 // 中文标注（局部变量）：`widthBuffer`，含义：用于表示宽度、缓冲区。
-                var widthBuffer = stack.mallocInt(1);
+                var widthBuffer = stack.mallocInt(1); // meaning
                 // 中文标注（局部变量）：`heightBuffer`，含义：用于表示高度、缓冲区。
-                var heightBuffer = stack.mallocInt(1);
+                var heightBuffer = stack.mallocInt(1); // meaning
                 glfwGetFramebufferSize(windowHandle, widthBuffer, heightBuffer);
                 width = Math.max(1, widthBuffer.get(0));
                 height = Math.max(1, heightBuffer.get(0));
             }
 
             // 中文标注（局部变量）：`renderStartedNanos`，含义：用于表示渲染、started、nanos。
-            long renderStartedNanos = System.nanoTime();
+            long renderStartedNanos = System.nanoTime(); // meaning
             // 中文标注（局部变量）：`stats`，含义：用于表示stats。
-            RenderStats stats = renderer.render(width, height, gameClient);
+            RenderStats stats = renderer.render(width, height, gameClient); // meaning
             // 中文标注（局部变量）：`renderNanos`，含义：用于表示渲染、nanos。
-            long renderNanos = System.nanoTime() - renderStartedNanos;
+            long renderNanos = System.nanoTime() - renderStartedNanos; // meaning
             // 中文标注（局部变量）：`swapStartedNanos`，含义：用于表示swap、started、nanos。
-            long swapStartedNanos = System.nanoTime();
+            long swapStartedNanos = System.nanoTime(); // meaning
             glfwSwapBuffers(windowHandle);
             // 中文标注（局部变量）：`swapNanos`，含义：用于表示swap、nanos。
-            long swapNanos = System.nanoTime() - swapStartedNanos;
+            long swapNanos = System.nanoTime() - swapStartedNanos; // meaning
 
             input.endFrame();
             lastChunkPendingCount = gameClient.pendingChunkGenerationCount();
             lastChunkReadyCount = gameClient.readyGeneratedChunkCount();
             lastChunkGenInFlightCount = gameClient.chunkGenerationJobsInFlight();
             // 中文标注（局部变量）：`frameTotalNanos`，含义：用于表示帧、total、nanos。
-            long frameTotalNanos = System.nanoTime() - frameStartedNanos;
+            long frameTotalNanos = System.nanoTime() - frameStartedNanos; // meaning
             // 中文标注（局部变量）：`frameMs`，含义：用于表示帧、ms。
-            double frameMs = frameTotalNanos / 1_000_000.0;
+            double frameMs = frameTotalNanos / 1_000_000.0; // meaning
             recordFrameTime(frameMs);
             emitFramePerfLineIfDue();
             if (frameMs > HITCH_FRAME_MS) {
@@ -220,7 +220,7 @@ public final class GpuClientRuntime implements AutoCloseable {
 
             frames++;
             if (now - fpsWindowStart >= 1_000_000_000L) {
-                var player = gameClient.playerController();
+                var player = gameClient.playerController(); // meaning
                 glfwSetWindowTitle(
                     windowHandle,
                     title + " | GPU FPS " + frames
@@ -304,11 +304,11 @@ public final class GpuClientRuntime implements AutoCloseable {
     // 中文标注（方法）：`resolveSwapInterval`，参数：无；用途：执行resolve、swap、interval相关逻辑。
     private static int resolveSwapInterval() {
         // 中文标注（局部变量）：`configured`，含义：用于表示configured。
-        String configured = System.getProperty("voxelcraft.vsync");
+        String configured = System.getProperty("voxelcraft.vsync"); // meaning
         if (configured != null) {
             try {
                 // 中文标注（局部变量）：`parsed`，含义：用于表示parsed。
-                int parsed = Integer.parseInt(configured.trim());
+                int parsed = Integer.parseInt(configured.trim()); // meaning
                 if (parsed >= 0 && parsed <= 2) {
                     return parsed;
                 }
@@ -336,16 +336,16 @@ public final class GpuClientRuntime implements AutoCloseable {
     // 中文标注（方法）：`emitFramePerfLineIfDue`，参数：无；用途：执行emit、帧、perf、line、if、due相关逻辑。
     private void emitFramePerfLineIfDue() {
         // 中文标注（局部变量）：`now`，含义：用于表示now。
-        long now = System.nanoTime();
+        long now = System.nanoTime(); // meaning
         // 中文标注（局部变量）：`elapsed`，含义：用于表示已耗时。
-        long elapsed = now - framePerfWindowStartNanos;
+        long elapsed = now - framePerfWindowStartNanos; // meaning
         if (elapsed < 1_000_000_000L) {
             return;
         }
         // 中文标注（局部变量）：`percentiles`，含义：用于表示percentiles。
-        FramePercentiles percentiles = framePercentiles();
+        FramePercentiles percentiles = framePercentiles(); // meaning
         // 中文标注（局部变量）：`fps`，含义：用于表示fps。
-        double fps = framePerfFrames <= 0 ? 0.0 : (framePerfFrames * 1_000_000_000.0) / elapsed;
+        double fps = framePerfFrames <= 0 ? 0.0 : (framePerfFrames * 1_000_000_000.0) / elapsed; // meaning
         System.out.printf(
             "[frame-perf] fps=%.1f p50=%.2fms p95=%.2fms p99=%.2fms worst=%.2fms windowFrames=%d chunkPending=%d chunkReady=%d chunkGenInFlight=%d%n",
             fps,
@@ -386,7 +386,7 @@ public final class GpuClientRuntime implements AutoCloseable {
             return 0.0;
         }
         // 中文标注（局部变量）：`index`，含义：用于表示索引。
-        int index = (int) Math.ceil((count - 1) * quantile);
+        int index = (int) Math.ceil((count - 1) * quantile); // meaning
         index = Math.max(0, Math.min(count - 1, index));
         return sortedValues[index];
     }
@@ -394,11 +394,11 @@ public final class GpuClientRuntime implements AutoCloseable {
     // 中文标注（类）：`FramePercentiles`，职责：封装帧、percentiles相关逻辑。
     private static final class FramePercentiles {
         // 中文标注（字段）：`p50Ms`，含义：用于表示p、50、ms。
-        private final double p50Ms;
+        private final double p50Ms; // meaning
         // 中文标注（字段）：`p95Ms`，含义：用于表示p、95、ms。
-        private final double p95Ms;
+        private final double p95Ms; // meaning
         // 中文标注（字段）：`p99Ms`，含义：用于表示p、99、ms。
-        private final double p99Ms;
+        private final double p99Ms; // meaning
 
         // 中文标注（构造方法）：`FramePercentiles`，参数：p50Ms、p95Ms、p99Ms；用途：初始化`FramePercentiles`实例。
         // 中文标注（参数）：`p50Ms`，含义：用于表示p、50、ms。
@@ -421,7 +421,7 @@ public final class GpuClientRuntime implements AutoCloseable {
         // 中文标注（Lambda参数）：`mods`，含义：用于表示mods。
         glfwSetKeyCallback(windowHandle, (window, key, scancode, action, mods) -> {
             // 中文标注（局部变量）：`mapped`，含义：用于表示mapped。
-            int mapped = mapKeyCode(key);
+            int mapped = mapKeyCode(key); // meaning
             if (mapped < 0) {
                 return;
             }
@@ -438,7 +438,7 @@ public final class GpuClientRuntime implements AutoCloseable {
         // 中文标注（Lambda参数）：`mods`，含义：用于表示mods。
         glfwSetMouseButtonCallback(windowHandle, (window, button, action, mods) -> {
             // 中文标注（局部变量）：`mapped`，含义：用于表示mapped。
-            int mapped = mapMouseButton(button);
+            int mapped = mapMouseButton(button); // meaning
             if (mapped < 0) {
                 return;
             }
@@ -454,9 +454,9 @@ public final class GpuClientRuntime implements AutoCloseable {
         // 中文标注（Lambda参数）：`ypos`，含义：用于表示ypos。
         glfwSetCursorPosCallback(windowHandle, (window, xpos, ypos) -> {
             // 中文标注（局部变量）：`mouseX`，含义：用于表示鼠标、X坐标。
-            int mouseX = (int) Math.round(xpos);
+            int mouseX = (int) Math.round(xpos); // meaning
             // 中文标注（局部变量）：`mouseY`，含义：用于表示鼠标、Y坐标。
-            int mouseY = (int) Math.round(ypos);
+            int mouseY = (int) Math.round(ypos); // meaning
             if (firstMouseSample) {
                 input.setMousePosition(mouseX, mouseY);
                 firstMouseSample = false;

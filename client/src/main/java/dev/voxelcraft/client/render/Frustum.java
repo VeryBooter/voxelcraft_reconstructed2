@@ -5,42 +5,42 @@ package dev.voxelcraft.client.render;
 
 // 中文标注（类）：`Frustum`，职责：封装视锥体相关逻辑。
 public final class Frustum {
-    private static final int OUT_LEFT = 1 << 0;
-    private static final int OUT_RIGHT = 1 << 1;
-    private static final int OUT_BOTTOM = 1 << 2;
-    private static final int OUT_TOP = 1 << 3;
-    private static final int OUT_NEAR = 1 << 4;
-    private static final int OUT_FAR = 1 << 5;
-    private static final int ALL_OUT_PLANES_MASK = OUT_LEFT | OUT_RIGHT | OUT_BOTTOM | OUT_TOP | OUT_NEAR | OUT_FAR;
+    private static final int OUT_LEFT = 1 << 0; // meaning
+    private static final int OUT_RIGHT = 1 << 1; // meaning
+    private static final int OUT_BOTTOM = 1 << 2; // meaning
+    private static final int OUT_TOP = 1 << 3; // meaning
+    private static final int OUT_NEAR = 1 << 4; // meaning
+    private static final int OUT_FAR = 1 << 5; // meaning
+    private static final int ALL_OUT_PLANES_MASK = OUT_LEFT | OUT_RIGHT | OUT_BOTTOM | OUT_TOP | OUT_NEAR | OUT_FAR; // meaning
 
     // 中文标注（字段）：`cameraX`，含义：用于表示相机、X坐标。
-    private double cameraX;
+    private double cameraX; // meaning
     // 中文标注（字段）：`cameraY`，含义：用于表示相机、Y坐标。
-    private double cameraY;
+    private double cameraY; // meaning
     // 中文标注（字段）：`cameraZ`，含义：用于表示相机、Z坐标。
-    private double cameraZ;
+    private double cameraZ; // meaning
 
     // 中文标注（字段）：`yawRadians`，含义：用于表示yaw、radians。
-    private double yawRadians;
+    private double yawRadians; // meaning
     // 中文标注（字段）：`pitchRadians`，含义：用于表示pitch、radians。
-    private double pitchRadians;
+    private double pitchRadians; // meaning
     // 中文标注（字段）：`cosYaw`，含义：用于表示cos、yaw。
-    private double cosYaw;
+    private double cosYaw; // meaning
     // 中文标注（字段）：`sinYaw`，含义：用于表示sin、yaw。
-    private double sinYaw;
+    private double sinYaw; // meaning
     // 中文标注（字段）：`cosPitch`，含义：用于表示cos、pitch。
-    private double cosPitch;
+    private double cosPitch; // meaning
     // 中文标注（字段）：`sinPitch`，含义：用于表示sin、pitch。
-    private double sinPitch;
+    private double sinPitch; // meaning
 
     // 中文标注（字段）：`nearPlane`，含义：用于表示near、plane。
-    private double nearPlane;
+    private double nearPlane; // meaning
     // 中文标注（字段）：`farPlane`，含义：用于表示far、plane。
-    private double farPlane;
+    private double farPlane; // meaning
     // 中文标注（字段）：`tanHalfVerticalFov`，含义：用于表示tan、half、垂直、fov。
-    private double tanHalfVerticalFov;
+    private double tanHalfVerticalFov; // meaning
     // 中文标注（字段）：`tanHalfHorizontalFov`，含义：用于表示tan、half、水平、fov。
-    private double tanHalfHorizontalFov;
+    private double tanHalfHorizontalFov; // meaning
 
     // 中文标注（方法）：`setCamera`，参数：cameraX、cameraY、cameraZ、yawDegrees、pitchDegrees、verticalFovDegrees、aspect、nearPlane、farPlane；用途：设置、写入或注册相机。
     public void setCamera(
@@ -77,7 +77,7 @@ public final class Frustum {
         this.farPlane = farPlane;
 
         // 中文标注（局部变量）：`halfFovRadians`，含义：用于表示half、fov、radians。
-        double halfFovRadians = Math.toRadians(verticalFovDegrees) * 0.5;
+        double halfFovRadians = Math.toRadians(verticalFovDegrees) * 0.5; // meaning
         this.tanHalfVerticalFov = Math.tan(halfFovRadians);
         this.tanHalfHorizontalFov = tanHalfVerticalFov * Math.max(0.1, aspect);
     }
@@ -88,21 +88,21 @@ public final class Frustum {
     // 中文标注（参数）：`worldZ`，含义：用于表示世界、Z坐标。
     public CameraPoint toCameraSpace(double worldX, double worldY, double worldZ) {
         // 中文标注（局部变量）：`dx`，含义：用于表示dx。
-        double dx = worldX - cameraX;
+        double dx = worldX - cameraX; // meaning
         // 中文标注（局部变量）：`dy`，含义：用于表示dy。
-        double dy = worldY - cameraY;
+        double dy = worldY - cameraY; // meaning
         // 中文标注（局部变量）：`dz`，含义：用于表示dz。
-        double dz = worldZ - cameraZ;
+        double dz = worldZ - cameraZ; // meaning
 
         // 中文标注（局部变量）：`x1`，含义：用于表示X坐标、1。
-        double x1 = dx * cosYaw - dz * sinYaw;
+        double x1 = dx * cosYaw - dz * sinYaw; // meaning
         // 中文标注（局部变量）：`z1`，含义：用于表示Z坐标、1。
-        double z1 = dx * sinYaw + dz * cosYaw;
+        double z1 = dx * sinYaw + dz * cosYaw; // meaning
 
         // 中文标注（局部变量）：`y2`，含义：用于表示Y坐标、2。
-        double y2 = dy * cosPitch - z1 * sinPitch;
+        double y2 = dy * cosPitch - z1 * sinPitch; // meaning
         // 中文标注（局部变量）：`z2`，含义：用于表示Z坐标、2。
-        double z2 = dy * sinPitch + z1 * cosPitch;
+        double z2 = dy * sinPitch + z1 * cosPitch; // meaning
 
         return new CameraPoint(x1, y2, z2);
     }
@@ -114,21 +114,21 @@ public final class Frustum {
     // 中文标注（参数）：`out`，含义：用于表示out。
     public void toCameraSpace(double worldX, double worldY, double worldZ, CameraPoint out) {
         // 中文标注（局部变量）：`dx`，含义：用于表示dx。
-        double dx = worldX - cameraX;
+        double dx = worldX - cameraX; // meaning
         // 中文标注（局部变量）：`dy`，含义：用于表示dy。
-        double dy = worldY - cameraY;
+        double dy = worldY - cameraY; // meaning
         // 中文标注（局部变量）：`dz`，含义：用于表示dz。
-        double dz = worldZ - cameraZ;
+        double dz = worldZ - cameraZ; // meaning
 
         // 中文标注（局部变量）：`x1`，含义：用于表示X坐标、1。
-        double x1 = dx * cosYaw - dz * sinYaw;
+        double x1 = dx * cosYaw - dz * sinYaw; // meaning
         // 中文标注（局部变量）：`z1`，含义：用于表示Z坐标、1。
-        double z1 = dx * sinYaw + dz * cosYaw;
+        double z1 = dx * sinYaw + dz * cosYaw; // meaning
 
         // 中文标注（局部变量）：`y2`，含义：用于表示Y坐标、2。
-        double y2 = dy * cosPitch - z1 * sinPitch;
+        double y2 = dy * cosPitch - z1 * sinPitch; // meaning
         // 中文标注（局部变量）：`z2`，含义：用于表示Z坐标、2。
-        double z2 = dy * sinPitch + z1 * cosPitch;
+        double z2 = dy * sinPitch + z1 * cosPitch; // meaning
 
         out.set(x1, y2, z2);
     }
@@ -140,30 +140,30 @@ public final class Frustum {
     // 中文标注（参数）：`radius`，含义：用于表示radius。
     public boolean isPointVisible(double worldX, double worldY, double worldZ, double radius) {
         // 中文标注（局部变量）：`dx`，含义：用于表示dx。
-        double dx = worldX - cameraX;
+        double dx = worldX - cameraX; // meaning
         // 中文标注（局部变量）：`dy`，含义：用于表示dy。
-        double dy = worldY - cameraY;
+        double dy = worldY - cameraY; // meaning
         // 中文标注（局部变量）：`dz`，含义：用于表示dz。
-        double dz = worldZ - cameraZ;
+        double dz = worldZ - cameraZ; // meaning
 
         // 中文标注（局部变量）：`x1`，含义：用于表示X坐标、1。
-        double x1 = dx * cosYaw - dz * sinYaw;
+        double x1 = dx * cosYaw - dz * sinYaw; // meaning
         // 中文标注（局部变量）：`z1`，含义：用于表示Z坐标、1。
-        double z1 = dx * sinYaw + dz * cosYaw;
+        double z1 = dx * sinYaw + dz * cosYaw; // meaning
 
         // 中文标注（局部变量）：`y2`，含义：用于表示Y坐标、2。
-        double y2 = dy * cosPitch - z1 * sinPitch;
+        double y2 = dy * cosPitch - z1 * sinPitch; // meaning
         // 中文标注（局部变量）：`z2`，含义：用于表示Z坐标、2。
-        double z2 = dy * sinPitch + z1 * cosPitch;
+        double z2 = dy * sinPitch + z1 * cosPitch; // meaning
 
         if (z2 < nearPlane - radius || z2 > farPlane + radius) {
             return false;
         }
 
         // 中文标注（局部变量）：`horizontalLimit`，含义：用于表示水平、limit。
-        double horizontalLimit = (z2 + radius) * tanHalfHorizontalFov;
+        double horizontalLimit = (z2 + radius) * tanHalfHorizontalFov; // meaning
         // 中文标注（局部变量）：`verticalLimit`，含义：用于表示垂直、limit。
-        double verticalLimit = (z2 + radius) * tanHalfVerticalFov;
+        double verticalLimit = (z2 + radius) * tanHalfVerticalFov; // meaning
         return Math.abs(x1) <= horizontalLimit
             && Math.abs(y2) <= verticalLimit;
     }
@@ -183,7 +183,7 @@ public final class Frustum {
      * 中文说明：AABB 诊断分类：返回可见性与（若被拒绝）共同外侧平面编号，便于 GPU 剔除日志定位。
      */
     public AabbVisibilityResult classifyAabb(double minX, double minY, double minZ, double maxX, double maxY, double maxZ) {
-        int rejectMask = rejectionMaskForAabb(minX, minY, minZ, maxX, maxY, maxZ);
+        int rejectMask = rejectionMaskForAabb(minX, minY, minZ, maxX, maxY, maxZ); // meaning
         return rejectMask == 0 ? AabbVisibilityResult.visibleResult() : AabbVisibilityResult.rejectedResult(rejectMask);
     }
 
@@ -198,40 +198,40 @@ public final class Frustum {
         // transform the 8 AABB corners into camera space (no allocations, cached trig),
         // then reject only if all corners lie outside the same frustum plane.
         // 中文标注（局部变量）：`andMask`，含义：用于表示and、掩码。
-        int andMask = ALL_OUT_PLANES_MASK;
+        int andMask = ALL_OUT_PLANES_MASK; // meaning
 
         // 中文标注（局部变量）：`ix`，含义：用于表示ix。
-        for (int ix = 0; ix < 2; ix++) {
+        for (int ix = 0; ix < 2; ix++) { // meaning
             // 中文标注（局部变量）：`worldX`，含义：用于表示世界、X坐标。
-            double worldX = ix == 0 ? minX : maxX;
+            double worldX = ix == 0 ? minX : maxX; // meaning
             // 中文标注（局部变量）：`iy`，含义：用于表示iy。
-            for (int iy = 0; iy < 2; iy++) {
+            for (int iy = 0; iy < 2; iy++) { // meaning
                 // 中文标注（局部变量）：`worldY`，含义：用于表示世界、Y坐标。
-                double worldY = iy == 0 ? minY : maxY;
+                double worldY = iy == 0 ? minY : maxY; // meaning
                 // 中文标注（局部变量）：`iz`，含义：用于表示iz。
-                for (int iz = 0; iz < 2; iz++) {
+                for (int iz = 0; iz < 2; iz++) { // meaning
                     // 中文标注（局部变量）：`worldZ`，含义：用于表示世界、Z坐标。
-                    double worldZ = iz == 0 ? minZ : maxZ;
+                    double worldZ = iz == 0 ? minZ : maxZ; // meaning
 
                     // 中文标注（局部变量）：`dx`，含义：用于表示dx。
-                    double dx = worldX - cameraX;
+                    double dx = worldX - cameraX; // meaning
                     // 中文标注（局部变量）：`dy`，含义：用于表示dy。
-                    double dy = worldY - cameraY;
+                    double dy = worldY - cameraY; // meaning
                     // 中文标注（局部变量）：`dz`，含义：用于表示dz。
-                    double dz = worldZ - cameraZ;
+                    double dz = worldZ - cameraZ; // meaning
 
                     // 中文标注（局部变量）：`x1`，含义：用于表示X坐标、1。
-                    double x1 = dx * cosYaw - dz * sinYaw;
+                    double x1 = dx * cosYaw - dz * sinYaw; // meaning
                     // 中文标注（局部变量）：`z1`，含义：用于表示Z坐标、1。
-                    double z1 = dx * sinYaw + dz * cosYaw;
+                    double z1 = dx * sinYaw + dz * cosYaw; // meaning
 
                     // 中文标注（局部变量）：`y2`，含义：用于表示Y坐标、2。
-                    double y2 = dy * cosPitch - z1 * sinPitch;
+                    double y2 = dy * cosPitch - z1 * sinPitch; // meaning
                     // 中文标注（局部变量）：`z2`，含义：用于表示Z坐标、2。
-                    double z2 = dy * sinPitch + z1 * cosPitch;
+                    double z2 = dy * sinPitch + z1 * cosPitch; // meaning
 
                     // 中文标注（局部变量）：`mask`，含义：用于表示掩码。
-                    int mask = 0;
+                    int mask = 0; // meaning
                     if (x1 + z2 * tanHalfHorizontalFov < 0.0) {
                         mask |= OUT_LEFT;
                     }
@@ -306,30 +306,30 @@ public final class Frustum {
     // 中文标注（参数）：`worldZ`，含义：用于表示世界、Z坐标。
     private boolean isPointVisibleNoRadius(double worldX, double worldY, double worldZ) {
         // 中文标注（局部变量）：`dx`，含义：用于表示dx。
-        double dx = worldX - cameraX;
+        double dx = worldX - cameraX; // meaning
         // 中文标注（局部变量）：`dy`，含义：用于表示dy。
-        double dy = worldY - cameraY;
+        double dy = worldY - cameraY; // meaning
         // 中文标注（局部变量）：`dz`，含义：用于表示dz。
-        double dz = worldZ - cameraZ;
+        double dz = worldZ - cameraZ; // meaning
 
         // 中文标注（局部变量）：`x1`，含义：用于表示X坐标、1。
-        double x1 = dx * cosYaw - dz * sinYaw;
+        double x1 = dx * cosYaw - dz * sinYaw; // meaning
         // 中文标注（局部变量）：`z1`，含义：用于表示Z坐标、1。
-        double z1 = dx * sinYaw + dz * cosYaw;
+        double z1 = dx * sinYaw + dz * cosYaw; // meaning
 
         // 中文标注（局部变量）：`y2`，含义：用于表示Y坐标、2。
-        double y2 = dy * cosPitch - z1 * sinPitch;
+        double y2 = dy * cosPitch - z1 * sinPitch; // meaning
         // 中文标注（局部变量）：`z2`，含义：用于表示Z坐标、2。
-        double z2 = dy * sinPitch + z1 * cosPitch;
+        double z2 = dy * sinPitch + z1 * cosPitch; // meaning
 
         if (z2 < nearPlane || z2 > farPlane) {
             return false;
         }
 
         // 中文标注（局部变量）：`horizontalLimit`，含义：用于表示水平、limit。
-        double horizontalLimit = z2 * tanHalfHorizontalFov;
+        double horizontalLimit = z2 * tanHalfHorizontalFov; // meaning
         // 中文标注（局部变量）：`verticalLimit`，含义：用于表示垂直、limit。
-        double verticalLimit = z2 * tanHalfVerticalFov;
+        double verticalLimit = z2 * tanHalfVerticalFov; // meaning
         return Math.abs(x1) <= horizontalLimit
             && Math.abs(y2) <= verticalLimit;
     }
@@ -342,11 +342,11 @@ public final class Frustum {
     // 中文标注（类）：`CameraPoint`，职责：封装相机、point相关逻辑。
     public static final class CameraPoint {
         // 中文标注（字段）：`x`，含义：用于表示X坐标。
-        public double x;
+        public double x; // meaning
         // 中文标注（字段）：`y`，含义：用于表示Y坐标。
-        public double y;
+        public double y; // meaning
         // 中文标注（字段）：`z`，含义：用于表示Z坐标。
-        public double z;
+        public double z; // meaning
 
         // 中文标注（构造方法）：`CameraPoint`，参数：无；用途：初始化`CameraPoint`实例。
         public CameraPoint() {
@@ -389,7 +389,7 @@ public final class Frustum {
     }
 
     public record AabbVisibilityResult(boolean visible, int rejectPlaneIndex, int rejectMask) {
-        private static final AabbVisibilityResult VISIBLE = new AabbVisibilityResult(true, -1, 0);
+        private static final AabbVisibilityResult VISIBLE = new AabbVisibilityResult(true, -1, 0); // meaning
 
         private static AabbVisibilityResult visibleResult() {
             return VISIBLE;

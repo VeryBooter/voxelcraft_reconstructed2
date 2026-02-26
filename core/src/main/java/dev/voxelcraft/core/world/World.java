@@ -15,22 +15,22 @@ import java.util.concurrent.atomic.AtomicLong;
 // 中文标注（类）：`World`，职责：封装世界相关逻辑。
 public final class World {
     // 中文标注（字段）：`MIN_Y`，含义：用于表示最小、Y坐标。
-    public static final int MIN_Y = -2048;
+    public static final int MIN_Y = -2048; // meaning
     // 中文标注（字段）：`MAX_Y`，含义：用于表示最大、Y坐标。
-    public static final int MAX_Y = 319;
+    public static final int MAX_Y = 319; // meaning
     // 中文标注（字段）：`DEFAULT_SOLID_BELOW_Y`，含义：用于表示默认、实体、below、Y坐标。
-    public static final int DEFAULT_SOLID_BELOW_Y = -16;
+    public static final int DEFAULT_SOLID_BELOW_Y = -16; // meaning
 
     // 中文标注（字段）：`chunkManager`，含义：用于表示区块、管理器。
-    private final ChunkManager chunkManager = new ChunkManager();
+    private final ChunkManager chunkManager = new ChunkManager(); // meaning
     // 中文标注（字段）：`worldGenerator`，含义：用于表示世界、生成器。
-    private final WorldGenerator worldGenerator;
+    private final WorldGenerator worldGenerator; // meaning
     // 中文标注（字段）：`seed`，含义：用于表示seed。
-    private final long seed;
+    private final long seed; // meaning
     // 中文标注（字段）：`ticks`，含义：用于表示ticks。
-    private long ticks;
+    private long ticks; // meaning
     // 中文标注（字段）：`blockUpdateVersion`，含义：用于表示方块、更新、版本。
-    private final AtomicLong blockUpdateVersion = new AtomicLong();
+    private final AtomicLong blockUpdateVersion = new AtomicLong(); // meaning
 
     // 中文标注（构造方法）：`World`，参数：无；用途：初始化`World`实例。
     public World() {
@@ -48,9 +48,9 @@ public final class World {
         this.seed = seed;
         this.worldGenerator = Objects.requireNonNull(generator, "generator");
         // 中文标注（局部变量）：`chunkX`，含义：用于表示区块、X坐标。
-        for (int chunkX = -2; chunkX <= 2; chunkX++) {
+        for (int chunkX = -2; chunkX <= 2; chunkX++) { // meaning
             // 中文标注（局部变量）：`chunkZ`，含义：用于表示区块、Z坐标。
-            for (int chunkZ = -2; chunkZ <= 2; chunkZ++) {
+            for (int chunkZ = -2; chunkZ <= 2; chunkZ++) { // meaning
                 ensureChunkGenerated(chunkX, chunkZ);
             }
         }
@@ -99,9 +99,9 @@ public final class World {
         );
 
         // 中文标注（局部变量）：`localX`，含义：用于表示局部、X坐标。
-        int localX = Math.floorMod(x, Section.SIZE);
+        int localX = Math.floorMod(x, Section.SIZE); // meaning
         // 中文标注（局部变量）：`localZ`，含义：用于表示局部、Z坐标。
-        int localZ = Math.floorMod(z, Section.SIZE);
+        int localZ = Math.floorMod(z, Section.SIZE); // meaning
         return chunk.getBlock(localX, y, localZ);
     }
 
@@ -122,19 +122,19 @@ public final class World {
         }
 
         // 中文标注（局部变量）：`chunkX`，含义：用于表示区块、X坐标。
-        int chunkX = Math.floorDiv(x, Section.SIZE);
+        int chunkX = Math.floorDiv(x, Section.SIZE); // meaning
         // 中文标注（局部变量）：`chunkZ`，含义：用于表示区块、Z坐标。
-        int chunkZ = Math.floorDiv(z, Section.SIZE);
+        int chunkZ = Math.floorDiv(z, Section.SIZE); // meaning
         // 中文标注（局部变量）：`chunk`，含义：用于表示区块。
-        Chunk chunk = chunkManager.getChunk(chunkX, chunkZ);
+        Chunk chunk = chunkManager.getChunk(chunkX, chunkZ); // meaning
         if (chunk == null) {
             return Blocks.AIR;
         }
 
         // 中文标注（局部变量）：`localX`，含义：用于表示局部、X坐标。
-        int localX = Math.floorMod(x, Section.SIZE);
+        int localX = Math.floorMod(x, Section.SIZE); // meaning
         // 中文标注（局部变量）：`localZ`，含义：用于表示局部、Z坐标。
-        int localZ = Math.floorMod(z, Section.SIZE);
+        int localZ = Math.floorMod(z, Section.SIZE); // meaning
         return chunk.getBlock(localX, y, localZ);
     }
 
@@ -158,18 +158,18 @@ public final class World {
             return false;
         }
         // 中文标注（局部变量）：`chunkX`，含义：用于表示区块、X坐标。
-        int chunkX = Math.floorDiv(x, Section.SIZE);
+        int chunkX = Math.floorDiv(x, Section.SIZE); // meaning
         // 中文标注（局部变量）：`chunkZ`，含义：用于表示区块、Z坐标。
-        int chunkZ = Math.floorDiv(z, Section.SIZE);
+        int chunkZ = Math.floorDiv(z, Section.SIZE); // meaning
         // 中文标注（局部变量）：`chunk`，含义：用于表示区块。
         Chunk chunk = ensureChunkGenerated(
             chunkX,
             chunkZ
         );
         // 中文标注（局部变量）：`localX`，含义：用于表示局部、X坐标。
-        int localX = Math.floorMod(x, Section.SIZE);
+        int localX = Math.floorMod(x, Section.SIZE); // meaning
         // 中文标注（局部变量）：`localZ`，含义：用于表示局部、Z坐标。
-        int localZ = Math.floorMod(z, Section.SIZE);
+        int localZ = Math.floorMod(z, Section.SIZE); // meaning
         if (chunk.getBlock(localX, y, localZ) == block) {
             return false;
         }
@@ -206,7 +206,7 @@ public final class World {
     // 中文标注（参数）：`chunkZ`，含义：用于表示区块、Z坐标。
     public Chunk generateChunkDetached(int chunkX, int chunkZ) {
         // 中文标注（局部变量）：`detached`，含义：用于表示detached。
-        Chunk detached = new Chunk(new ChunkPos(chunkX, chunkZ));
+        Chunk detached = new Chunk(new ChunkPos(chunkX, chunkZ)); // meaning
         worldGenerator.generate(detached);
         return detached;
     }
@@ -216,7 +216,7 @@ public final class World {
     public boolean installGeneratedChunkIfAbsent(Chunk chunk) {
         Objects.requireNonNull(chunk, "chunk");
         // 中文标注（局部变量）：`installed`，含义：用于表示installed。
-        Chunk installed = chunkManager.installChunkIfAbsent(chunk);
+        Chunk installed = chunkManager.installChunkIfAbsent(chunk); // meaning
         if (installed != chunk) {
             return false;
         }
@@ -229,16 +229,16 @@ public final class World {
     // 中文标注（参数）：`chunkZ`，含义：用于表示区块、Z坐标。
     private Chunk ensureChunkGenerated(int chunkX, int chunkZ) {
         // 中文标注（局部变量）：`existing`，含义：用于表示existing。
-        Chunk existing = chunkManager.getChunk(chunkX, chunkZ);
+        Chunk existing = chunkManager.getChunk(chunkX, chunkZ); // meaning
         if (existing != null) {
             return existing;
         }
         // 不要把“空 chunk”提前暴露到 chunkManager：先 detached 生成，再 install-if-absent。
         // 这样可避免半生成状态被读到，也避免竞态下把已安装 chunk 再次生成覆盖。
         // 中文标注（局部变量）：`generated`，含义：用于表示generated。
-        Chunk generated = generateChunkDetached(chunkX, chunkZ);
+        Chunk generated = generateChunkDetached(chunkX, chunkZ); // meaning
         // 中文标注（局部变量）：`installed`，含义：用于表示installed。
-        Chunk installed = chunkManager.installChunkIfAbsent(generated);
+        Chunk installed = chunkManager.installChunkIfAbsent(generated); // meaning
         if (installed == generated) {
             blockUpdateVersion.incrementAndGet();
         }

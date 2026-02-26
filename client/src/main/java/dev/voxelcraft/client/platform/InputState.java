@@ -7,32 +7,32 @@ package dev.voxelcraft.client.platform;
 // 中文标注（类）：`InputState`，职责：封装输入、状态相关逻辑。
 public final class InputState {
     // 中文标注（字段）：`KEY_CAPACITY`，含义：用于表示键、capacity。
-    private static final int KEY_CAPACITY = 1024;
+    private static final int KEY_CAPACITY = 1024; // meaning
     // 中文标注（字段）：`BUTTON_CAPACITY`，含义：用于表示button、capacity。
-    private static final int BUTTON_CAPACITY = 8;
+    private static final int BUTTON_CAPACITY = 8; // meaning
 
     // 中文标注（字段）：`keyDown`，含义：用于表示键、down。
-    private final boolean[] keyDown = new boolean[KEY_CAPACITY];
+    private final boolean[] keyDown = new boolean[KEY_CAPACITY]; // meaning
     // 中文标注（字段）：`keyPressed`，含义：用于表示键、pressed。
-    private final boolean[] keyPressed = new boolean[KEY_CAPACITY];
+    private final boolean[] keyPressed = new boolean[KEY_CAPACITY]; // meaning
     // 中文标注（字段）：`keyReleased`，含义：用于表示键、released。
-    private final boolean[] keyReleased = new boolean[KEY_CAPACITY];
+    private final boolean[] keyReleased = new boolean[KEY_CAPACITY]; // meaning
 
     // 中文标注（字段）：`mouseDown`，含义：用于表示鼠标、down。
-    private final boolean[] mouseDown = new boolean[BUTTON_CAPACITY];
+    private final boolean[] mouseDown = new boolean[BUTTON_CAPACITY]; // meaning
     // 中文标注（字段）：`mousePressed`，含义：用于表示鼠标、pressed。
-    private final boolean[] mousePressed = new boolean[BUTTON_CAPACITY];
+    private final boolean[] mousePressed = new boolean[BUTTON_CAPACITY]; // meaning
     // 中文标注（字段）：`mouseReleased`，含义：用于表示鼠标、released。
-    private final boolean[] mouseReleased = new boolean[BUTTON_CAPACITY];
+    private final boolean[] mouseReleased = new boolean[BUTTON_CAPACITY]; // meaning
 
     // 中文标注（字段）：`mouseX`，含义：用于表示鼠标、X坐标。
-    private int mouseX;
+    private int mouseX; // meaning
     // 中文标注（字段）：`mouseY`，含义：用于表示鼠标、Y坐标。
-    private int mouseY;
+    private int mouseY; // meaning
     // 中文标注（字段）：`mouseDeltaX`，含义：用于表示鼠标、增量、X坐标。
-    private int mouseDeltaX;
+    private int mouseDeltaX; // meaning
     // 中文标注（字段）：`mouseDeltaY`，含义：用于表示鼠标、增量、Y坐标。
-    private int mouseDeltaY;
+    private int mouseDeltaY; // meaning
 
     // 中文标注（方法）：`onKeyPressed`，参数：keyCode；用途：执行on、键、pressed相关逻辑。
     // 中文标注（参数）：`keyCode`，含义：用于表示键、code。
@@ -111,13 +111,13 @@ public final class InputState {
     // 中文标注（方法）：`clearAll`，参数：无；用途：执行clear、all相关逻辑。
     public synchronized void clearAll() {
         // 中文标注（局部变量）：`i`，含义：用于表示i。
-        for (int i = 0; i < KEY_CAPACITY; i++) {
+        for (int i = 0; i < KEY_CAPACITY; i++) { // meaning
             keyDown[i] = false;
             keyPressed[i] = false;
             keyReleased[i] = false;
         }
         // 中文标注（局部变量）：`i`，含义：用于表示i。
-        for (int i = 0; i < BUTTON_CAPACITY; i++) {
+        for (int i = 0; i < BUTTON_CAPACITY; i++) { // meaning
             mouseDown[i] = false;
             mousePressed[i] = false;
             mouseReleased[i] = false;
@@ -185,12 +185,12 @@ public final class InputState {
     // 中文标注（方法）：`endFrame`，参数：无；用途：执行结束、帧相关逻辑。
     public synchronized void endFrame() {
         // 中文标注（局部变量）：`i`，含义：用于表示i。
-        for (int i = 0; i < KEY_CAPACITY; i++) {
+        for (int i = 0; i < KEY_CAPACITY; i++) { // meaning
             keyPressed[i] = false;
             keyReleased[i] = false;
         }
         // 中文标注（局部变量）：`i`，含义：用于表示i。
-        for (int i = 0; i < BUTTON_CAPACITY; i++) {
+        for (int i = 0; i < BUTTON_CAPACITY; i++) { // meaning
             mousePressed[i] = false;
             mouseReleased[i] = false;
         }

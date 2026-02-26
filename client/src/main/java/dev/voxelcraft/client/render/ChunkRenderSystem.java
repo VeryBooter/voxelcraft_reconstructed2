@@ -20,6 +20,11 @@ public final class ChunkRenderSystem {
     public static final boolean USE_TEXTURE_ATLAS = false;
     // 中文标注（字段）：`DRAW_FACE_OUTLINES`，含义：用于表示绘制、面、outlines。
     private static final boolean DRAW_FACE_OUTLINES = false;
+    private static final boolean APPLY_AMBIENT_TO_BLOCKS = lightingFlagCompat(
+        "vc.lighting.applyAmbientToBlocks",
+        "voxelcraft.lighting.applyAmbientToBlocks",
+        true
+    );
     // 中文标注（字段）：`PROJECTED_FACE_DEPTH_DESC`，含义：用于表示projected、面、深度、desc。
     private static final Comparator<ProjectedFace> PROJECTED_FACE_DEPTH_DESC =
         Comparator.comparingDouble(ProjectedFace::averageDepth).reversed();
@@ -59,7 +64,14 @@ public final class ChunkRenderSystem {
     // 中文标注（参数）：`height`，含义：用于表示高度。
     // 中文标注（参数）：`worldView`，含义：用于表示世界、view。
     // 中文标注（参数）：`player`，含义：用于表示玩家。
-    public RenderStats draw(Graphics2D graphics, int width, int height, ClientWorldView worldView, PlayerController player) {
+    public RenderStats draw(
+        Graphics2D graphics,
+        int width,
+        int height,
+        ClientWorldView worldView,
+        PlayerController player,
+        float ambient
+    ) {
         updateCamera(player, width, height);
 
         // 中文标注（局部变量）：`mesh`，含义：用于表示网格。
@@ -99,12 +111,14 @@ public final class ChunkRenderSystem {
         projectedFacesScratch.sort(PROJECTED_FACE_DEPTH_DESC);
 
         graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_OFF);
+        float blockAmbient = APPLY_AMBIENT_TO_BLOCKS ? ambient : 1.0f;
         // 中文标注（局部变量）：`projectedFace`，含义：用于表示projected、面。
         for (ProjectedFace projectedFace : projectedFacesScratch) {
-            graphics.setColor(projectedFace.color());
+            Color fillColor = blockAmbient == 1.0f ? projectedFace.color() : shade(projectedFace.color(), blockAmbient);
+            graphics.setColor(fillColor);
             graphics.fillPolygon(projectedFace.xPoints(), projectedFace.yPoints(), 4);
             if (DRAW_FACE_OUTLINES) {
-                graphics.setColor(shade(projectedFace.color(), 0.72f));
+                graphics.setColor(shade(fillColor, 0.72f));
                 graphics.drawPolygon(projectedFace.xPoints(), projectedFace.yPoints(), 4);
             }
         }
@@ -307,6 +321,24 @@ public final class ChunkRenderSystem {
     // 中文标注（参数）：`value`，含义：用于表示值。
     private static int clamp(int value) {
         return Math.max(0, Math.min(255, value));
+    }
+
+    private static boolean lightingFlagCompat(String key, String legacyKey, boolean defaultValue) {
+        String raw = System.getProperty(key);
+        if (raw == null) {
+            raw = System.getProperty(legacyKey);
+        }
+        if (raw == null) {
+            return defaultValue;
+        }
+        String normalized = raw.trim().toLowerCase();
+        if (normalized.equals("1") || normalized.equals("true") || normalized.equals("yes") || normalized.equals("on")) {
+            return true;
+        }
+        if (normalized.equals("0") || normalized.equals("false") || normalized.equals("no") || normalized.equals("off")) {
+            return false;
+        }
+        return defaultValue;
     }
 
     // 中文标注（记录类）：`RenderStats`，职责：封装渲染、stats相关逻辑。

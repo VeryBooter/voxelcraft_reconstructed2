@@ -168,7 +168,7 @@ public final class GameClient implements AutoCloseable {
         drawBackground(graphics, width, height);
 
         // 中文标注（局部变量）：`stats`，含义：用于表示stats。
-        RenderStats stats = renderSystem.draw(graphics, width, height, worldView, playerController);
+        RenderStats stats = renderSystem.draw(graphics, width, height, worldView, playerController, ambientLight());
         if (targetedBlock != null) {
             renderSystem.drawSelectionBox(graphics, width, height, playerController, targetedBlock.targetBlock());
         }
@@ -206,6 +206,14 @@ public final class GameClient implements AutoCloseable {
     // 中文标注（方法）：`selectedBlock`，参数：无；用途：执行selected、方块相关逻辑。
     public Block selectedBlock() {
         return selectedBlock;
+    }
+
+    public int selectedHotbarSlot() {
+        return selectedHotbarSlot;
+    }
+
+    public int hotbarSlotCount() {
+        return hotbarBlocks.length;
     }
 
     // 中文标注（方法）：`lastEnsureLocalChunksNanos`，参数：无；用途：执行last、ensure、局部、区块集合、nanos相关逻辑。

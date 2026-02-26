@@ -37,6 +37,7 @@ import org.lwjgl.opengl.ARBMultiDrawIndirect;
 import org.lwjgl.opengl.GL43;
 
 import static org.lwjgl.opengl.GL11.GL_BACK;
+import static org.lwjgl.opengl.GL11.GL_BLEND;
 import static org.lwjgl.opengl.GL11.GL_COLOR_ARRAY;
 import static org.lwjgl.opengl.GL11.GL_COLOR_BUFFER_BIT;
 import static org.lwjgl.opengl.GL11.GL_CULL_FACE;
@@ -45,16 +46,25 @@ import static org.lwjgl.opengl.GL11.GL_DEPTH_BUFFER_BIT;
 import static org.lwjgl.opengl.GL11.GL_DEPTH_TEST;
 import static org.lwjgl.opengl.GL11.GL_FLOAT;
 import static org.lwjgl.opengl.GL11.GL_CCW;
+import static org.lwjgl.opengl.GL11.GL_LINES;
 import static org.lwjgl.opengl.GL11.GL_MODELVIEW;
+import static org.lwjgl.opengl.GL11.GL_ONE_MINUS_SRC_ALPHA;
 import static org.lwjgl.opengl.GL11.GL_PROJECTION;
+import static org.lwjgl.opengl.GL11.GL_QUADS;
+import static org.lwjgl.opengl.GL11.GL_SRC_ALPHA;
+import static org.lwjgl.opengl.GL11.GL_TEXTURE_2D;
 import static org.lwjgl.opengl.GL11.GL_TRIANGLES;
 import static org.lwjgl.opengl.GL11.GL_UNSIGNED_BYTE;
 import static org.lwjgl.opengl.GL11.GL_UNSIGNED_INT;
 import static org.lwjgl.opengl.GL11.GL_VERTEX_ARRAY;
+import static org.lwjgl.opengl.GL11.glBegin;
+import static org.lwjgl.opengl.GL11.glBlendFunc;
 import static org.lwjgl.opengl.GL11.glClear;
 import static org.lwjgl.opengl.GL11.glClearColor;
+import static org.lwjgl.opengl.GL11.glColor4f;
 import static org.lwjgl.opengl.GL11.glColorPointer;
 import static org.lwjgl.opengl.GL11.glCullFace;
+import static org.lwjgl.opengl.GL11.glEnd;
 import static org.lwjgl.opengl.GL11.glFrontFace;
 import static org.lwjgl.opengl.GL11.glDisableClientState;
 import static org.lwjgl.opengl.GL11.glDrawElements;
@@ -63,16 +73,19 @@ import static org.lwjgl.opengl.GL11.glEnableClientState;
 import static org.lwjgl.opengl.GL11.glFrustum;
 import static org.lwjgl.opengl.GL11.glLoadIdentity;
 import static org.lwjgl.opengl.GL11.glMatrixMode;
+import static org.lwjgl.opengl.GL11.glOrtho;
 import static org.lwjgl.opengl.GL11.glPopMatrix;
 import static org.lwjgl.opengl.GL11.glPushMatrix;
 import static org.lwjgl.opengl.GL11.glRotatef;
 import static org.lwjgl.opengl.GL11.glScaled;
 import static org.lwjgl.opengl.GL11.glTranslated;
+import static org.lwjgl.opengl.GL11.glVertex2f;
 import static org.lwjgl.opengl.GL11.glVertexPointer;
 import static org.lwjgl.opengl.GL11.glViewport;
 import static org.lwjgl.opengl.GL11.glColorMask;
 import static org.lwjgl.opengl.GL11.glDepthMask;
 import static org.lwjgl.opengl.GL11.glDisable;
+import static org.lwjgl.opengl.GL11.glLineWidth;
 import static org.lwjgl.opengl.GL15.GL_ARRAY_BUFFER;
 import static org.lwjgl.opengl.GL15.GL_ELEMENT_ARRAY_BUFFER;
 import static org.lwjgl.opengl.GL15.GL_DYNAMIC_DRAW;
@@ -391,6 +404,9 @@ public final class GpuChunkRenderer implements AutoCloseable {
 
         prepareFrameGlState(safeWidth, safeHeight, ambient);
         try {
+            if (features.hud()) {
+                renderHudBackgroundOverlay(safeWidth, safeHeight, ambient);
+            }
             configurePlayerCameraAndFrustum(player, safeWidth, safeHeight);
 
             // 中文标注（局部变量）：`frameSet`，含义：用于表示帧、集合。
@@ -410,6 +426,9 @@ public final class GpuChunkRenderer implements AutoCloseable {
             long drawLoopStarted = System.nanoTime();
             // 中文标注（局部变量）：`frameStats`，含义：用于表示帧、stats。
             FrameStats frameStats = renderVisibleChunks(frameSet.chunks(), ambient, player);
+            if (features.hud()) {
+                renderHudForegroundOverlay(safeWidth, safeHeight, gameClient);
+            }
             lastDrawLoopNanos = System.nanoTime() - drawLoopStarted;
             // 中文标注（局部变量）：`renderCpuNanos`，含义：用于表示渲染、CPU、nanos。
             long renderCpuNanos = System.nanoTime() - renderStarted;
@@ -417,9 +436,10 @@ public final class GpuChunkRenderer implements AutoCloseable {
             updateAdaptiveBudgets(renderCpuNanos);
             emitPerfLine(frameStats, frameSet.chunks().size());
 
-            // 中文标注（局部变量）：`approxFaces`，含义：用于表示approx、面集合。
-            int approxFaces = frameStats.totalTriangles / 2;
-            return new RenderStats(approxFaces, frameStats.visibleChunks, approxFaces);
+            int totalFaces = frameStats.totalCandidateTriangles() / 2;
+            int frustumFaces = frameStats.frustumCandidateTriangles() / 2;
+            int drawnFaces = frameStats.totalTriangles() / 2;
+            return new RenderStats(totalFaces, frustumFaces, drawnFaces);
         } finally {
             glFrontFace(GL_CCW);
         }
@@ -466,6 +486,147 @@ public final class GpuChunkRenderer implements AutoCloseable {
             NEAR_PLANE,
             FAR_PLANE
         );
+    }
+
+    private void renderHudBackgroundOverlay(int width, int height, float ambient) {
+        beginScreenSpaceOverlay(width, height);
+        try {
+            float skyTopR = colorComponent(94, ambient);
+            float skyTopG = colorComponent(170, ambient);
+            float skyTopB = colorComponent(240, ambient);
+            float skyBottomR = colorComponent(178, ambient);
+            float skyBottomG = colorComponent(225, ambient);
+            float skyBottomB = colorComponent(255, ambient);
+
+            glBegin(GL_QUADS);
+            glColor4f(skyTopR, skyTopG, skyTopB, 1.0f);
+            glVertex2f(0.0f, 0.0f);
+            glVertex2f((float) width, 0.0f);
+            glColor4f(skyBottomR, skyBottomG, skyBottomB, 1.0f);
+            glVertex2f((float) width, (float) height);
+            glVertex2f(0.0f, (float) height);
+            glEnd();
+
+            int horizonY = (int) (height * 0.72);
+            float horizonAmbient = ambient * 0.85f;
+            glColor4f(
+                colorComponent(84, horizonAmbient),
+                colorComponent(140, horizonAmbient),
+                colorComponent(72, horizonAmbient),
+                1.0f
+            );
+            glBegin(GL_QUADS);
+            glVertex2f(0.0f, (float) horizonY);
+            glVertex2f((float) width, (float) horizonY);
+            glVertex2f((float) width, (float) height);
+            glVertex2f(0.0f, (float) height);
+            glEnd();
+        } finally {
+            endScreenSpaceOverlay();
+        }
+    }
+
+    private void renderHudForegroundOverlay(int width, int height, GameClient gameClient) {
+        beginScreenSpaceOverlay(width, height);
+        try {
+            drawOverlayCrosshair(width, height);
+            drawOverlayHotbar(width, height, gameClient.hotbarSlotCount(), gameClient.selectedHotbarSlot());
+        } finally {
+            endScreenSpaceOverlay();
+        }
+    }
+
+    private void beginScreenSpaceOverlay(int width, int height) {
+        glDisable(GL_DEPTH_TEST);
+        glDepthMask(false);
+        glDisable(GL_CULL_FACE);
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        glDisable(GL_TEXTURE_2D);
+
+        glMatrixMode(GL_PROJECTION);
+        glPushMatrix();
+        glLoadIdentity();
+        glOrtho(0.0, width, height, 0.0, -1.0, 1.0);
+        glMatrixMode(GL_MODELVIEW);
+        glPushMatrix();
+        glLoadIdentity();
+    }
+
+    private void endScreenSpaceOverlay() {
+        glMatrixMode(GL_MODELVIEW);
+        glPopMatrix();
+        glMatrixMode(GL_PROJECTION);
+        glPopMatrix();
+        glMatrixMode(GL_MODELVIEW);
+
+        glDisable(GL_BLEND);
+        glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
+        glLineWidth(1.0f);
+        glDepthMask(true);
+        glEnable(GL_DEPTH_TEST);
+        if (!features.disableFaceCulling()) {
+            glEnable(GL_CULL_FACE);
+        }
+    }
+
+    private void drawOverlayCrosshair(int width, int height) {
+        float cx = width * 0.5f;
+        float cy = height * 0.5f;
+        glColor4f(1.0f, 1.0f, 1.0f, 230.0f / 255.0f);
+        glLineWidth(1.0f);
+        glBegin(GL_LINES);
+        glVertex2f(cx - 8.0f, cy);
+        glVertex2f(cx + 8.0f, cy);
+        glVertex2f(cx, cy - 8.0f);
+        glVertex2f(cx, cy + 8.0f);
+        glEnd();
+    }
+
+    private void drawOverlayHotbar(int width, int height, int slots, int selectedSlot) {
+        int slotSize = 54;
+        int gap = 9;
+        int totalWidth = slots * slotSize + Math.max(0, slots - 1) * gap;
+        int left = (width - totalWidth) / 2;
+        int top = height - slotSize - 26;
+
+        for (int slot = 0; slot < slots; slot++) {
+            int slotX = left + slot * (slotSize + gap);
+            boolean selected = slot == selectedSlot;
+
+            if (selected) {
+                glColor4f(1.0f, 1.0f, 1.0f, 215.0f / 255.0f);
+            } else {
+                glColor4f(20.0f / 255.0f, 24.0f / 255.0f, 28.0f / 255.0f, 170.0f / 255.0f);
+            }
+            glBegin(GL_QUADS);
+            glVertex2f(slotX, top);
+            glVertex2f(slotX + slotSize, top);
+            glVertex2f(slotX + slotSize, top + slotSize);
+            glVertex2f(slotX, top + slotSize);
+            glEnd();
+
+            if (selected) {
+                glColor4f(20.0f / 255.0f, 24.0f / 255.0f, 28.0f / 255.0f, 220.0f / 255.0f);
+            } else {
+                glColor4f(235.0f / 255.0f, 235.0f / 255.0f, 235.0f / 255.0f, 180.0f / 255.0f);
+            }
+            glLineWidth(1.0f);
+            glBegin(GL_LINES);
+            glVertex2f(slotX, top);
+            glVertex2f(slotX + slotSize, top);
+            glVertex2f(slotX + slotSize, top);
+            glVertex2f(slotX + slotSize, top + slotSize);
+            glVertex2f(slotX + slotSize, top + slotSize);
+            glVertex2f(slotX, top + slotSize);
+            glVertex2f(slotX, top + slotSize);
+            glVertex2f(slotX, top);
+            glEnd();
+        }
+    }
+
+    private static float colorComponent(int value, float multiplier) {
+        return Math.max(0.0f, Math.min(255.0f, value * multiplier)) / 255.0f;
     }
 
     // 中文标注（方法）：`close`，参数：无；用途：执行close相关逻辑。
@@ -976,7 +1137,7 @@ public final class GpuChunkRenderer implements AutoCloseable {
         scratchMdiChunks.clear();
 
         GL20.glUseProgram(ambientShaderProgramId);
-        GL20.glUniform1f(ambientUniformLocation, ambient);
+        GL20.glUniform1f(ambientUniformLocation, features.applyAmbientToBlocks() ? ambient : 1.0f);
         pass.stateChanges += 2;
 
         glEnableClientState(GL_VERTEX_ARRAY);
@@ -989,10 +1150,12 @@ public final class GpuChunkRenderer implements AutoCloseable {
         if (gpuChunk == null || !gpuChunk.valid || gpuChunk.indexCount <= 0) {
             return;
         }
+        pass.totalCandidateTriangles += gpuChunk.triangleCount;
 
         if (!isGpuChunkFrustumVisible(pass, gpuChunk)) {
             return;
         }
+        pass.frustumCandidateTriangles += gpuChunk.triangleCount;
 
         pollGpuChunkOcclusionIfNeeded(pass, gpuChunk);
         if (!shouldDrawChunkAfterOcclusion(pass, gpuChunk)) {
@@ -2096,7 +2259,15 @@ public final class GpuChunkRenderer implements AutoCloseable {
     // 中文标注（字段）：`lodVisibleChunks`，含义：用于表示细节层级、visible、区块集合。
     // 中文标注（字段）：`totalTriangles`，含义：用于表示total、triangles。
     // 中文标注（字段）：`stateChanges`，含义：用于表示状态、changes。
-    private record FrameStats(int drawCalls, int visibleChunks, int lodVisibleChunks, int totalTriangles, int stateChanges) {
+    private record FrameStats(
+        int drawCalls,
+        int visibleChunks,
+        int lodVisibleChunks,
+        int totalTriangles,
+        int stateChanges,
+        int totalCandidateTriangles,
+        int frustumCandidateTriangles
+    ) {
     }
 
     private record UploadValidationContext(
@@ -2119,6 +2290,8 @@ public final class GpuChunkRenderer implements AutoCloseable {
         private int visibleChunks;
         private int lodVisibleChunks;
         private int totalTriangles;
+        private int totalCandidateTriangles;
+        private int frustumCandidateTriangles;
         private int stateChanges = 4; // enable/disable client states (vertex+color)
         private int boundArrayBuffer;
         private int boundElementBuffer;
@@ -2154,7 +2327,15 @@ public final class GpuChunkRenderer implements AutoCloseable {
         }
 
         private FrameStats toFrameStats() {
-            return new FrameStats(drawCalls, visibleChunks, lodVisibleChunks, totalTriangles, stateChanges);
+            return new FrameStats(
+                drawCalls,
+                visibleChunks,
+                lodVisibleChunks,
+                totalTriangles,
+                stateChanges,
+                totalCandidateTriangles,
+                frustumCandidateTriangles
+            );
         }
     }
 
@@ -2235,6 +2416,10 @@ public final class GpuChunkRenderer implements AutoCloseable {
         boolean disableChunkOcclusionCull,
         // 中文标注（字段）：`disableFaceCulling`，含义：用于表示disable、face、culling。
         boolean disableFaceCulling,
+        // 中文标注（字段）：`hud`，含义：用于表示hud。
+        boolean hud,
+        // 中文标注（字段）：`applyAmbientToBlocks`，含义：用于表示apply、ambient、to、blocks。
+        boolean applyAmbientToBlocks,
         // 中文标注（字段）：`lod`，含义：用于表示细节层级。
         boolean lod,
         // 中文标注（字段）：`lodStartChunkDistance`，含义：用于表示细节层级、开始、区块、distance。
@@ -2290,6 +2475,12 @@ public final class GpuChunkRenderer implements AutoCloseable {
             ResolvedBoolean disableChunkFrustumCull = flagCompat("vc.gpu.disableChunkFrustumCull", "voxelcraft.gpu.disableChunkFrustumCull", false);
             ResolvedBoolean disableChunkOcclusionCull = flagCompat("vc.gpu.disableChunkOcclusionCull", "voxelcraft.gpu.disableChunkOcclusionCull", false);
             ResolvedBoolean disableFaceCulling = flagCompat("vc.gpu.disableFaceCulling", "voxelcraft.gpu.disableFaceCulling", false);
+            ResolvedBoolean hud = flagCompat("vc.gpu.hud", "voxelcraft.gpu.hud", true);
+            ResolvedBoolean applyAmbientToBlocks = flagCompat(
+                "vc.lighting.applyAmbientToBlocks",
+                "voxelcraft.lighting.applyAmbientToBlocks",
+                true
+            );
             // 中文标注（局部变量）：`lod`，含义：用于表示细节层级。
             ResolvedBoolean lod = flagCompat("vc.gpu.lod", "voxelcraft.gpu.lod", false);
             // 中文标注（局部变量）：`lodStartChunkDistance`，含义：用于表示细节层级、开始、区块、distance。
@@ -2326,6 +2517,8 @@ public final class GpuChunkRenderer implements AutoCloseable {
                 disableChunkFrustumCull.value(),
                 disableChunkOcclusionCull.value(),
                 disableFaceCulling.value(),
+                hud.value(),
+                applyAmbientToBlocks.value(),
                 lod.value(),
                 lodStartChunkDistance,
                 lodHysteresisChunks,

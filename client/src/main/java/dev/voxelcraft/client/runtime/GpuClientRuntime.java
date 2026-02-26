@@ -220,10 +220,24 @@ public final class GpuClientRuntime implements AutoCloseable {
 
             frames++;
             if (now - fpsWindowStart >= 1_000_000_000L) {
+                var player = gameClient.playerController();
                 glfwSetWindowTitle(
                     windowHandle,
                     title + " | GPU FPS " + frames
-                        + " | faces " + stats.drawnFaces()
+                        + String.format(
+                            " | XYZ %.2f %.2f %.2f | Y/P %.1f %.1f",
+                            player.eyeX(),
+                            player.eyeY(),
+                            player.eyeZ(),
+                            player.yaw(),
+                            player.pitch()
+                        )
+                        + String.format(
+                            " | Faces t/f/d %d/%d/%d",
+                            stats.totalFaces(),
+                            stats.frustumCandidates(),
+                            stats.drawnFaces()
+                        )
                         + " | cg p/r/i "
                         + gameClient.pendingChunkGenerationCount() + "/"
                         + gameClient.readyGeneratedChunkCount() + "/"

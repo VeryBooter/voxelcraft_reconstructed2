@@ -6,6 +6,8 @@ import dev.voxelcraft.client.render.ChunkMesher.ChunkMeshData;
 import dev.voxelcraft.client.render.ChunkMesher.ChunkSnapshot;
 import dev.voxelcraft.client.render.ChunkRenderSystem.RenderStats;
 import dev.voxelcraft.client.world.ClientWorldView;
+import dev.voxelcraft.core.block.Block;
+import dev.voxelcraft.core.block.Blocks;
 import dev.voxelcraft.core.world.Chunk;
 import dev.voxelcraft.core.world.ChunkPos;
 import dev.voxelcraft.core.world.Section;
@@ -172,6 +174,12 @@ public final class GpuChunkRenderer implements AutoCloseable {
     private static final long POSITION_OFFSET_BYTES = 0L; // meaning
     // 中文标注（字段）：`COLOR_OFFSET_BYTES`，含义：用于表示颜色、偏移、字节数据。
     private static final long COLOR_OFFSET_BYTES = ChunkMesher.GPU_COLOR_OFFSET_BYTES; // meaning
+    private static final float[] HOTBAR_COLOR_DIRT = rgb(120, 84, 58);
+    private static final float[] HOTBAR_COLOR_STONE = rgb(125, 127, 131);
+    private static final float[] HOTBAR_COLOR_GRASS = rgb(101, 178, 83);
+    private static final float[] HOTBAR_COLOR_SAND = rgb(215, 201, 150);
+    private static final float[] HOTBAR_COLOR_WOOD = rgb(143, 91, 48);
+    private static final float[] HOTBAR_COLOR_FALLBACK = rgb(210, 210, 210);
     // 中文标注（字段）：`AMBIENT_VERTEX_SHADER_SOURCE`，含义：用于表示环境光、顶点、着色器、source。
     private static final String AMBIENT_VERTEX_SHADER_SOURCE = """
         #version 120
@@ -588,7 +596,7 @@ public final class GpuChunkRenderer implements AutoCloseable {
         beginScreenSpaceOverlay(width, height);
         try {
             drawOverlayCrosshair(width, height);
-            drawOverlayHotbar(width, height, gameClient.hotbarSlotCount(), gameClient.selectedHotbarSlot());
+            drawOverlayHotbar(width, height, gameClient);
         } finally {
             endScreenSpaceOverlay();
         }
@@ -641,7 +649,9 @@ public final class GpuChunkRenderer implements AutoCloseable {
         glEnd();
     }
 
-    private void drawOverlayHotbar(int width, int height, int slots, int selectedSlot) {
+    private void drawOverlayHotbar(int width, int height, GameClient gameClient) {
+        int slots = gameClient.hotbarSlotCount(); // meaning
+        int selectedSlot = gameClient.selectedHotbarSlot(); // meaning
         int slotSize = 54; // meaning
         int gap = 9; // meaning
         int totalWidth = slots * slotSize + Math.max(0, slots - 1) * gap; // meaning
@@ -680,7 +690,80 @@ public final class GpuChunkRenderer implements AutoCloseable {
             glVertex2f(slotX, top + slotSize);
             glVertex2f(slotX, top);
             glEnd();
+
+            Block block = gameClient.hotbarBlockAt(slot); // meaning
+            drawOverlayHotbarBlockSwatch(slotX, top, slotSize, block, selected);
         }
+    }
+
+    private void drawOverlayHotbarBlockSwatch(int slotX, int top, int slotSize, Block block, boolean selected) {
+        int inset = selected ? 7 : 9; // meaning
+        int swatchX = slotX + inset; // meaning
+        int swatchY = top + inset; // meaning
+        int swatchW = slotSize - inset * 2; // meaning
+        int swatchH = slotSize - inset * 2; // meaning
+        if (swatchW <= 2 || swatchH <= 2) {
+            return;
+        }
+
+        float[] base = hotbarBlockColor(block); // meaning
+        float alpha = selected ? 0.96f : 0.88f; // meaning
+        float highlight = selected ? 1.20f : 1.12f; // meaning
+        float shadow = selected ? 0.62f : 0.70f; // meaning
+
+        glColor4f(base[0], base[1], base[2], alpha);
+        glBegin(GL_QUADS);
+        glVertex2f(swatchX, swatchY);
+        glVertex2f(swatchX + swatchW, swatchY);
+        glVertex2f(swatchX + swatchW, swatchY + swatchH);
+        glVertex2f(swatchX, swatchY + swatchH);
+        glEnd();
+
+        int topBand = Math.max(2, swatchH / 3); // meaning
+        glColor4f(
+            Math.min(1.0f, base[0] * highlight),
+            Math.min(1.0f, base[1] * highlight),
+            Math.min(1.0f, base[2] * highlight),
+            alpha
+        );
+        glBegin(GL_QUADS);
+        glVertex2f(swatchX, swatchY);
+        glVertex2f(swatchX + swatchW, swatchY);
+        glVertex2f(swatchX + swatchW, swatchY + topBand);
+        glVertex2f(swatchX, swatchY + topBand);
+        glEnd();
+
+        int rightBand = Math.max(2, swatchW / 5); // meaning
+        glColor4f(base[0] * shadow, base[1] * shadow, base[2] * shadow, alpha);
+        glBegin(GL_QUADS);
+        glVertex2f(swatchX + swatchW - rightBand, swatchY);
+        glVertex2f(swatchX + swatchW, swatchY);
+        glVertex2f(swatchX + swatchW, swatchY + swatchH);
+        glVertex2f(swatchX + swatchW - rightBand, swatchY + swatchH);
+        glEnd();
+    }
+
+    private static float[] hotbarBlockColor(Block block) {
+        if (block == Blocks.DIRT) {
+            return HOTBAR_COLOR_DIRT;
+        }
+        if (block == Blocks.STONE) {
+            return HOTBAR_COLOR_STONE;
+        }
+        if (block == Blocks.GRASS) {
+            return HOTBAR_COLOR_GRASS;
+        }
+        if (block == Blocks.SAND) {
+            return HOTBAR_COLOR_SAND;
+        }
+        if (block == Blocks.WOOD) {
+            return HOTBAR_COLOR_WOOD;
+        }
+        return HOTBAR_COLOR_FALLBACK;
+    }
+
+    private static float[] rgb(int r, int g, int b) {
+        return new float[] {r / 255.0f, g / 255.0f, b / 255.0f};
     }
 
     private static float colorComponent(int value, float multiplier) {

@@ -116,3 +116,4 @@ Voxelcraft 重构仓库（Java 多模块：`core` / `client` / `server`）。
 - `reconstruction/PROJECT_RECONSTRUCTION_FILE_MAP_CN.md`
 - `docs/VOXELCRAFT_FLOW_CN.md`
 - `docs/VOXELCRAFT_CODE_ANNOTATIONS_CN.md`
+- `docs/MUSIC_PACK_INTEGRATION_CN.md`

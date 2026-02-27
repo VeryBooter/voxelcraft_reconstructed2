@@ -1,5 +1,6 @@
 package dev.voxelcraft.client;
 
+import dev.voxelcraft.client.audio.MusicDirector;
 import dev.voxelcraft.client.light.LightEngine;
 import dev.voxelcraft.client.network.NetworkClient;
 import dev.voxelcraft.client.physics.AABB;
@@ -61,6 +62,7 @@ public final class GameClient implements AutoCloseable {
     private ChunkRenderSystem renderSystem = new ChunkRenderSystem(); // meaning
     // 中文标注（字段）：`lightEngine`，含义：用于表示光照、engine。
     private LightEngine lightEngine = new LightEngine(); // meaning
+    private final MusicDirector musicDirector = MusicDirector.createDefault();
     // 中文标注（字段）：`hardwareStatsSampler`，含义：用于表示hardware、stats、sampler。
     private final HardwareStatsSampler hardwareStatsSampler = new HardwareStatsSampler(); // meaning
 
@@ -180,6 +182,7 @@ public final class GameClient implements AutoCloseable {
         }
 
         lightEngine.tick(worldView);
+        musicDirector.update(deltaSeconds, inWormhole, playerController.y(), lightEngine.ambient());
         game.tick();
     }
 
@@ -241,6 +244,13 @@ public final class GameClient implements AutoCloseable {
 
     public int hotbarSlotCount() {
         return hotbarBlocks.length;
+    }
+
+    public Block hotbarBlockAt(int slot) {
+        if (slot < 0 || slot >= hotbarBlocks.length) {
+            return Blocks.AIR;
+        }
+        return hotbarBlocks[slot];
     }
 
     // 中文标注（方法）：`lastEnsureLocalChunksNanos`，参数：无；用途：执行last、ensure、局部、区块集合、nanos相关逻辑。
@@ -321,6 +331,7 @@ public final class GameClient implements AutoCloseable {
             networkClient.close();
             networkClient = null;
         }
+        musicDirector.close();
         worldView.close();
     }
 
@@ -549,6 +560,7 @@ public final class GameClient implements AutoCloseable {
             BlockPos placePos = hit.placementBlock(); // meaning
             if (canPlaceBlock(placePos) && worldView.setBlock(placePos, selectedBlock)) {
                 sendNetworkBlockUpdate(placePos, selectedBlock);
+                musicDirector.triggerStinger("craft_success");
             }
         }
 

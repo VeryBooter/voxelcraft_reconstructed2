@@ -1,5 +1,6 @@
 package dev.voxelcraft.client.render;
 
+import dev.voxelcraft.core.block.BlockDef;
 import java.awt.Color;
 import java.util.List;
 /**
@@ -47,7 +48,15 @@ public final class Mesh {
     // 中文标注（字段）：`v2`，含义：用于表示v、2。
     // 中文标注（字段）：`v3`，含义：用于表示v、3。
     // 中文标注（字段）：`color`，含义：用于表示颜色。
-    public record Face(Vec3 v0, Vec3 v1, Vec3 v2, Vec3 v3, Color color) {
+    public record Face(
+        Vec3 v0,
+        Vec3 v1,
+        Vec3 v2,
+        Vec3 v3,
+        Color color,
+        BlockDef.RenderBucket renderBucket,
+        boolean needsSorting
+    ) {
         // 中文标注（方法）：`minX`，参数：无；用途：执行最小、X坐标相关逻辑。
         public double minX() {
             return Math.min(Math.min(v0.x(), v1.x()), Math.min(v2.x(), v3.x()));

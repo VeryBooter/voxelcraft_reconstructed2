@@ -4,47 +4,56 @@ import dev.voxelcraft.core.state.BlockState;
 import dev.voxelcraft.core.util.ResourceLocation;
 import java.util.Map;
 import java.util.Objects;
-/**
- * 中文说明：方块模块组件：定义 Block 的方块数据、注册或默认集合。
- */
 
-// 中文标注（类）：`Block`，职责：封装方块相关逻辑。
 public class Block {
-    // 中文标注（字段）：`id`，含义：用于表示标识。
-    private final ResourceLocation id; // meaning
-    // 中文标注（字段）：`solid`，含义：用于表示实体。
-    private final boolean solid; // meaning
-    // 中文标注（字段）：`defaultState`，含义：用于表示默认、状态。
-    private final BlockState defaultState; // meaning
+    private final ResourceLocation id;
+    private final boolean solid;
+    private final BlockState defaultState;
+    private final BlockId blockId;
+    private final BlockDef def;
 
-    // 中文标注（构造方法）：`Block`，参数：id、solid；用途：初始化`Block`实例。
-    // 中文标注（参数）：`id`，含义：用于表示标识。
-    // 中文标注（参数）：`solid`，含义：用于表示实体。
     public Block(String id, boolean solid) {
-        this(ResourceLocation.of(id), solid);
+        this(ResourceLocation.of(id), solid, BlockId.ofUnsigned(0), null);
     }
 
-    // 中文标注（构造方法）：`Block`，参数：id、solid；用途：初始化`Block`实例。
-    // 中文标注（参数）：`id`，含义：用于表示标识。
-    // 中文标注（参数）：`solid`，含义：用于表示实体。
     public Block(ResourceLocation id, boolean solid) {
+        this(id, solid, BlockId.ofUnsigned(0), null);
+    }
+
+    public Block(ResourceLocation id, boolean solid, BlockId blockId, BlockDef def) {
         this.id = Objects.requireNonNull(id, "id");
         this.solid = solid;
+        this.blockId = Objects.requireNonNull(blockId, "blockId");
+        this.def = def;
         this.defaultState = new BlockState(this, Map.of());
     }
 
-    // 中文标注（方法）：`id`，参数：无；用途：执行标识相关逻辑。
+    public Block(ResourceLocation id, BlockDef def) {
+        this(
+            id,
+            def != null && def.isSolidForCollision(),
+            def == null ? BlockId.ofUnsigned(0) : def.id(),
+            def
+        );
+    }
+
     public ResourceLocation id() {
         return id;
     }
 
-    // 中文标注（方法）：`solid`，参数：无；用途：执行实体相关逻辑。
     public boolean solid() {
         return solid;
     }
 
-    // 中文标注（方法）：`defaultState`，参数：无；用途：执行默认、状态相关逻辑。
     public BlockState defaultState() {
         return defaultState;
+    }
+
+    public BlockId blockId() {
+        return blockId;
+    }
+
+    public BlockDef def() {
+        return def;
     }
 }

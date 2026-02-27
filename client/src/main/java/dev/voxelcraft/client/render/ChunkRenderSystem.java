@@ -2,6 +2,7 @@ package dev.voxelcraft.client.render;
 
 import dev.voxelcraft.client.player.PlayerController;
 import dev.voxelcraft.client.world.ClientWorldView;
+import dev.voxelcraft.core.block.BlockDef;
 import dev.voxelcraft.core.world.BlockPos;
 import java.awt.BasicStroke;
 import java.awt.Color;
@@ -46,6 +47,9 @@ public final class ChunkRenderSystem {
     private final MutableScreenPoint screenPointScratch = new MutableScreenPoint(); // meaning
     // 中文标注（字段）：`projectedFacesScratch`，含义：用于表示projected、面集合、临时工作区。
     private final ArrayList<ProjectedFace> projectedFacesScratch = new ArrayList<>(); // meaning
+    private final ArrayList<ProjectedFace> projectedOpaqueScratch = new ArrayList<>();
+    private final ArrayList<ProjectedFace> projectedCutoutScratch = new ArrayList<>();
+    private final ArrayList<ProjectedFace> projectedTranslucentScratch = new ArrayList<>();
     // 中文标注（字段）：`projectedFacePool`，含义：用于表示projected、面、池。
     private final ArrayList<ProjectedFace> projectedFacePool = new ArrayList<>(); // meaning
     // 中文标注（字段）：`projectedFacePoolUsed`，含义：用于表示projected、面、池、used。
@@ -78,7 +82,13 @@ public final class ChunkRenderSystem {
         Mesh mesh = mesher.build(worldView, player.y()); // meaning
         projectedFacePoolUsed = 0;
         projectedFacesScratch.clear();
+        projectedOpaqueScratch.clear();
+        projectedCutoutScratch.clear();
+        projectedTranslucentScratch.clear();
         projectedFacesScratch.ensureCapacity(mesh.faceCount());
+        projectedOpaqueScratch.ensureCapacity(mesh.faceCount());
+        projectedCutoutScratch.ensureCapacity(mesh.faceCount());
+        projectedTranslucentScratch.ensureCapacity(mesh.faceCount());
 
         // 中文标注（局部变量）：`visibleCandidates`，含义：用于表示visible、candidates。
         int visibleCandidates = 0; // meaning
@@ -105,25 +115,26 @@ public final class ChunkRenderSystem {
                     continue;
                 }
                 projectedFacesScratch.add(projected);
+                switch (projected.renderBucket()) {
+                    case OPAQUE -> projectedOpaqueScratch.add(projected);
+                    case CUTOUT -> projectedCutoutScratch.add(projected);
+                    case TRANSLUCENT -> projectedTranslucentScratch.add(projected);
+                }
             }
         }
 
-        projectedFacesScratch.sort(PROJECTED_FACE_DEPTH_DESC);
+        projectedOpaqueScratch.sort(PROJECTED_FACE_DEPTH_DESC);
+        projectedCutoutScratch.sort(PROJECTED_FACE_DEPTH_DESC);
+        projectedTranslucentScratch.sort(PROJECTED_FACE_DEPTH_DESC);
 
         graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_OFF);
         float blockAmbient = APPLY_AMBIENT_TO_BLOCKS ? ambient : 1.0f; // meaning
-        // 中文标注（局部变量）：`projectedFace`，含义：用于表示projected、面。
-        for (ProjectedFace projectedFace : projectedFacesScratch) {
-            Color fillColor = blockAmbient == 1.0f ? projectedFace.color() : shade(projectedFace.color(), blockAmbient); // meaning
-            graphics.setColor(fillColor);
-            graphics.fillPolygon(projectedFace.xPoints(), projectedFace.yPoints(), 4);
-            if (DRAW_FACE_OUTLINES) {
-                graphics.setColor(shade(fillColor, 0.72f));
-                graphics.drawPolygon(projectedFace.xPoints(), projectedFace.yPoints(), 4);
-            }
-        }
+        drawProjectedFaces(graphics, projectedOpaqueScratch, blockAmbient);
+        drawProjectedFaces(graphics, projectedCutoutScratch, blockAmbient);
+        drawProjectedFaces(graphics, projectedTranslucentScratch, blockAmbient);
 
-        return new RenderStats(mesh.faceCount(), visibleCandidates, projectedFacesScratch.size());
+        int drawnFaces = projectedOpaqueScratch.size() + projectedCutoutScratch.size() + projectedTranslucentScratch.size();
+        return new RenderStats(mesh.faceCount(), visibleCandidates, drawnFaces);
     }
 
     // 中文标注（方法）：`drawSelectionBox`，参数：graphics、width、height、player、blockPos；用途：执行渲染或图形资源处理：绘制、selection、box。
@@ -262,9 +273,23 @@ public final class ChunkRenderSystem {
             x2, y2,
             x3, y3,
             (d0 + d1 + d2 + d3) * 0.25,
-            face.color()
+            face.color(),
+            face.renderBucket(),
+            face.needsSorting()
         );
         return projectedFace;
+    }
+
+    private void drawProjectedFaces(Graphics2D graphics, List<ProjectedFace> faces, float ambient) {
+        for (ProjectedFace projectedFace : faces) {
+            Color fillColor = ambient == 1.0f ? projectedFace.color() : shade(projectedFace.color(), ambient);
+            graphics.setColor(fillColor);
+            graphics.fillPolygon(projectedFace.xPoints(), projectedFace.yPoints(), 4);
+            if (DRAW_FACE_OUTLINES) {
+                graphics.setColor(shade(fillColor, 0.72f));
+                graphics.drawPolygon(projectedFace.xPoints(), projectedFace.yPoints(), 4);
+            }
+        }
     }
 
     // 中文标注（方法）：`acquireProjectedFace`，参数：无；用途：执行acquire、projected、面相关逻辑。
@@ -375,6 +400,8 @@ public final class ChunkRenderSystem {
         private double averageDepth; // meaning
         // 中文标注（字段）：`color`，含义：用于表示颜色。
         private Color color; // meaning
+        private BlockDef.RenderBucket renderBucket;
+        private boolean needsSorting;
 
         // 中文标注（方法）：`set`，参数：x0、y0、x1、y1、x2、y2、x3、y3、averageDepth、color；用途：设置、写入或注册集合。
         private void set(
@@ -393,7 +420,9 @@ public final class ChunkRenderSystem {
             // 中文标注（参数）：`averageDepth`，含义：用于表示average、深度。
             double averageDepth,
             // 中文标注（参数）：`color`，含义：用于表示颜色。
-            Color color
+            Color color,
+            BlockDef.RenderBucket renderBucket,
+            boolean needsSorting
         ) {
             xPoints[0] = x0;
             yPoints[0] = y0;
@@ -405,6 +434,8 @@ public final class ChunkRenderSystem {
             yPoints[3] = y3;
             this.averageDepth = averageDepth;
             this.color = color;
+            this.renderBucket = renderBucket;
+            this.needsSorting = needsSorting;
         }
 
         // 中文标注（方法）：`xPoints`，参数：无；用途：执行X坐标、points相关逻辑。
@@ -425,6 +456,15 @@ public final class ChunkRenderSystem {
         // 中文标注（方法）：`color`，参数：无；用途：执行颜色相关逻辑。
         private Color color() {
             return color;
+        }
+
+        private BlockDef.RenderBucket renderBucket() {
+            return renderBucket == null ? BlockDef.RenderBucket.OPAQUE : renderBucket;
+        }
+
+        @SuppressWarnings("unused")
+        private boolean needsSorting() {
+            return needsSorting;
         }
     }
 }

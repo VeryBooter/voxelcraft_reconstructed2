@@ -2,6 +2,7 @@ package dev.voxelcraft.core.world;
 
 import dev.voxelcraft.core.block.Block;
 import dev.voxelcraft.core.block.Blocks;
+import dev.voxelcraft.core.world.growth.GrowthSystem;
 import dev.voxelcraft.core.world.gen.FlatWorldGenerator;
 import dev.voxelcraft.core.world.gen.WorldGenerator;
 import java.util.Collection;
@@ -27,6 +28,8 @@ public final class World {
     private final WorldGenerator worldGenerator; // meaning
     // 中文标注（字段）：`seed`，含义：用于表示seed。
     private final long seed; // meaning
+    // 中文标注（字段）：`growthSystem`，含义：用于表示生长系统。
+    private final GrowthSystem growthSystem; // meaning
     // 中文标注（字段）：`ticks`，含义：用于表示ticks。
     private long ticks; // meaning
     // 中文标注（字段）：`blockUpdateVersion`，含义：用于表示方块、更新、版本。
@@ -47,6 +50,7 @@ public final class World {
         Blocks.bootstrap();
         this.seed = seed;
         this.worldGenerator = Objects.requireNonNull(generator, "generator");
+        this.growthSystem = new GrowthSystem(seed);
         // 中文标注（局部变量）：`chunkX`，含义：用于表示区块、X坐标。
         for (int chunkX = -2; chunkX <= 2; chunkX++) { // meaning
             // 中文标注（局部变量）：`chunkZ`，含义：用于表示区块、Z坐标。
@@ -60,6 +64,7 @@ public final class World {
     // 中文标注（方法）：`tick`，参数：无；用途：更新刻相关状态。
     public void tick() {
         ticks++;
+        growthSystem.tick(this, 1.0 / 20.0);
     }
 
     // 中文标注（方法）：`ticks`，参数：无；用途：更新ticks相关状态。
@@ -174,6 +179,7 @@ public final class World {
             return false;
         }
         chunk.setBlock(localX, y, localZ, block);
+        growthSystem.onBlockChanged(x, y, z, block);
         blockUpdateVersion.incrementAndGet();
         return true;
     }
@@ -220,6 +226,7 @@ public final class World {
         if (installed != chunk) {
             return false;
         }
+        growthSystem.onChunkInstalled(chunk);
         blockUpdateVersion.incrementAndGet();
         return true;
     }
@@ -240,6 +247,7 @@ public final class World {
         // 中文标注（局部变量）：`installed`，含义：用于表示installed。
         Chunk installed = chunkManager.installChunkIfAbsent(generated); // meaning
         if (installed == generated) {
+            growthSystem.onChunkInstalled(generated);
             blockUpdateVersion.incrementAndGet();
         }
         return installed;

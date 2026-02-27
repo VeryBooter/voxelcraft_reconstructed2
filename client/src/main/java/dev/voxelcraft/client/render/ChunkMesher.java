@@ -2,6 +2,7 @@ package dev.voxelcraft.client.render;
 
 import dev.voxelcraft.client.world.ClientWorldView;
 import dev.voxelcraft.core.block.Block;
+import dev.voxelcraft.core.block.BlockDef;
 import dev.voxelcraft.core.block.Blocks;
 import dev.voxelcraft.core.world.Chunk;
 import dev.voxelcraft.core.world.ChunkPos;
@@ -118,7 +119,7 @@ public final class ChunkMesher {
                 int worldX = chunkBaseX + localX; // meaning
                 // 中文标注（局部变量）：`worldZ`，含义：用于表示世界、Z坐标。
                 int worldZ = chunkBaseZ + localZ; // meaning
-                if (block != Blocks.AIR && block.solid()) {
+                if (block != Blocks.AIR) {
                     if (y < chunkYRange[0]) {
                         chunkYRange[0] = y;
                     }
@@ -975,7 +976,7 @@ public final class ChunkMesher {
     // 中文标注（参数）：`neighbor`，含义：用于表示邻居。
     // 中文标注（参数）：`direction`，含义：用于表示direction。
     private static int faceMask(Block block, Block neighbor, FaceDirection direction) {
-        if (!isSolid(block) || isSolid(neighbor)) {
+        if (!isGpuGreedyRenderableSolid(block) || isGpuGreedyOccluder(neighbor)) {
             return EMPTY_MASK;
         }
         return gpuPackedColor(block, direction);
@@ -985,6 +986,28 @@ public final class ChunkMesher {
     // 中文标注（参数）：`block`，含义：用于表示方块。
     private static boolean isSolid(Block block) {
         return block != null && block != Blocks.AIR && block.solid();
+    }
+
+    private static boolean isGpuGreedyRenderableSolid(Block block) {
+        if (!isSolid(block)) {
+            return false;
+        }
+        BlockDef def = block.def();
+        if (def == null) {
+            return true;
+        }
+        return def.meshProfile().mesherTemplate() == BlockDef.MeshProfile.CUBE;
+    }
+
+    private static boolean isGpuGreedyOccluder(Block block) {
+        if (block == null || block == Blocks.AIR) {
+            return false;
+        }
+        BlockDef def = block.def();
+        if (def != null) {
+            return def.isFullOccluder() && def.meshProfile().mesherTemplate() == BlockDef.MeshProfile.CUBE;
+        }
+        return block.solid();
     }
 
     // 中文标注（方法）：`gpuPackedColor`，参数：block、direction；用途：执行GPU、packed、颜色相关逻辑。
@@ -1074,47 +1097,357 @@ public final class ChunkMesher {
         bounds.include(x3, y3, z3);
     }
 
-    // 中文标注（方法）：`addVisibleFaces`，参数：worldView、outFaces、block、x、y、z；用途：执行add、visible、面集合相关逻辑。
     private static void addVisibleFaces(
-        // 中文标注（参数）：`worldView`，含义：用于表示世界、view。
         ClientWorldView worldView,
-        // 中文标注（参数）：`outFaces`，含义：用于表示out、面集合。
         List<Mesh.Face> outFaces,
-        // 中文标注（参数）：`block`，含义：用于表示方块。
         Block block,
-        // 中文标注（参数）：`x`，含义：用于表示X坐标。
         int x,
-        // 中文标注（参数）：`y`，含义：用于表示Y坐标。
         int y,
-        // 中文标注（参数）：`z`，含义：用于表示Z坐标。
         int z
     ) {
-        if (block == Blocks.AIR || !block.solid()) {
+        if (block == null || block == Blocks.AIR) {
             return;
         }
 
-        // 中文标注（局部变量）：`blockColor`，含义：用于表示方块、颜色。
-        Color blockColor = colorFor(block); // meaning
-        // 中文标注（局部变量）：`direction`，含义：用于表示direction。
+        BlockDef def = block.def();
+        BlockDef.MeshProfile profile = def == null
+            ? BlockDef.MeshProfile.CUBE
+            : def.meshProfile().mesherTemplate();
+
+        switch (profile) {
+            case CUBE -> emitCube(worldView, outFaces, block, def, x, y, z);
+            case SLAB_HALF -> emitSlabHalf(worldView, outFaces, block, def, x, y, z);
+            case STAIRS -> emitStairs(worldView, outFaces, block, def, x, y, z);
+            case WALL -> emitWall(worldView, outFaces, block, def, x, y, z);
+            case LAYERED_1_8 -> emitLayered1to8(worldView, outFaces, block, def, x, y, z);
+            case PILE_LOW -> emitPileLow(worldView, outFaces, block, def, x, y, z);
+            case SURFACE_PATCH -> emitSurfacePatch(worldView, outFaces, block, def, x, y, z);
+            case CROSS -> emitCross(outFaces, block, def, x, y, z);
+            case CLUSTER -> emitCluster(worldView, outFaces, block, def, x, y, z);
+            default -> emitCube(worldView, outFaces, block, def, x, y, z);
+        }
+    }
+
+    private static void emitCube(
+        ClientWorldView worldView,
+        List<Mesh.Face> outFaces,
+        Block block,
+        BlockDef def,
+        int x,
+        int y,
+        int z
+    ) {
         for (FaceDirection direction : FaceDirection.values()) {
-            if (worldView.isSolid(x + direction.dx, y + direction.dy, z + direction.dz)) {
+            if (shouldCullDirection(worldView, def, x, y, z, direction)) {
                 continue;
             }
-
-            // 中文标注（局部变量）：`detail`，含义：用于表示detail。
-            float detail = detailBrightness(block, direction, x, y, z); // meaning
-            // 中文标注（局部变量）：`shaded`，含义：用于表示shaded。
-            Color shaded = shade(blockColor, direction.brightness * detail); // meaning
-            // 中文标注（局部变量）：`v0`，含义：用于表示v、0。
-            Vec3 v0 = direction.vertex(x, y, z, 0); // meaning
-            // 中文标注（局部变量）：`v1`，含义：用于表示v、1。
-            Vec3 v1 = direction.vertex(x, y, z, 1); // meaning
-            // 中文标注（局部变量）：`v2`，含义：用于表示v、2。
-            Vec3 v2 = direction.vertex(x, y, z, 2); // meaning
-            // 中文标注（局部变量）：`v3`，含义：用于表示v、3。
-            Vec3 v3 = direction.vertex(x, y, z, 3); // meaning
-            outFaces.add(new Mesh.Face(v0, v1, v2, v3, shaded));
+            addDirectionalFace(outFaces, block, def, x, y, z, direction);
         }
+    }
+
+    private static void emitSlabHalf(
+        ClientWorldView worldView,
+        List<Mesh.Face> outFaces,
+        Block block,
+        BlockDef def,
+        int x,
+        int y,
+        int z
+    ) {
+        emitAxisAlignedBox(worldView, outFaces, block, def, x, y, z, 0.0, 0.0, 0.0, 1.0, 0.5, 1.0);
+    }
+
+    private static void emitStairs(
+        ClientWorldView worldView,
+        List<Mesh.Face> outFaces,
+        Block block,
+        BlockDef def,
+        int x,
+        int y,
+        int z
+    ) {
+        emitAxisAlignedBox(worldView, outFaces, block, def, x, y, z, 0.0, 0.0, 0.0, 1.0, 0.5, 1.0);
+        emitAxisAlignedBox(worldView, outFaces, block, def, x, y, z, 0.0, 0.5, 0.0, 1.0, 1.0, 0.5);
+    }
+
+    private static void emitWall(
+        ClientWorldView worldView,
+        List<Mesh.Face> outFaces,
+        Block block,
+        BlockDef def,
+        int x,
+        int y,
+        int z
+    ) {
+        emitAxisAlignedBox(worldView, outFaces, block, def, x, y, z, 0.375, 0.0, 0.375, 0.625, 1.0, 0.625);
+        if (connectsWallTo(worldView, x, y, z, 0, -1)) {
+            emitAxisAlignedBox(worldView, outFaces, block, def, x, y, z, 0.4375, 0.0, 0.0, 0.5625, 0.8125, 0.5);
+        }
+        if (connectsWallTo(worldView, x, y, z, 0, 1)) {
+            emitAxisAlignedBox(worldView, outFaces, block, def, x, y, z, 0.4375, 0.0, 0.5, 0.5625, 0.8125, 1.0);
+        }
+        if (connectsWallTo(worldView, x, y, z, -1, 0)) {
+            emitAxisAlignedBox(worldView, outFaces, block, def, x, y, z, 0.0, 0.0, 0.4375, 0.5, 0.8125, 0.5625);
+        }
+        if (connectsWallTo(worldView, x, y, z, 1, 0)) {
+            emitAxisAlignedBox(worldView, outFaces, block, def, x, y, z, 0.5, 0.0, 0.4375, 1.0, 0.8125, 0.5625);
+        }
+    }
+
+    private static void emitLayered1to8(
+        ClientWorldView worldView,
+        List<Mesh.Face> outFaces,
+        Block block,
+        BlockDef def,
+        int x,
+        int y,
+        int z
+    ) {
+        emitAxisAlignedBox(worldView, outFaces, block, def, x, y, z, 0.0, 0.0, 0.0, 1.0, 0.125, 1.0);
+    }
+
+    private static void emitPileLow(
+        ClientWorldView worldView,
+        List<Mesh.Face> outFaces,
+        Block block,
+        BlockDef def,
+        int x,
+        int y,
+        int z
+    ) {
+        emitAxisAlignedBox(worldView, outFaces, block, def, x, y, z, 0.125, 0.0, 0.125, 0.875, 0.25, 0.875);
+    }
+
+    private static void emitSurfacePatch(
+        ClientWorldView worldView,
+        List<Mesh.Face> outFaces,
+        Block block,
+        BlockDef def,
+        int x,
+        int y,
+        int z
+    ) {
+        if (def != null && (def.attachFacesMask() & BlockDef.ATTACH_TOP) == 0 && def.attachFacesMask() != BlockDef.ATTACH_ANY) {
+            return;
+        }
+        if (shouldCullDirection(worldView, def, x, y, z, FaceDirection.UP)) {
+            return;
+        }
+        float yPlane = (float) y + 0.02f;
+        addCustomFace(
+            outFaces,
+            block,
+            def,
+            FaceDirection.UP,
+            x,
+            y,
+            z,
+            new Vec3(x, yPlane, z),
+            new Vec3(x + 1.0, yPlane, z),
+            new Vec3(x + 1.0, yPlane, z + 1.0),
+            new Vec3(x, yPlane, z + 1.0)
+        );
+    }
+
+    private static void emitCross(
+        List<Mesh.Face> outFaces,
+        Block block,
+        BlockDef def,
+        int x,
+        int y,
+        int z
+    ) {
+        addCustomFace(
+            outFaces,
+            block,
+            def,
+            FaceDirection.UP,
+            x,
+            y,
+            z,
+            new Vec3(x, y, z),
+            new Vec3(x + 1.0, y, z + 1.0),
+            new Vec3(x + 1.0, y + 1.0, z + 1.0),
+            new Vec3(x, y + 1.0, z)
+        );
+        addCustomFace(
+            outFaces,
+            block,
+            def,
+            FaceDirection.UP,
+            x,
+            y,
+            z,
+            new Vec3(x + 1.0, y, z),
+            new Vec3(x, y, z + 1.0),
+            new Vec3(x, y + 1.0, z + 1.0),
+            new Vec3(x + 1.0, y + 1.0, z)
+        );
+    }
+
+    private static void emitCluster(
+        ClientWorldView worldView,
+        List<Mesh.Face> outFaces,
+        Block block,
+        BlockDef def,
+        int x,
+        int y,
+        int z
+    ) {
+        emitAxisAlignedBox(worldView, outFaces, block, def, x, y, z, 0.2, 0.0, 0.2, 0.8, 0.7, 0.8);
+    }
+
+    private static void emitAxisAlignedBox(
+        ClientWorldView worldView,
+        List<Mesh.Face> outFaces,
+        Block block,
+        BlockDef def,
+        int x,
+        int y,
+        int z,
+        double minX,
+        double minY,
+        double minZ,
+        double maxX,
+        double maxY,
+        double maxZ
+    ) {
+        if (!shouldCullDirection(worldView, def, x, y, z, FaceDirection.UP)) {
+            addCustomFace(
+                outFaces, block, def, FaceDirection.UP, x, y, z,
+                new Vec3(x + minX, y + maxY, z + minZ),
+                new Vec3(x + maxX, y + maxY, z + minZ),
+                new Vec3(x + maxX, y + maxY, z + maxZ),
+                new Vec3(x + minX, y + maxY, z + maxZ)
+            );
+        }
+        if (!shouldCullDirection(worldView, def, x, y, z, FaceDirection.DOWN)) {
+            addCustomFace(
+                outFaces, block, def, FaceDirection.DOWN, x, y, z,
+                new Vec3(x + minX, y + minY, z + maxZ),
+                new Vec3(x + maxX, y + minY, z + maxZ),
+                new Vec3(x + maxX, y + minY, z + minZ),
+                new Vec3(x + minX, y + minY, z + minZ)
+            );
+        }
+        if (!shouldCullDirection(worldView, def, x, y, z, FaceDirection.NORTH)) {
+            addCustomFace(
+                outFaces, block, def, FaceDirection.NORTH, x, y, z,
+                new Vec3(x + maxX, y + minY, z + minZ),
+                new Vec3(x + maxX, y + maxY, z + minZ),
+                new Vec3(x + minX, y + maxY, z + minZ),
+                new Vec3(x + minX, y + minY, z + minZ)
+            );
+        }
+        if (!shouldCullDirection(worldView, def, x, y, z, FaceDirection.SOUTH)) {
+            addCustomFace(
+                outFaces, block, def, FaceDirection.SOUTH, x, y, z,
+                new Vec3(x + minX, y + minY, z + maxZ),
+                new Vec3(x + minX, y + maxY, z + maxZ),
+                new Vec3(x + maxX, y + maxY, z + maxZ),
+                new Vec3(x + maxX, y + minY, z + maxZ)
+            );
+        }
+        if (!shouldCullDirection(worldView, def, x, y, z, FaceDirection.WEST)) {
+            addCustomFace(
+                outFaces, block, def, FaceDirection.WEST, x, y, z,
+                new Vec3(x + minX, y + minY, z + minZ),
+                new Vec3(x + minX, y + maxY, z + minZ),
+                new Vec3(x + minX, y + maxY, z + maxZ),
+                new Vec3(x + minX, y + minY, z + maxZ)
+            );
+        }
+        if (!shouldCullDirection(worldView, def, x, y, z, FaceDirection.EAST)) {
+            addCustomFace(
+                outFaces, block, def, FaceDirection.EAST, x, y, z,
+                new Vec3(x + maxX, y + minY, z + maxZ),
+                new Vec3(x + maxX, y + maxY, z + maxZ),
+                new Vec3(x + maxX, y + maxY, z + minZ),
+                new Vec3(x + maxX, y + minY, z + minZ)
+            );
+        }
+    }
+
+    private static boolean connectsWallTo(ClientWorldView worldView, int x, int y, int z, int dx, int dz) {
+        Block neighbor = worldView.peekBlock(x + dx, y, z + dz);
+        if (neighbor == null || neighbor == Blocks.AIR) {
+            return false;
+        }
+        BlockDef def = neighbor.def();
+        if (def != null) {
+            return def.isFullOccluder() || def.collisionKind() == BlockDef.CollisionKind.WALL;
+        }
+        return neighbor.solid();
+    }
+
+    private static void addDirectionalFace(
+        List<Mesh.Face> outFaces,
+        Block block,
+        BlockDef def,
+        int x,
+        int y,
+        int z,
+        FaceDirection direction
+    ) {
+        addCustomFace(
+            outFaces,
+            block,
+            def,
+            direction,
+            x,
+            y,
+            z,
+            direction.vertex(x, y, z, 0),
+            direction.vertex(x, y, z, 1),
+            direction.vertex(x, y, z, 2),
+            direction.vertex(x, y, z, 3)
+        );
+    }
+
+    private static void addCustomFace(
+        List<Mesh.Face> outFaces,
+        Block block,
+        BlockDef def,
+        FaceDirection direction,
+        int x,
+        int y,
+        int z,
+        Vec3 v0,
+        Vec3 v1,
+        Vec3 v2,
+        Vec3 v3
+    ) {
+        Color blockColor = colorFor(block);
+        float detail = detailBrightness(block, direction, x, y, z);
+        Color shaded = shade(blockColor, direction.brightness * detail);
+        BlockDef.RenderBucket bucket = def == null ? BlockDef.RenderBucket.OPAQUE : def.renderBucket();
+        if (bucket == BlockDef.RenderBucket.TRANSLUCENT) {
+            shaded = new Color(shaded.getRed(), shaded.getGreen(), shaded.getBlue(), 180);
+        }
+        boolean needsSorting = def != null && def.needsSorting();
+        outFaces.add(new Mesh.Face(v0, v1, v2, v3, shaded, bucket, needsSorting));
+    }
+
+    private static boolean shouldCullDirection(
+        ClientWorldView worldView,
+        BlockDef def,
+        int x,
+        int y,
+        int z,
+        FaceDirection direction
+    ) {
+        Block neighbor = worldView.peekBlock(x + direction.dx, y + direction.dy, z + direction.dz);
+        if (neighbor == null || neighbor == Blocks.AIR) {
+            return false;
+        }
+        if (def != null && def.occlusionMode() != BlockDef.OcclusionMode.FULL) {
+            return false;
+        }
+        BlockDef neighborDef = neighbor.def();
+        if (neighborDef != null) {
+            return neighborDef.isFullOccluder();
+        }
+        return neighbor.solid();
     }
 
     // 中文标注（方法）：`snapshotIndex`，参数：x、y、z、expandedHeight；用途：执行快照、索引相关逻辑。
@@ -1181,6 +1514,34 @@ public final class ChunkMesher {
         if (block == Blocks.LEAVES) {
             return COLOR_LEAVES;
         }
+        BlockDef def = block.def();
+        if (def != null) {
+            String material = def.material().toLowerCase();
+            String key = def.key().toLowerCase();
+            if (material.contains("grass") || key.contains("grass")) {
+                return COLOR_GRASS;
+            }
+            if (material.contains("dirt") || material.contains("soil") || key.contains("dirt")) {
+                return COLOR_DIRT;
+            }
+            if (material.contains("sand") || key.contains("sand")) {
+                return COLOR_SAND;
+            }
+            if (material.contains("wood") || key.contains("wood") || key.contains("log")) {
+                return COLOR_WOOD;
+            }
+            if (material.contains("leaf") || key.contains("leaf")) {
+                return COLOR_LEAVES;
+            }
+            if (material.contains("stone") || material.contains("rock")) {
+                return COLOR_STONE;
+            }
+            int seed = hash(key.hashCode(), material.hashCode(), def.meshProfile().ordinal());
+            int red = clamp(80 + (seed & 0x3F));
+            int green = clamp(90 + ((seed >>> 6) & 0x3F));
+            int blue = clamp(80 + ((seed >>> 12) & 0x3F));
+            return new Color(red, green, blue);
+        }
         return COLOR_FALLBACK;
     }
 
@@ -1198,7 +1559,8 @@ public final class ChunkMesher {
         // 中文标注（局部变量）：`stripe`，含义：用于表示stripe。
         float stripe = (((x + z) & 1) == 0) ? 0.96f : 1.02f; // meaning
 
-        if (block == Blocks.GRASS && direction == FaceDirection.UP) {
+        BlockDef def = block.def();
+        if ((block == Blocks.GRASS || (def != null && def.material().toLowerCase().contains("grass"))) && direction == FaceDirection.UP) {
             return randomJitter * stripe;
         }
         if (block == Blocks.STONE) {

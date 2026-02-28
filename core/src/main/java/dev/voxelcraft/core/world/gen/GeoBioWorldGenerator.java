@@ -151,11 +151,11 @@ public final class GeoBioWorldGenerator implements WorldGenerator {
 
     private Block surfaceBlockForBiome(BiomeType biome, int worldX, int worldY, int worldZ) {
         return switch (biome) {
-            case DESERT -> pick(desertSurfaceBlocks, Blocks.SAND, worldX, worldY, worldZ, 0x1001);
-            case FOREST -> pick(forestSurfaceBlocks, Blocks.GRASS, worldX, worldY, worldZ, 0x1002);
-            case TUNDRA -> pick(tundraSurfaceBlocks, Blocks.DIRT, worldX, worldY, worldZ, 0x1003);
-            case SWAMP -> pick(swampSurfaceBlocks, Blocks.DIRT, worldX, worldY, worldZ, 0x1004);
-            case ALPINE -> pick(alpineSurfaceBlocks, Blocks.STONE, worldX, worldY, worldZ, 0x1005);
+            case DESERT -> pickByField(desertSurfaceBlocks, Blocks.SAND, worldX, worldZ, 0x1001, 0.0018);
+            case FOREST -> pickByField(forestSurfaceBlocks, Blocks.GRASS, worldX, worldZ, 0x1002, 0.0016);
+            case TUNDRA -> pickByField(tundraSurfaceBlocks, Blocks.DIRT, worldX, worldZ, 0x1003, 0.0014);
+            case SWAMP -> pickByField(swampSurfaceBlocks, Blocks.DIRT, worldX, worldZ, 0x1004, 0.0022);
+            case ALPINE -> pickByField(alpineSurfaceBlocks, Blocks.STONE, worldX, worldZ, 0x1005, 0.0012);
         };
     }
 
@@ -173,22 +173,22 @@ public final class GeoBioWorldGenerator implements WorldGenerator {
         }
         if (depth <= 2) {
             return switch (biome) {
-                case DESERT -> pick(desertSurfaceBlocks, Blocks.SAND, worldX, worldY, worldZ, 0x2101);
-                case FOREST -> pick(forestSurfaceBlocks, Blocks.DIRT, worldX, worldY, worldZ, 0x2102);
-                case TUNDRA -> pick(tundraSurfaceBlocks, Blocks.DIRT, worldX, worldY, worldZ, 0x2103);
-                case SWAMP -> pick(swampSurfaceBlocks, Blocks.DIRT, worldX, worldY, worldZ, 0x2104);
-                case ALPINE -> pick(alpineSurfaceBlocks, Blocks.STONE, worldX, worldY, worldZ, 0x2105);
+                case DESERT -> pickByField(desertSurfaceBlocks, Blocks.SAND, worldX, worldZ, 0x2101, 0.0020);
+                case FOREST -> pickByField(forestSurfaceBlocks, Blocks.DIRT, worldX, worldZ, 0x2102, 0.0018);
+                case TUNDRA -> pickByField(tundraSurfaceBlocks, Blocks.DIRT, worldX, worldZ, 0x2103, 0.0018);
+                case SWAMP -> pickByField(swampSurfaceBlocks, Blocks.DIRT, worldX, worldZ, 0x2104, 0.0024);
+                case ALPINE -> pickByField(alpineSurfaceBlocks, Blocks.STONE, worldX, worldZ, 0x2105, 0.0014);
             };
         }
         if (depth <= 18) {
             return switch (regionRockType) {
-                case IGNEOUS -> pick(igneousIntrusiveBlocks, Blocks.STONE, worldX, worldY, worldZ, 0x2201);
-                case SEDIMENTARY -> pick(sedimentaryBlocks, Blocks.STONE, worldX, worldY, worldZ, 0x2202);
-                case REGOLITH -> pick(regolithBlocks, Blocks.DIRT, worldX, worldY, worldZ, 0x2203);
-                case METAMORPHIC -> pick(metamorphicBlocks, Blocks.STONE, worldX, worldY, worldZ, 0x2204);
+                case IGNEOUS -> pickByField(igneousIntrusiveBlocks, Blocks.STONE, worldX, worldZ, 0x2201, 0.0011);
+                case SEDIMENTARY -> pickByField(sedimentaryBlocks, Blocks.STONE, worldX, worldZ, 0x2202, 0.0011);
+                case REGOLITH -> pickByField(regolithBlocks, Blocks.DIRT, worldX, worldZ, 0x2203, 0.0014);
+                case METAMORPHIC -> pickByField(metamorphicBlocks, Blocks.STONE, worldX, worldZ, 0x2204, 0.0010);
             };
         }
-        return pick(metamorphicBlocks, Blocks.STONE, worldX, worldY, worldZ, 0x2301);
+        return pickByField(metamorphicBlocks, Blocks.STONE, worldX, worldZ, 0x2301, 0.0009);
     }
 
     private Block maybeOre(Block base, int depth, int worldX, int worldY, int worldZ) {
@@ -200,7 +200,7 @@ public final class GeoBioWorldGenerator implements WorldGenerator {
         if (sample <= threshold) {
             return base;
         }
-        return pick(oreBlocks, base, worldX, worldY, worldZ, 0x3401);
+        return pickOreType(oreBlocks, base, worldX, worldY, worldZ, 0x3401);
     }
 
     private RegionRockType regionRockType(int chunkX, int chunkZ) {
@@ -249,23 +249,46 @@ public final class GeoBioWorldGenerator implements WorldGenerator {
         return false;
     }
 
-    private Block pick(List<Block> candidates, Block fallback, int worldX, int worldY, int worldZ, long salt) {
+    private Block pickByField(
+        List<Block> candidates,
+        Block fallback,
+        int worldX,
+        int worldZ,
+        long salt,
+        double frequency
+    ) {
         if (candidates.isEmpty()) {
             return fallback;
         }
-        int index = Math.floorMod(hash(worldX, worldY, worldZ, salt), candidates.size()); // meaning
+        double offsetX = ((salt >>> 8) & 0xFFFF) - 32_768.0; // meaning
+        double offsetZ = ((salt >>> 24) & 0xFFFF) - 32_768.0; // meaning
+        double sample = terrainNoise.fbm2d(
+            (worldX + offsetX) * frequency,
+            (worldZ + offsetZ) * frequency,
+            3,
+            2.0,
+            0.5
+        );
+        double normalized = Math.max(0.0, Math.min(1.0, sample * 0.5 + 0.5)); // meaning
+        int index = Math.min(candidates.size() - 1, (int) Math.floor(normalized * candidates.size())); // meaning
         return candidates.get(index);
     }
 
-    private int hash(int x, int y, int z, long salt) {
-        long value = seed ^ salt; // meaning
-        value ^= (long) x * 0x9E3779B97F4A7C15L;
-        value ^= (long) y * 0xC2B2AE3D27D4EB4FL;
-        value ^= (long) z * 0x165667B19E3779F9L;
-        value ^= (value >>> 33);
-        value *= 0xFF51AFD7ED558CCDL;
-        value ^= (value >>> 33);
-        return (int) value;
+    private Block pickOreType(List<Block> candidates, Block fallback, int worldX, int worldY, int worldZ, long salt) {
+        if (candidates.isEmpty()) {
+            return fallback;
+        }
+        double offsetX = ((salt >>> 4) & 0x7FFF) - 16_384.0; // meaning
+        double offsetY = ((salt >>> 19) & 0x3FF) - 512.0; // meaning
+        double offsetZ = ((salt >>> 33) & 0x7FFF) - 16_384.0; // meaning
+        double sample = oreNoise.noise(
+            (worldX + offsetX) * 0.032,
+            (worldY + offsetY) * 0.048,
+            (worldZ + offsetZ) * 0.032
+        );
+        double normalized = Math.max(0.0, Math.min(1.0, sample * 0.5 + 0.5)); // meaning
+        int index = Math.min(candidates.size() - 1, (int) Math.floor(normalized * candidates.size())); // meaning
+        return candidates.get(index);
     }
 
     private static int clamp(int value, int min, int max) {

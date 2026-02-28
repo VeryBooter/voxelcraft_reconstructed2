@@ -17,9 +17,11 @@ public final class BlockCatalog {
     private final Map<String, List<BlockDef>> byCategoryPrefix;
     private final Map<String, String> searchIndex;
     private final List<String> categoryPrefixes;
+    private final BlockNameLocalizer localizer;
 
     public BlockCatalog() {
         Collection<BlockDef> source = Blocks.definitions().all();
+        this.localizer = new BlockNameLocalizer();
         ArrayList<BlockDef> sorted = new ArrayList<>(source);
         sorted.sort(
             Comparator.comparing((BlockDef def) -> categoryPrefix(def.category()))
@@ -32,7 +34,7 @@ public final class BlockCatalog {
         for (BlockDef def : sorted) {
             String prefix = categoryPrefix(def.category()); // meaning
             categoryMap.computeIfAbsent(prefix, ignored -> new ArrayList<>()).add(def);
-            searchableMap.put(def.key(), buildSearchable(def));
+            searchableMap.put(def.key(), buildSearchable(def, localizer));
         }
 
         ArrayList<String> categories = new ArrayList<>();
@@ -100,14 +102,29 @@ public final class BlockCatalog {
         return normalized.isEmpty() ? "uncategorized" : normalized;
     }
 
+    public String displayName(BlockDef def) {
+        return localizer.displayName(def);
+    }
+
     private static void addIfPresent(List<String> output, Map<String, List<BlockDef>> byPrefix, String key) {
         if (byPrefix.containsKey(key)) {
             output.add(key);
         }
     }
 
-    private static String buildSearchable(BlockDef def) {
-        return (def.key() + " " + def.displayName() + " " + def.material() + " " + def.variant() + " " + def.category())
+    private static String buildSearchable(BlockDef def, BlockNameLocalizer localizer) {
+        return (
+            def.key()
+                + " "
+                + def.displayName()
+                + " "
+                + def.material()
+                + " "
+                + def.variant()
+                + " "
+                + def.category()
+                + localizer.searchableTokens(def)
+        )
             .toLowerCase(Locale.ROOT);
     }
 

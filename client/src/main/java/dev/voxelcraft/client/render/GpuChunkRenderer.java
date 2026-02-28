@@ -136,7 +136,7 @@ public final class GpuChunkRenderer implements AutoCloseable {
     private static final double FAR_PLANE = 4_800.0; // meaning
 
     // 中文标注（字段）：`RENDER_CHUNK_RADIUS`，含义：用于表示渲染、区块、radius。
-    private static final int RENDER_CHUNK_RADIUS = 300; // meaning
+    private static final int RENDER_CHUNK_RADIUS = 50; // meaning
     // 中文标注（字段）：`MIN_UPLOADS_PER_FRAME`，含义：用于表示最小、uploads、per、帧。
     private static final int MIN_UPLOADS_PER_FRAME = 1; // meaning
     // 中文标注（字段）：`DEFAULT_UPLOADS_PER_FRAME`，含义：用于表示默认、uploads、per、帧。
@@ -239,19 +239,24 @@ public final class GpuChunkRenderer implements AutoCloseable {
             return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
         }
 
-        vec2 faceUv(vec3 worldPos) {
-            vec3 fw = fwidth(worldPos);
-            if (fw.y <= fw.x && fw.y <= fw.z) {
+        vec2 faceUv(vec3 worldPos, int faceIndex) {
+            if (faceIndex == 0 || faceIndex == 1) {
                 return fract(worldPos.xz);
             }
-            if (fw.x <= fw.z) {
+            if (faceIndex == 4 || faceIndex == 5) {
                 return fract(worldPos.zy);
             }
             return fract(worldPos.xy);
         }
 
+        vec2 quantizeUv(vec2 uv, float pixels) {
+            return (floor(uv * pixels) + 0.5) / pixels;
+        }
+
         void main() {
-            int id = int(floor(vPacked.r * 255.0 + 0.5)) + int(floor(vPacked.g * 255.0 + 0.5)) * 256;
+            int packed16 = int(floor(vPacked.r * 255.0 + 0.5)) + int(floor(vPacked.g * 255.0 + 0.5)) * 256;
+            int faceIndex = packed16 / 4096;
+            int id = packed16 - faceIndex * 4096;
             float brightness = clamp(vPacked.b, 0.0, 1.0);
             float alpha = clamp(vPacked.a, 0.0, 1.0);
             if (alpha < 0.5) {
@@ -265,41 +270,50 @@ public final class GpuChunkRenderer implements AutoCloseable {
             vec3 accent = row1.rgb;
             float noiseScale = mix(0.2, 1.4, row0.a);
             float patternType = row1.a * 255.0;
-            vec2 uv = faceUv(vWorldPos);
+            vec2 uvBase = faceUv(vWorldPos, faceIndex);
+            vec2 uv = quantizeUv(uvBase, 16.0);
+            vec2 uvFine = quantizeUv(uvBase, 32.0);
             vec3 material = base;
 
             if (patternType < 0.5) {
-                float n = valueNoise(uv * (8.0 * noiseScale) + vWorldPos.xz * 0.03);
-                material = mix(base, accent, n * 0.65);
+                float grain = valueNoise(uvFine * (7.0 * noiseScale) + vec2(float(faceIndex) * 0.73, 0.0));
+                float layer = valueNoise(vec2(uv.y * 3.0 + float(faceIndex) * 0.15, floor(vWorldPos.y * 0.25) * 0.4));
+                float mixAmount = clamp(grain * 0.55 + layer * 0.25, 0.0, 1.0);
+                material = mix(base, accent, mixAmount);
             } else if (patternType < 1.5) {
-                float n = valueNoise(uv * (2.5 + noiseScale) + vWorldPos.xy * 0.015);
-                material = mix(base, accent, 0.22 + n * 0.25);
+                float n = valueNoise(uv * (2.0 + noiseScale) + vec2(float(faceIndex) * 0.19, 0.0));
+                material = mix(base, accent, 0.14 + n * 0.16);
             } else if (patternType < 2.5) {
-                vec2 brickUv = uv * 6.0;
-                float row = floor(brickUv.y);
-                float offset = step(1.0, mod(row, 2.0)) * 0.5;
+                vec2 brickUv = uvBase * 8.0;
+                vec2 brickCell = floor(brickUv);
+                float offset = step(1.0, mod(brickCell.y, 2.0)) * 0.5;
                 vec2 st = fract(vec2(brickUv.x + offset, brickUv.y));
                 float mortar = max(step(st.x, 0.06), max(step(0.94, st.x), max(step(st.y, 0.06), step(0.94, st.y))));
-                material = mix(mix(base, accent, 0.32), vec3(0.13, 0.13, 0.13), mortar * 0.9);
+                float brickShade = valueNoise((brickCell + vec2(float(faceIndex), 0.0)) * 0.37);
+                vec3 brickColor = mix(base, accent, 0.20 + brickShade * 0.35);
+                material = mix(brickColor, vec3(0.11, 0.11, 0.11), mortar * 0.95);
             } else if (patternType < 3.5) {
-                vec2 tileUv = uv * 4.0;
+                vec2 tileUv = uvBase * 6.0;
+                vec2 tileCell = floor(tileUv);
                 vec2 st = fract(tileUv);
                 float grout = max(step(st.x, 0.05), max(step(0.95, st.x), max(step(st.y, 0.05), step(0.95, st.y))));
-                float n = valueNoise(tileUv * 0.9 + vWorldPos.xz * 0.02);
-                material = mix(mix(base, accent, n * 0.25), vec3(0.12, 0.12, 0.12), grout * 0.85);
+                float tileShade = valueNoise(tileCell * 0.27 + vec2(float(faceIndex) * 0.2, 0.0));
+                material = mix(mix(base, accent, tileShade * 0.35), vec3(0.12, 0.12, 0.12), grout * 0.90);
             } else if (patternType < 4.5) {
-                float n = valueNoise(uv * (10.0 * noiseScale) + vWorldPos.xy * 0.03);
-                float speckle = step(0.82, n);
-                vec3 rock = mix(base, accent, n * 0.2);
-                material = mix(rock, accent * 1.28, speckle * 0.75);
+                float rockN = valueNoise(uvFine * (9.0 * noiseScale) + vec2(float(faceIndex) * 0.33, 0.0));
+                float veinN = valueNoise((uvBase + vWorldPos.xy * 0.07) * 5.0 + vec2(float(faceIndex) * 0.17, 3.1));
+                float oreMask = step(0.78, veinN);
+                vec3 rock = mix(base, accent, rockN * 0.25);
+                material = mix(rock, accent * 1.35, oreMask * 0.80);
             } else if (patternType < 5.5) {
-                float grain = sin((uv.x + valueNoise(uv * 2.0)) * (34.0 * noiseScale));
-                float rings = valueNoise(vec2(uv.y * 7.0, uv.x * 1.6));
+                float grain = sin((uvBase.x * 20.0 * noiseScale) + valueNoise(uvFine * 2.0) * 4.0);
+                float rings = valueNoise(vec2(uvBase.y * 6.0, uvBase.x * 1.7 + float(faceIndex) * 0.13));
                 material = mix(base, accent, 0.25 + (grain * 0.5 + 0.5) * 0.35 + rings * 0.2);
             } else {
-                float n = valueNoise(uv * (7.0 * noiseScale) + vWorldPos.xz * 0.02);
+                float n = valueNoise(uvFine * (6.5 * noiseScale) + vWorldPos.xz * 0.03);
+                float patch = valueNoise(floor(vWorldPos.xz * 0.5) + vec2(float(faceIndex) * 0.2, 0.0));
                 float stripe = mix(0.92, 1.08, step(1.0, mod(floor(vWorldPos.x + vWorldPos.z), 2.0)));
-                material = mix(base, accent, n * 0.45) * stripe;
+                material = mix(base, accent, n * 0.5) * mix(0.95, 1.05, patch) * stripe;
             }
 
             vec3 lit = material * (brightness * uAmbient);

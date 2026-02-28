@@ -434,7 +434,7 @@ public final class ChunkMesher {
         MeshBuildScratch scratch
     ) {
         // LOD 高度场底部钳位：避免边缘补边从过深 y 开始拉出超长竖墙。
-        int lodFloor = Math.max(snapshot.minY(), World.DEFAULT_SOLID_BELOW_Y); // meaning
+        final float lodFloor = Math.max(snapshot.minY(), World.DEFAULT_SOLID_BELOW_Y); // meaning
         // 中文标注（局部变量）：`columnHeights`，含义：用于表示column、heights。
         int[] columnHeights = scratch.lodColumnHeights(); // meaning
         // 中文标注（局部变量）：`columnBlocks`，含义：用于表示column、方块集合。
@@ -460,7 +460,7 @@ public final class ChunkMesher {
                     int exY = localY + 1; // meaning
                     // 中文标注（局部变量）：`block`，含义：用于表示方块。
                     Block block = snapshot.blockAtExpanded(exX, exY, exZ, expandedHeight); // meaning
-                    if (!isSolid(block) || block == Blocks.LEAVES || block == Blocks.WOOD) {
+                    if (!isLodHeightfieldSolidCandidate(block)) {
                         continue;
                     }
                     columnHeights[columnIndex] = snapshot.minY() + localY;
@@ -543,6 +543,10 @@ public final class ChunkMesher {
                 float x1 = x0 + LOD_CELL_SIZE; // meaning
                 // 中文标注（局部变量）：`z1`，含义：用于表示Z坐标、1。
                 float z1 = z0 + LOD_CELL_SIZE; // meaning
+                int localStartX = cellX * LOD_CELL_SIZE; // meaning
+                int localStartZ = cellZ * LOD_CELL_SIZE; // meaning
+                int localEndXExclusive = Math.min(Section.SIZE, localStartX + LOD_CELL_SIZE); // meaning
+                int localEndZExclusive = Math.min(Section.SIZE, localStartZ + LOD_CELL_SIZE); // meaning
                 // 中文标注（局部变量）：`topPlaneY`，含义：用于表示顶面、plane、Y坐标。
                 float topPlaneY = topY + 1.0f; // meaning
                 appendQuad(
@@ -556,9 +560,10 @@ public final class ChunkMesher {
                 if (cellX + 1 < coarseWidth) {
                     // 中文标注（局部变量）：`neighborHeight`，含义：用于表示邻居、高度。
                     int neighborHeight = cellHeights[cellIndex + 1]; // meaning
-                    if (neighborHeight < topY) {
+                    int effectiveNeighborHeight = effectiveLodNeighborHeight(neighborHeight); // meaning
+                    if (effectiveNeighborHeight < topY) {
                         // 中文标注（局部变量）：`y0`，含义：用于表示Y坐标、0。
-                        float y0 = neighborHeight + 1.0f; // meaning
+                        float y0 = lodSideBottomY(lodFloor, neighborHeight); // meaning
                         // 中文标注（局部变量）：`y1`，含义：用于表示Y坐标、1。
                         float y1 = topY + 1.0f; // meaning
                         // 中文标注（局部变量）：`x`，含义：用于表示X坐标。
@@ -575,9 +580,10 @@ public final class ChunkMesher {
                 if (cellZ + 1 < coarseHeight) {
                     // 中文标注（局部变量）：`neighborHeight`，含义：用于表示邻居、高度。
                     int neighborHeight = cellHeights[cellIndex + coarseWidth]; // meaning
-                    if (neighborHeight < topY) {
+                    int effectiveNeighborHeight = effectiveLodNeighborHeight(neighborHeight); // meaning
+                    if (effectiveNeighborHeight < topY) {
                         // 中文标注（局部变量）：`y0`，含义：用于表示Y坐标、0。
-                        float y0 = neighborHeight + 1.0f; // meaning
+                        float y0 = lodSideBottomY(lodFloor, neighborHeight); // meaning
                         // 中文标注（局部变量）：`y1`，含义：用于表示Y坐标、1。
                         float y1 = topY + 1.0f; // meaning
                         // 中文标注（局部变量）：`z`，含义：用于表示Z坐标。
@@ -592,67 +598,168 @@ public final class ChunkMesher {
                     }
                 }
                 if (cellX == 0) {
-                    // 中文标注（局部变量）：`y0`，含义：用于表示Y坐标、0。
-                    float y0 = lodFloor; // meaning
-                    // 中文标注（局部变量）：`y1`，含义：用于表示Y坐标、1。
-                    float y1 = topY + 1.0f; // meaning
-                    // 中文标注（局部变量）：`x`，含义：用于表示X坐标。
-                    float x = x0; // meaning
-                    appendQuad(
-                        vertices, indices, bounds, gpuPackedColor(block, FaceDirection.WEST),
-                        x, y0, z0,
-                        x, y1, z0,
-                        x, y1, z1,
-                        x, y0, z1
-                    );
+                    int boundaryNeighborHeight = scanBoundaryNeighborHeightAtFixedExpandedX(
+                        snapshot,
+                        expandedHeight,
+                        0,
+                        localStartZ,
+                        localEndZExclusive
+                    ); // meaning
+                    int effectiveNeighborHeight = effectiveLodNeighborHeight(boundaryNeighborHeight); // meaning
+                    if (effectiveNeighborHeight < topY) {
+                        // 中文标注（局部变量）：`y0`，含义：用于表示Y坐标、0。
+                        float y0 = lodSideBottomY(lodFloor, boundaryNeighborHeight); // meaning
+                        // 中文标注（局部变量）：`y1`，含义：用于表示Y坐标、1。
+                        float y1 = topY + 1.0f; // meaning
+                        // 中文标注（局部变量）：`x`，含义：用于表示X坐标。
+                        float x = x0; // meaning
+                        appendQuad(
+                            vertices, indices, bounds, gpuPackedColor(block, FaceDirection.WEST),
+                            x, y0, z0,
+                            x, y1, z0,
+                            x, y1, z1,
+                            x, y0, z1
+                        );
+                    }
                 }
                 if (cellZ == 0) {
-                    // 中文标注（局部变量）：`y0`，含义：用于表示Y坐标、0。
-                    float y0 = lodFloor; // meaning
-                    // 中文标注（局部变量）：`y1`，含义：用于表示Y坐标、1。
-                    float y1 = topY + 1.0f; // meaning
-                    // 中文标注（局部变量）：`z`，含义：用于表示Z坐标。
-                    float z = z0; // meaning
-                    appendQuad(
-                        vertices, indices, bounds, gpuPackedColor(block, FaceDirection.NORTH),
-                        x1, y0, z,
-                        x1, y1, z,
-                        x0, y1, z,
-                        x0, y0, z
-                    );
+                    int boundaryNeighborHeight = scanBoundaryNeighborHeightAtFixedExpandedZ(
+                        snapshot,
+                        expandedHeight,
+                        0,
+                        localStartX,
+                        localEndXExclusive
+                    ); // meaning
+                    int effectiveNeighborHeight = effectiveLodNeighborHeight(boundaryNeighborHeight); // meaning
+                    if (effectiveNeighborHeight < topY) {
+                        // 中文标注（局部变量）：`y0`，含义：用于表示Y坐标、0。
+                        float y0 = lodSideBottomY(lodFloor, boundaryNeighborHeight); // meaning
+                        // 中文标注（局部变量）：`y1`，含义：用于表示Y坐标、1。
+                        float y1 = topY + 1.0f; // meaning
+                        // 中文标注（局部变量）：`z`，含义：用于表示Z坐标。
+                        float z = z0; // meaning
+                        appendQuad(
+                            vertices, indices, bounds, gpuPackedColor(block, FaceDirection.NORTH),
+                            x1, y0, z,
+                            x1, y1, z,
+                            x0, y1, z,
+                            x0, y0, z
+                        );
+                    }
                 }
                 if (cellX == coarseWidth - 1) {
-                    // 中文标注（局部变量）：`y0`，含义：用于表示Y坐标、0。
-                    float y0 = lodFloor; // meaning
-                    // 中文标注（局部变量）：`y1`，含义：用于表示Y坐标、1。
-                    float y1 = topY + 1.0f; // meaning
-                    // 中文标注（局部变量）：`x`，含义：用于表示X坐标。
-                    float x = x1; // meaning
-                    appendQuad(
-                        vertices, indices, bounds, gpuPackedColor(block, FaceDirection.EAST),
-                        x, y0, z1,
-                        x, y1, z1,
-                        x, y1, z0,
-                        x, y0, z0
-                    );
+                    int boundaryNeighborHeight = scanBoundaryNeighborHeightAtFixedExpandedX(
+                        snapshot,
+                        expandedHeight,
+                        Section.SIZE + 1,
+                        localStartZ,
+                        localEndZExclusive
+                    ); // meaning
+                    int effectiveNeighborHeight = effectiveLodNeighborHeight(boundaryNeighborHeight); // meaning
+                    if (effectiveNeighborHeight < topY) {
+                        // 中文标注（局部变量）：`y0`，含义：用于表示Y坐标、0。
+                        float y0 = lodSideBottomY(lodFloor, boundaryNeighborHeight); // meaning
+                        // 中文标注（局部变量）：`y1`，含义：用于表示Y坐标、1。
+                        float y1 = topY + 1.0f; // meaning
+                        // 中文标注（局部变量）：`x`，含义：用于表示X坐标。
+                        float x = x1; // meaning
+                        appendQuad(
+                            vertices, indices, bounds, gpuPackedColor(block, FaceDirection.EAST),
+                            x, y0, z1,
+                            x, y1, z1,
+                            x, y1, z0,
+                            x, y0, z0
+                        );
+                    }
                 }
                 if (cellZ == coarseHeight - 1) {
-                    // 中文标注（局部变量）：`y0`，含义：用于表示Y坐标、0。
-                    float y0 = lodFloor; // meaning
-                    // 中文标注（局部变量）：`y1`，含义：用于表示Y坐标、1。
-                    float y1 = topY + 1.0f; // meaning
-                    // 中文标注（局部变量）：`z`，含义：用于表示Z坐标。
-                    float z = z1; // meaning
-                    appendQuad(
-                        vertices, indices, bounds, gpuPackedColor(block, FaceDirection.SOUTH),
-                        x0, y0, z,
-                        x0, y1, z,
-                        x1, y1, z,
-                        x1, y0, z
-                    );
+                    int boundaryNeighborHeight = scanBoundaryNeighborHeightAtFixedExpandedZ(
+                        snapshot,
+                        expandedHeight,
+                        Section.SIZE + 1,
+                        localStartX,
+                        localEndXExclusive
+                    ); // meaning
+                    int effectiveNeighborHeight = effectiveLodNeighborHeight(boundaryNeighborHeight); // meaning
+                    if (effectiveNeighborHeight < topY) {
+                        // 中文标注（局部变量）：`y0`，含义：用于表示Y坐标、0。
+                        float y0 = lodSideBottomY(lodFloor, boundaryNeighborHeight); // meaning
+                        // 中文标注（局部变量）：`y1`，含义：用于表示Y坐标、1。
+                        float y1 = topY + 1.0f; // meaning
+                        // 中文标注（局部变量）：`z`，含义：用于表示Z坐标。
+                        float z = z1; // meaning
+                        appendQuad(
+                            vertices, indices, bounds, gpuPackedColor(block, FaceDirection.SOUTH),
+                            x0, y0, z,
+                            x0, y1, z,
+                            x1, y1, z,
+                            x1, y0, z
+                        );
+                    }
                 }
             }
         }
+    }
+
+    private static boolean isLodHeightfieldSolidCandidate(Block block) {
+        return isSolid(block) && block != Blocks.LEAVES && block != Blocks.WOOD;
+    }
+
+    private static int effectiveLodNeighborHeight(int neighborHeight) {
+        return neighborHeight == Integer.MIN_VALUE ? (World.DEFAULT_SOLID_BELOW_Y - 1) : neighborHeight;
+    }
+
+    private static float lodSideBottomY(float lodFloor, int neighborHeight) {
+        return Math.max(
+            lodFloor,
+            neighborHeight == Integer.MIN_VALUE ? (float) World.DEFAULT_SOLID_BELOW_Y : (neighborHeight + 1.0f)
+        );
+    }
+
+    private static int scanBoundaryNeighborHeightAtFixedExpandedX(
+        ChunkSnapshot snapshot,
+        int expandedHeight,
+        int exX,
+        int localStartZ,
+        int localEndZExclusive
+    ) {
+        int bestHeight = Integer.MIN_VALUE; // meaning
+        for (int localZ = localStartZ; localZ < localEndZExclusive; localZ++) { // meaning
+            int columnHeight = scanExpandedColumnTopHeight(snapshot, expandedHeight, exX, localZ + 1); // meaning
+            if (columnHeight > bestHeight) {
+                bestHeight = columnHeight;
+            }
+        }
+        return bestHeight;
+    }
+
+    private static int scanBoundaryNeighborHeightAtFixedExpandedZ(
+        ChunkSnapshot snapshot,
+        int expandedHeight,
+        int exZ,
+        int localStartX,
+        int localEndXExclusive
+    ) {
+        int bestHeight = Integer.MIN_VALUE; // meaning
+        for (int localX = localStartX; localX < localEndXExclusive; localX++) { // meaning
+            int columnHeight = scanExpandedColumnTopHeight(snapshot, expandedHeight, localX + 1, exZ); // meaning
+            if (columnHeight > bestHeight) {
+                bestHeight = columnHeight;
+            }
+        }
+        return bestHeight;
+    }
+
+    private static int scanExpandedColumnTopHeight(ChunkSnapshot snapshot, int expandedHeight, int exX, int exZ) {
+        for (int localY = snapshot.height() - 1; localY >= 0; localY--) { // meaning
+            int exY = localY + 1; // meaning
+            Block block = snapshot.blockAtExpanded(exX, exY, exZ, expandedHeight); // meaning
+            if (!isLodHeightfieldSolidCandidate(block)) {
+                continue;
+            }
+            return snapshot.minY() + localY;
+        }
+        return Integer.MIN_VALUE;
     }
 
     // 中文标注（方法）：`buildTopBottomGreedy`，参数：snapshot、expandedHeight、chunkBaseX、chunkBaseZ、vertices、indices、bounds、mask、topFace；用途：构建或创建构建、顶面、底面、greedy。
@@ -1016,9 +1123,11 @@ public final class ChunkMesher {
     // 中文标注（参数）：`block`，含义：用于表示方块。
     // 中文标注（参数）：`direction`，含义：用于表示direction。
     private static int gpuPackedColor(Block block, FaceDirection direction) {
-        int blockId = block.blockId().asUnsignedInt(); // meaning
-        int idLow = blockId & 0xFF; // meaning
-        int idHigh = (blockId >>> 8) & 0xFF; // meaning
+        int blockId = block.blockId().asUnsignedInt() & 0x0FFF; // meaning
+        int faceIndex = direction.ordinal() & 0x0F; // meaning
+        int packed16 = blockId | (faceIndex << 12); // meaning
+        int idLow = packed16 & 0xFF; // meaning
+        int idHigh = (packed16 >>> 8) & 0xFF; // meaning
         int brightness = clamp(Math.round(direction.brightness * 255.0f)); // meaning
         BlockDef def = block.def();
         int alpha = (def != null && def.renderBucket() == BlockDef.RenderBucket.TRANSLUCENT) ? 180 : 255; // meaning

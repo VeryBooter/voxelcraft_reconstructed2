@@ -1041,7 +1041,7 @@ public final class GameClient implements AutoCloseable {
             graphics.fillRect(cellX + 6, cellY + 7, 16, layout.cellHeight() - 14);
 
             graphics.setColor(Color.WHITE);
-            graphics.drawString(shortDisplayName(def), cellX + 28, cellY + 15);
+            graphics.drawString(shortDisplayName(blockCatalog.displayName(def)), cellX + 28, cellY + 15);
             graphics.setColor(new Color(190, 205, 216));
             graphics.drawString(shortBlockId(def.key()), cellX + 28, cellY + layout.cellHeight() - 8);
         }
@@ -1106,10 +1106,10 @@ public final class GameClient implements AutoCloseable {
         graphics.drawString("Mouse auto-captured and cursor hidden while focused | ESC exits", 24, 194);
     }
 
-    private static String shortDisplayName(BlockDef def) {
-        String label = def.displayName(); // meaning
+    private static String shortDisplayName(String rawLabel) {
+        String label = rawLabel; // meaning
         if (label == null || label.isBlank()) {
-            label = def.key();
+            label = "block";
         }
         return label.length() <= 14 ? label : label.substring(0, 14);
     }
@@ -1150,7 +1150,7 @@ public final class GameClient implements AutoCloseable {
 
     // 中文标注（方法）：`hotbarLabel`，参数：block；用途：执行hotbar、label相关逻辑。
     // 中文标注（参数）：`block`，含义：用于表示方块。
-    private static String hotbarLabel(Block block) {
+    private String hotbarLabel(Block block) {
         if (block == Blocks.DIRT) {
             return "Dirt";
         }
@@ -1168,7 +1168,7 @@ public final class GameClient implements AutoCloseable {
         }
         BlockDef def = block.def();
         if (def != null && !def.displayName().isBlank()) {
-            return shortDisplayName(def);
+            return shortDisplayName(blockCatalog.displayName(def));
         }
         return "Block";
     }

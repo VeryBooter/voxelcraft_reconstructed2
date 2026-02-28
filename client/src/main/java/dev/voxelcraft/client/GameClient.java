@@ -8,10 +8,12 @@ import dev.voxelcraft.client.platform.InputState;
 import dev.voxelcraft.client.player.PlayerController;
 import dev.voxelcraft.client.render.ChunkRenderSystem;
 import dev.voxelcraft.client.render.ChunkRenderSystem.RenderStats;
+import dev.voxelcraft.client.ui.BlockCatalog;
 import dev.voxelcraft.client.world.BlockHitResult;
 import dev.voxelcraft.client.world.ClientWorldView;
 import dev.voxelcraft.core.Game;
 import dev.voxelcraft.core.block.Block;
+import dev.voxelcraft.core.block.BlockDef;
 import dev.voxelcraft.core.block.Blocks;
 import dev.voxelcraft.core.world.BlockPos;
 import dev.voxelcraft.core.world.Section;
@@ -23,6 +25,8 @@ import java.awt.GradientPaint;
 import java.awt.Graphics2D;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseEvent;
+import java.util.List;
+import java.util.Locale;
 /**
  * 中文说明：客户端主状态对象：串联输入、玩家、世界、交互逻辑与渲染运行时。
  */
@@ -51,6 +55,9 @@ public final class GameClient implements AutoCloseable {
     private static final double WORMHOLE_SOUTH_DRIFT = -0.8; // meaning
     private static final double WORMHOLE_WEST_DRIFT = -2.0; // meaning
     private static final double WORMHOLE_SNAP_HYSTERESIS = 0.60; // meaning
+    private static final int BLOCK_PICKER_TOGGLE_KEY = KeyEvent.VK_E; // meaning
+    private static final int BLOCK_PICKER_MAX_COLUMNS = 12; // meaning
+    private static final int BLOCK_PICKER_MAX_ROWS = 7; // meaning
 
     // 中文标注（字段）：`game`，含义：用于表示game。
     private final Game game = new Game(); // meaning
@@ -76,6 +83,9 @@ public final class GameClient implements AutoCloseable {
     };
     // 中文标注（字段）：`hotbarDownLastTick`，含义：用于表示hotbar、down、last、刻。
     private final boolean[] hotbarDownLastTick = new boolean[hotbarBlocks.length]; // meaning
+    private final BlockCatalog blockCatalog = new BlockCatalog(); // meaning
+    private final List<String> pickerCategories = blockCatalog.categoryPrefixes(); // meaning
+    private List<BlockDef> pickerFilteredBlocks = List.of(); // meaning
 
     // 中文标注（字段）：`networkClient`，含义：用于表示网络、客户端。
     private NetworkClient networkClient; // meaning
@@ -111,6 +121,17 @@ public final class GameClient implements AutoCloseable {
     private long lastEnsureLocalChunksNanos; // meaning
     // 中文标注（字段）：`lastChunkGenerationDrainNanos`，含义：用于表示last、区块、generation、drain、nanos。
     private long lastChunkGenerationDrainNanos; // meaning
+    private boolean blockPickerOpen; // meaning
+    private String blockPickerSearchQuery = ""; // meaning
+    private int blockPickerSelectedCategoryIndex; // meaning
+    private int blockPickerScrollRow; // meaning
+    private int blockPickerHoveredIndex = -1; // meaning
+    private int blockPickerSelectedIndex = -1; // meaning
+    private int lastInputMouseX; // meaning
+    private int lastInputMouseY; // meaning
+    private int lastRenderWidth = 960; // meaning
+    private int lastRenderHeight = 540; // meaning
+    private PickerLayout blockPickerLayout = PickerLayout.empty(); // meaning
     private boolean inWormhole; // meaning
     private int entryW; // meaning
     private double wormholeEntryX; // meaning
@@ -154,9 +175,14 @@ public final class GameClient implements AutoCloseable {
             hardwareSampleAccumulator = 0.0;
         }
 
+        lastInputMouseX = input.mouseX();
+        lastInputMouseY = input.mouseY();
         handleWormholeToggleInput(input);
+        handleBlockPickerInput(input);
         handleBlockSelection(input);
-        playerController.tick(worldView, input, deltaSeconds);
+        if (!blockPickerOpen) {
+            playerController.tick(worldView, input, deltaSeconds);
+        }
         tickWormholeIfActive(deltaSeconds);
 
         // 中文标注（局部变量）：`ensureStarted`，含义：用于表示ensure、started。
@@ -169,8 +195,16 @@ public final class GameClient implements AutoCloseable {
         lastChunkGenerationDrainNanos = System.nanoTime() - chunkDrainStarted;
         requestChunksIfNeeded(false);
 
-        targetedBlock = raycastFromPlayer(INTERACTION_REACH);
-        handleInteractions(input);
+        if (blockPickerOpen) {
+            refreshBlockPickerView(lastRenderWidth, lastRenderHeight);
+            handleBlockPickerClick(input);
+            targetedBlock = null;
+            breakButtonDownLastTick = input.isMouseDown(MouseEvent.BUTTON1);
+            placeButtonDownLastTick = input.isMouseDown(MouseEvent.BUTTON3);
+        } else {
+            targetedBlock = raycastFromPlayer(INTERACTION_REACH);
+            handleInteractions(input);
+        }
 
         if (networkClient != null) {
             networkStateSendAccumulator += deltaSeconds;
@@ -191,17 +225,27 @@ public final class GameClient implements AutoCloseable {
     // 中文标注（参数）：`width`，含义：用于表示宽度。
     // 中文标注（参数）：`height`，含义：用于表示高度。
     public void render(Graphics2D graphics, int width, int height) {
+        lastRenderWidth = width;
+        lastRenderHeight = height;
+        if (blockPickerOpen) {
+            refreshBlockPickerView(width, height);
+        }
         drawBackground(graphics, width, height);
 
         // 中文标注（局部变量）：`stats`，含义：用于表示stats。
         RenderStats stats = renderSystem.draw(graphics, width, height, worldView, playerController, ambientLight()); // meaning
-        if (targetedBlock != null) {
+        if (targetedBlock != null && !blockPickerOpen) {
             renderSystem.drawSelectionBox(graphics, width, height, playerController, targetedBlock.targetBlock());
         }
 
-        drawCrosshair(graphics, width, height);
+        if (!blockPickerOpen) {
+            drawCrosshair(graphics, width, height);
+        }
         drawHotbar(graphics, width, height);
         drawHud(graphics, stats);
+        if (blockPickerOpen) {
+            drawBlockPicker(graphics, width, height);
+        }
     }
 
     // 中文标注（方法）：`worldView`，参数：无；用途：执行世界、view相关逻辑。
@@ -236,6 +280,10 @@ public final class GameClient implements AutoCloseable {
     // 中文标注（方法）：`selectedBlock`，参数：无；用途：执行selected、方块相关逻辑。
     public Block selectedBlock() {
         return selectedBlock;
+    }
+
+    public boolean isBlockPickerOpen() {
+        return blockPickerOpen;
     }
 
     public int selectedHotbarSlot() {
@@ -403,6 +451,151 @@ public final class GameClient implements AutoCloseable {
             return;
         }
         tickWormhole(deltaSeconds);
+    }
+
+    private void handleBlockPickerInput(InputState input) {
+        if (input.wasKeyPressed(BLOCK_PICKER_TOGGLE_KEY)) {
+            blockPickerOpen = !blockPickerOpen;
+            if (blockPickerOpen) {
+                blockPickerScrollRow = 0;
+                blockPickerSelectedIndex = -1;
+                blockPickerHoveredIndex = -1;
+                refreshBlockPickerView(lastRenderWidth, lastRenderHeight);
+            }
+            return;
+        }
+
+        if (!blockPickerOpen) {
+            return;
+        }
+
+        boolean categoryChanged = false; // meaning
+        if (input.wasKeyPressed(KeyEvent.VK_LEFT)) {
+            blockPickerSelectedCategoryIndex = Math.max(0, blockPickerSelectedCategoryIndex - 1);
+            categoryChanged = true;
+        }
+        if (input.wasKeyPressed(KeyEvent.VK_RIGHT)) {
+            blockPickerSelectedCategoryIndex = Math.min(pickerCategories.size() - 1, blockPickerSelectedCategoryIndex + 1);
+            categoryChanged = true;
+        }
+        if (categoryChanged) {
+            blockPickerScrollRow = 0;
+            blockPickerSelectedIndex = -1;
+        }
+
+        if (input.wasKeyPressed(KeyEvent.VK_UP)) {
+            blockPickerScrollRow = Math.max(0, blockPickerScrollRow - 1);
+        }
+        if (input.wasKeyPressed(KeyEvent.VK_DOWN)) {
+            blockPickerScrollRow++;
+        }
+
+        if (input.wasKeyPressed(KeyEvent.VK_BACK_SPACE) && !blockPickerSearchQuery.isEmpty()) {
+            blockPickerSearchQuery = blockPickerSearchQuery.substring(0, blockPickerSearchQuery.length() - 1);
+            blockPickerScrollRow = 0;
+            blockPickerSelectedIndex = -1;
+        }
+        if (input.wasKeyPressed(KeyEvent.VK_SPACE)) {
+            blockPickerSearchQuery = blockPickerSearchQuery + " ";
+            blockPickerScrollRow = 0;
+            blockPickerSelectedIndex = -1;
+        }
+        appendBlockPickerSearchChars(input);
+
+        if (input.wasKeyPressed(KeyEvent.VK_ESCAPE)) {
+            blockPickerOpen = false;
+            return;
+        }
+
+        refreshBlockPickerView(lastRenderWidth, lastRenderHeight);
+        if (input.wasKeyPressed(KeyEvent.VK_ENTER)) {
+            int candidate = blockPickerSelectedIndex >= 0 ? blockPickerSelectedIndex : blockPickerHoveredIndex; // meaning
+            if (candidate < 0 && !pickerFilteredBlocks.isEmpty()) {
+                candidate = 0;
+            }
+            selectBlockFromPicker(candidate);
+        }
+    }
+
+    private void appendBlockPickerSearchChars(InputState input) {
+        for (int keyCode = KeyEvent.VK_A; keyCode <= KeyEvent.VK_Z; keyCode++) { // meaning
+            if (!input.wasKeyPressed(keyCode)) {
+                continue;
+            }
+            char letter = (char) ('a' + (keyCode - KeyEvent.VK_A)); // meaning
+            blockPickerSearchQuery = blockPickerSearchQuery + letter;
+            blockPickerScrollRow = 0;
+            blockPickerSelectedIndex = -1;
+        }
+        for (int digit = 0; digit <= 9; digit++) { // meaning
+            int keyCode = KeyEvent.VK_0 + digit; // meaning
+            if (!input.wasKeyPressed(keyCode)) {
+                continue;
+            }
+            blockPickerSearchQuery = blockPickerSearchQuery + digit;
+            blockPickerScrollRow = 0;
+            blockPickerSelectedIndex = -1;
+        }
+    }
+
+    private void handleBlockPickerClick(InputState input) {
+        if (!blockPickerOpen || !input.wasMousePressed(MouseEvent.BUTTON1)) {
+            return;
+        }
+
+        int categoryHit = blockPickerLayout.categoryIndexAt(lastInputMouseX, lastInputMouseY, pickerCategories.size()); // meaning
+        if (categoryHit >= 0) {
+            blockPickerSelectedCategoryIndex = categoryHit;
+            blockPickerScrollRow = 0;
+            blockPickerSelectedIndex = -1;
+            refreshBlockPickerView(lastRenderWidth, lastRenderHeight);
+            return;
+        }
+
+        int index = blockPickerLayout.gridIndexAt(lastInputMouseX, lastInputMouseY, pickerFilteredBlocks.size(), blockPickerScrollRow); // meaning
+        if (index >= 0) {
+            blockPickerSelectedIndex = index;
+            selectBlockFromPicker(index);
+        }
+    }
+
+    private void selectBlockFromPicker(int index) {
+        if (index < 0 || index >= pickerFilteredBlocks.size()) {
+            return;
+        }
+        BlockDef picked = pickerFilteredBlocks.get(index); // meaning
+        Block resolved = Blocks.byBlockKeyOrAir(picked.key()); // meaning
+        if (resolved == Blocks.AIR) {
+            resolved = Blocks.byIdOrAir(picked.key());
+        }
+        hotbarBlocks[selectedHotbarSlot] = resolved;
+        selectedBlock = resolved;
+        blockPickerSelectedIndex = index;
+    }
+
+    private void refreshBlockPickerView(int width, int height) {
+        if (pickerCategories.isEmpty()) {
+            pickerFilteredBlocks = List.of();
+            blockPickerLayout = PickerLayout.empty();
+            blockPickerHoveredIndex = -1;
+            return;
+        }
+
+        blockPickerSelectedCategoryIndex = Math.max(0, Math.min(pickerCategories.size() - 1, blockPickerSelectedCategoryIndex));
+        String selectedCategory = pickerCategories.get(blockPickerSelectedCategoryIndex); // meaning
+        pickerFilteredBlocks = blockCatalog.filter(selectedCategory, blockPickerSearchQuery);
+        blockPickerLayout = PickerLayout.forViewport(width, height);
+
+        int maxVisibleRows = Math.max(1, blockPickerLayout.gridRows()); // meaning
+        int totalRows = (pickerFilteredBlocks.size() + blockPickerLayout.gridColumns() - 1) / blockPickerLayout.gridColumns(); // meaning
+        int maxScroll = Math.max(0, totalRows - maxVisibleRows); // meaning
+        blockPickerScrollRow = Math.max(0, Math.min(maxScroll, blockPickerScrollRow));
+
+        int hovered = blockPickerLayout.gridIndexAt(lastInputMouseX, lastInputMouseY, pickerFilteredBlocks.size(), blockPickerScrollRow); // meaning
+        blockPickerHoveredIndex = hovered;
+        if (blockPickerSelectedIndex >= pickerFilteredBlocks.size()) {
+            blockPickerSelectedIndex = pickerFilteredBlocks.isEmpty() ? -1 : pickerFilteredBlocks.size() - 1;
+        }
     }
 
     private void tickWormhole(double deltaSeconds) {
@@ -787,6 +980,86 @@ public final class GameClient implements AutoCloseable {
         }
     }
 
+    private void drawBlockPicker(Graphics2D graphics, int width, int height) {
+        refreshBlockPickerView(width, height);
+        PickerLayout layout = blockPickerLayout; // meaning
+        if (layout.panelWidth() <= 0 || layout.panelHeight() <= 0) {
+            return;
+        }
+
+        graphics.setColor(new Color(0, 0, 0, 165));
+        graphics.fillRect(0, 0, width, height);
+        graphics.setColor(new Color(26, 32, 40, 235));
+        graphics.fillRoundRect(layout.panelX(), layout.panelY(), layout.panelWidth(), layout.panelHeight(), 14, 14);
+        graphics.setColor(new Color(210, 220, 230, 230));
+        graphics.drawRoundRect(layout.panelX(), layout.panelY(), layout.panelWidth(), layout.panelHeight(), 14, 14);
+
+        graphics.setColor(new Color(16, 22, 28, 210));
+        graphics.fillRoundRect(layout.searchX(), layout.searchY(), layout.searchWidth(), layout.searchHeight(), 8, 8);
+        graphics.setColor(new Color(140, 160, 175, 220));
+        graphics.drawRoundRect(layout.searchX(), layout.searchY(), layout.searchWidth(), layout.searchHeight(), 8, 8);
+        graphics.setFont(new Font(Font.MONOSPACED, Font.BOLD, 13));
+        graphics.setColor(Color.WHITE);
+        graphics.drawString("Search: " + blockPickerSearchQuery, layout.searchX() + 10, layout.searchY() + 20);
+
+        graphics.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
+        for (int i = 0; i < pickerCategories.size(); i++) { // meaning
+            int categoryY = layout.categoryY() + i * layout.categoryRowHeight(); // meaning
+            if (categoryY + layout.categoryRowHeight() > layout.categoryY() + layout.categoryHeight()) {
+                break;
+            }
+            boolean selected = i == blockPickerSelectedCategoryIndex; // meaning
+            int categoryBottom = categoryY + layout.categoryRowHeight() - 2; // meaning
+            graphics.setColor(selected ? new Color(82, 121, 166, 225) : new Color(36, 44, 54, 210));
+            graphics.fillRoundRect(layout.categoryX(), categoryY, layout.categoryWidth(), layout.categoryRowHeight() - 2, 6, 6);
+            graphics.setColor(selected ? Color.WHITE : new Color(190, 202, 212));
+            String label = BlockCatalog.categoryLabel(pickerCategories.get(i)); // meaning
+            graphics.drawString(label, layout.categoryX() + 8, categoryBottom - 6);
+        }
+
+        int start = blockPickerScrollRow * layout.gridColumns(); // meaning
+        int capacity = layout.gridColumns() * layout.gridRows(); // meaning
+        int end = Math.min(pickerFilteredBlocks.size(), start + capacity); // meaning
+        graphics.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 11));
+        for (int index = start; index < end; index++) { // meaning
+            int visible = index - start; // meaning
+            int row = visible / layout.gridColumns(); // meaning
+            int col = visible % layout.gridColumns(); // meaning
+            int cellX = layout.gridX() + col * (layout.cellWidth() + layout.cellGap()); // meaning
+            int cellY = layout.gridY() + row * (layout.cellHeight() + layout.cellGap()); // meaning
+            boolean selected = index == blockPickerSelectedIndex; // meaning
+            boolean hovered = index == blockPickerHoveredIndex; // meaning
+
+            graphics.setColor(selected ? new Color(190, 232, 255, 220) : (hovered ? new Color(118, 142, 168, 210) : new Color(43, 52, 62, 200)));
+            graphics.fillRoundRect(cellX, cellY, layout.cellWidth(), layout.cellHeight(), 6, 6);
+            graphics.setColor(new Color(220, 230, 238, selected ? 235 : 180));
+            graphics.drawRoundRect(cellX, cellY, layout.cellWidth(), layout.cellHeight(), 6, 6);
+
+            BlockDef def = pickerFilteredBlocks.get(index); // meaning
+            Color swatchColor = pickerPreviewColor(def); // meaning
+            graphics.setColor(swatchColor);
+            graphics.fillRect(cellX + 6, cellY + 7, 16, layout.cellHeight() - 14);
+
+            graphics.setColor(Color.WHITE);
+            graphics.drawString(shortDisplayName(def), cellX + 28, cellY + 15);
+            graphics.setColor(new Color(190, 205, 216));
+            graphics.drawString(shortBlockId(def.key()), cellX + 28, cellY + layout.cellHeight() - 8);
+        }
+
+        graphics.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
+        graphics.setColor(new Color(225, 236, 246));
+        String selectedKey = (blockPickerSelectedIndex >= 0 && blockPickerSelectedIndex < pickerFilteredBlocks.size())
+            ? pickerFilteredBlocks.get(blockPickerSelectedIndex).key()
+            : selectedBlock.id().toString();
+        String status = String.format(
+            "blocks loaded: %d / filtered: %d / selected: %s",
+            blockCatalog.totalBlockCount(),
+            pickerFilteredBlocks.size(),
+            selectedKey
+        );
+        graphics.drawString(status, layout.statusX(), layout.statusY());
+    }
+
     // 中文标注（方法）：`drawHud`，参数：graphics、stats；用途：执行渲染或图形资源处理：绘制、hud。
     // 中文标注（参数）：`graphics`，含义：用于表示graphics。
     // 中文标注（参数）：`stats`，含义：用于表示stats。
@@ -809,7 +1082,7 @@ public final class GameClient implements AutoCloseable {
             94
         );
         graphics.drawString(String.format("Held Block: %s", selectedBlock.id()), 24, 114);
-        graphics.drawString("WASD Move | Space Jump | Mouse Look | LMB Break | RMB Place | 1/2/3/4/5 Block", 24, 134);
+        graphics.drawString("WASD Move | Space Jump | Mouse Look | LMB Break | RMB Place | 1/2/3/4/5 Block | E Picker", 24, 134);
         graphics.drawString(
             String.format(
                 "Perf: %.1f FPS | %.1f ms | CPU %s | RAM %d/%d MB | Cores %d",
@@ -833,6 +1106,48 @@ public final class GameClient implements AutoCloseable {
         graphics.drawString("Mouse auto-captured and cursor hidden while focused | ESC exits", 24, 194);
     }
 
+    private static String shortDisplayName(BlockDef def) {
+        String label = def.displayName(); // meaning
+        if (label == null || label.isBlank()) {
+            label = def.key();
+        }
+        return label.length() <= 14 ? label : label.substring(0, 14);
+    }
+
+    private static String shortBlockId(String key) {
+        if (key == null || key.isBlank()) {
+            return "";
+        }
+        int split = key.indexOf(':'); // meaning
+        String normalized = split >= 0 && split + 1 < key.length() ? key.substring(split + 1) : key; // meaning
+        return normalized.length() <= 18 ? normalized : normalized.substring(0, 18);
+    }
+
+    private static Color pickerPreviewColor(BlockDef def) {
+        String material = def.material().toLowerCase(Locale.ROOT); // meaning
+        String key = def.key().toLowerCase(Locale.ROOT); // meaning
+        if (material.contains("sand") || key.contains("sand")) {
+            return new Color(214, 198, 148);
+        }
+        if (material.contains("stone") || material.contains("rock") || key.contains("stone")) {
+            return new Color(134, 138, 145);
+        }
+        if (material.contains("wood") || key.contains("wood") || key.contains("log")) {
+            return new Color(132, 94, 57);
+        }
+        if (material.contains("leaf") || material.contains("moss") || key.contains("leaf")) {
+            return new Color(76, 140, 72);
+        }
+        if (material.contains("soil") || material.contains("dirt") || key.contains("dirt")) {
+            return new Color(127, 94, 66);
+        }
+        int seed = Math.abs((key + "|" + material + "|" + def.variant()).hashCode()); // meaning
+        int red = 80 + (seed & 0x5F);
+        int green = 90 + ((seed >>> 7) & 0x5F);
+        int blue = 80 + ((seed >>> 13) & 0x5F);
+        return new Color(clamp(red), clamp(green), clamp(blue));
+    }
+
     // 中文标注（方法）：`hotbarLabel`，参数：block；用途：执行hotbar、label相关逻辑。
     // 中文标注（参数）：`block`，含义：用于表示方块。
     private static String hotbarLabel(Block block) {
@@ -850,6 +1165,10 @@ public final class GameClient implements AutoCloseable {
         }
         if (block == Blocks.WOOD) {
             return "Wood";
+        }
+        BlockDef def = block.def();
+        if (def != null && !def.displayName().isBlank()) {
+            return shortDisplayName(def);
         }
         return "Block";
     }
@@ -871,6 +1190,112 @@ public final class GameClient implements AutoCloseable {
     // 中文标注（参数）：`value`，含义：用于表示值。
     private static int clamp(int value) {
         return Math.max(0, Math.min(255, value));
+    }
+
+    private record PickerLayout(
+        int panelX,
+        int panelY,
+        int panelWidth,
+        int panelHeight,
+        int searchX,
+        int searchY,
+        int searchWidth,
+        int searchHeight,
+        int categoryX,
+        int categoryY,
+        int categoryWidth,
+        int categoryHeight,
+        int categoryRowHeight,
+        int gridX,
+        int gridY,
+        int gridWidth,
+        int gridHeight,
+        int gridColumns,
+        int gridRows,
+        int cellWidth,
+        int cellHeight,
+        int cellGap,
+        int statusX,
+        int statusY
+    ) {
+        private static PickerLayout empty() {
+            return forViewport(1, 1);
+        }
+
+        private static PickerLayout forViewport(int width, int height) {
+            int margin = 24; // meaning
+            int panelX = margin; // meaning
+            int panelY = margin; // meaning
+            int panelWidth = Math.max(0, width - margin * 2); // meaning
+            int panelHeight = Math.max(0, height - margin * 2); // meaning
+
+            int searchHeight = 30; // meaning
+            int searchX = panelX + 14; // meaning
+            int searchY = panelY + 12; // meaning
+            int searchWidth = Math.max(120, panelWidth - 28); // meaning
+
+            int categoryX = panelX + 14; // meaning
+            int categoryY = searchY + searchHeight + 12; // meaning
+            int categoryWidth = Math.max(120, Math.min(220, panelWidth / 4)); // meaning
+            int categoryHeight = Math.max(0, panelHeight - (categoryY - panelY) - 40); // meaning
+            int categoryRowHeight = 24; // meaning
+
+            int gridX = categoryX + categoryWidth + 14; // meaning
+            int gridY = categoryY; // meaning
+            int gridWidth = Math.max(0, panelX + panelWidth - 14 - gridX); // meaning
+            int gridHeight = Math.max(0, categoryHeight); // meaning
+
+            int cellGap = 6; // meaning
+            int columns = Math.max(1, Math.min(BLOCK_PICKER_MAX_COLUMNS, (gridWidth + cellGap) / (86 + cellGap))); // meaning
+            int rows = Math.max(1, Math.min(BLOCK_PICKER_MAX_ROWS, (gridHeight + cellGap) / (38 + cellGap))); // meaning
+            int cellWidth = Math.max(60, (gridWidth - (columns - 1) * cellGap) / columns); // meaning
+            int cellHeight = Math.max(30, (gridHeight - (rows - 1) * cellGap) / rows); // meaning
+
+            int statusX = panelX + 16; // meaning
+            int statusY = panelY + panelHeight - 12; // meaning
+            return new PickerLayout(
+                panelX, panelY, panelWidth, panelHeight,
+                searchX, searchY, searchWidth, searchHeight,
+                categoryX, categoryY, categoryWidth, categoryHeight, categoryRowHeight,
+                gridX, gridY, gridWidth, gridHeight,
+                columns, rows, cellWidth, cellHeight, cellGap,
+                statusX, statusY
+            );
+        }
+
+        private int categoryIndexAt(int mouseX, int mouseY, int categoryCount) {
+            if (mouseX < categoryX || mouseX >= categoryX + categoryWidth) {
+                return -1;
+            }
+            if (mouseY < categoryY || mouseY >= categoryY + categoryHeight) {
+                return -1;
+            }
+            int row = (mouseY - categoryY) / categoryRowHeight; // meaning
+            if (row < 0 || row >= categoryCount) {
+                return -1;
+            }
+            return row;
+        }
+
+        private int gridIndexAt(int mouseX, int mouseY, int totalItems, int scrollRow) {
+            if (mouseX < gridX || mouseX >= gridX + gridWidth || mouseY < gridY || mouseY >= gridY + gridHeight) {
+                return -1;
+            }
+            int localX = mouseX - gridX; // meaning
+            int localY = mouseY - gridY; // meaning
+            int slotWidth = cellWidth + cellGap; // meaning
+            int slotHeight = cellHeight + cellGap; // meaning
+            int col = localX / slotWidth; // meaning
+            int row = localY / slotHeight; // meaning
+            if (col < 0 || col >= gridColumns || row < 0 || row >= gridRows) {
+                return -1;
+            }
+            if ((localX % slotWidth) >= cellWidth || (localY % slotHeight) >= cellHeight) {
+                return -1;
+            }
+            int index = (scrollRow + row) * gridColumns + col; // meaning
+            return index >= 0 && index < totalItems ? index : -1;
+        }
     }
 
     private static boolean booleanPropertyCompat(String key, String legacyKey, boolean defaultValue) {

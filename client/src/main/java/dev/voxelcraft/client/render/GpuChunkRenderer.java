@@ -7,6 +7,7 @@ import dev.voxelcraft.client.render.ChunkMesher.ChunkSnapshot;
 import dev.voxelcraft.client.render.ChunkRenderSystem.RenderStats;
 import dev.voxelcraft.client.world.ClientWorldView;
 import dev.voxelcraft.core.block.Block;
+import dev.voxelcraft.core.block.BlockDef;
 import dev.voxelcraft.core.block.Blocks;
 import dev.voxelcraft.core.world.Chunk;
 import dev.voxelcraft.core.world.ChunkPos;
@@ -23,6 +24,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.PriorityBlockingQueue;
@@ -33,6 +35,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import org.lwjgl.opengl.GL;
+import org.lwjgl.opengl.GL13;
 import org.lwjgl.opengl.GL20;
 import org.lwjgl.opengl.GLCapabilities;
 import org.lwjgl.opengl.ARBMultiDrawIndirect;
@@ -53,13 +56,21 @@ import static org.lwjgl.opengl.GL11.GL_MODELVIEW;
 import static org.lwjgl.opengl.GL11.GL_ONE_MINUS_SRC_ALPHA;
 import static org.lwjgl.opengl.GL11.GL_PROJECTION;
 import static org.lwjgl.opengl.GL11.GL_QUADS;
+import static org.lwjgl.opengl.GL11.GL_NEAREST;
+import static org.lwjgl.opengl.GL11.GL_RGBA;
+import static org.lwjgl.opengl.GL11.GL_RGBA8;
 import static org.lwjgl.opengl.GL11.GL_SRC_ALPHA;
 import static org.lwjgl.opengl.GL11.GL_TEXTURE_2D;
+import static org.lwjgl.opengl.GL11.GL_TEXTURE_MAG_FILTER;
+import static org.lwjgl.opengl.GL11.GL_TEXTURE_MIN_FILTER;
+import static org.lwjgl.opengl.GL11.GL_TEXTURE_WRAP_S;
+import static org.lwjgl.opengl.GL11.GL_TEXTURE_WRAP_T;
 import static org.lwjgl.opengl.GL11.GL_TRIANGLES;
 import static org.lwjgl.opengl.GL11.GL_UNSIGNED_BYTE;
 import static org.lwjgl.opengl.GL11.GL_UNSIGNED_INT;
 import static org.lwjgl.opengl.GL11.GL_VERTEX_ARRAY;
 import static org.lwjgl.opengl.GL11.glBegin;
+import static org.lwjgl.opengl.GL11.glBindTexture;
 import static org.lwjgl.opengl.GL11.glBlendFunc;
 import static org.lwjgl.opengl.GL11.glClear;
 import static org.lwjgl.opengl.GL11.glClearColor;
@@ -73,6 +84,7 @@ import static org.lwjgl.opengl.GL11.glDrawElements;
 import static org.lwjgl.opengl.GL11.glEnable;
 import static org.lwjgl.opengl.GL11.glEnableClientState;
 import static org.lwjgl.opengl.GL11.glFrustum;
+import static org.lwjgl.opengl.GL11.glGenTextures;
 import static org.lwjgl.opengl.GL11.glLoadIdentity;
 import static org.lwjgl.opengl.GL11.glMatrixMode;
 import static org.lwjgl.opengl.GL11.glOrtho;
@@ -80,6 +92,8 @@ import static org.lwjgl.opengl.GL11.glPopMatrix;
 import static org.lwjgl.opengl.GL11.glPushMatrix;
 import static org.lwjgl.opengl.GL11.glRotatef;
 import static org.lwjgl.opengl.GL11.glScaled;
+import static org.lwjgl.opengl.GL11.glTexImage2D;
+import static org.lwjgl.opengl.GL11.glTexParameteri;
 import static org.lwjgl.opengl.GL11.glTranslated;
 import static org.lwjgl.opengl.GL11.glVertex2f;
 import static org.lwjgl.opengl.GL11.glVertexPointer;
@@ -102,10 +116,12 @@ import static org.lwjgl.opengl.GL15.glBufferSubData;
 import static org.lwjgl.opengl.GL15.glDeleteQueries;
 import static org.lwjgl.opengl.GL15.glEndQuery;
 import static org.lwjgl.opengl.GL15.glDeleteBuffers;
+import static org.lwjgl.opengl.GL11.glDeleteTextures;
 import static org.lwjgl.opengl.GL15.glGenBuffers;
 import static org.lwjgl.opengl.GL15.glGenQueries;
 import static org.lwjgl.opengl.GL15.glGetQueryObjecti;
 import static org.lwjgl.opengl.GL40.GL_DRAW_INDIRECT_BUFFER;
+import static org.lwjgl.opengl.GL12.GL_CLAMP_TO_EDGE;
 /**
  * 中文说明：GPU 区块渲染主入口：负责区块可见性判定、网格任务调度、上传与最终绘制。
  */
@@ -180,55 +196,114 @@ public final class GpuChunkRenderer implements AutoCloseable {
     private static final float[] HOTBAR_COLOR_SAND = rgb(215, 201, 150);
     private static final float[] HOTBAR_COLOR_WOOD = rgb(143, 91, 48);
     private static final float[] HOTBAR_COLOR_FALLBACK = rgb(210, 210, 210);
+    private static final int MATERIAL_LUT_WIDTH = 4096; // meaning
+    private static final int MATERIAL_LUT_HEIGHT = 2; // meaning
+    private static final int MATERIAL_PATTERN_RAW_STONE = 0; // meaning
+    private static final int MATERIAL_PATTERN_POLISHED = 1; // meaning
+    private static final int MATERIAL_PATTERN_BRICKS = 2; // meaning
+    private static final int MATERIAL_PATTERN_TILES = 3; // meaning
+    private static final int MATERIAL_PATTERN_ORE = 4; // meaning
+    private static final int MATERIAL_PATTERN_WOOD = 5; // meaning
+    private static final int MATERIAL_PATTERN_ORGANIC = 6; // meaning
     // 中文标注（字段）：`AMBIENT_VERTEX_SHADER_SOURCE`，含义：用于表示环境光、顶点、着色器、source。
     private static final String AMBIENT_VERTEX_SHADER_SOURCE = """
         #version 120
-        uniform float uAmbient;
-        varying vec4 vColor;
+        varying vec4 vPacked;
         varying vec3 vWorldPos;
         void main() {
             gl_Position = ftransform();
-            vColor = gl_Color * vec4(uAmbient, uAmbient, uAmbient, 1.0);
-            // GPU 路径的顶点 position 已经是世界坐标（ChunkMesher buildChunkMesh 里用 chunkBaseX/minY 等生成）
+            vPacked = gl_Color;
             vWorldPos = gl_Vertex.xyz;
         }
         """;
     // 中文标注（字段）：`AMBIENT_FRAGMENT_SHADER_SOURCE`，含义：用于表示环境光、fragment、着色器、source。
     private static final String AMBIENT_FRAGMENT_SHADER_SOURCE = """
         #version 120
-        varying vec4 vColor;
+        uniform float uAmbient;
+        uniform sampler2D uMatLut;
+        varying vec4 vPacked;
         varying vec3 vWorldPos;
 
-        // 轻量 deterministic 噪声：输入近似整数的 block cell 坐标 -> [0,1)
-        float hash31(vec3 p) {
-            return fract(sin(dot(p, vec3(12.9898, 78.233, 37.719))) * 43758.5453123);
+        float hash21(vec2 p) {
+            return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+        }
+
+        float valueNoise(vec2 p) {
+            vec2 i = floor(p);
+            vec2 f = fract(p);
+            float a = hash21(i);
+            float b = hash21(i + vec2(1.0, 0.0));
+            float c = hash21(i + vec2(0.0, 1.0));
+            float d = hash21(i + vec2(1.0, 1.0));
+            vec2 u = f * f * (3.0 - 2.0 * f);
+            return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+        }
+
+        vec2 faceUv(vec3 worldPos) {
+            vec3 fw = fwidth(worldPos);
+            if (fw.y <= fw.x && fw.y <= fw.z) {
+                return fract(worldPos.xz);
+            }
+            if (fw.x <= fw.z) {
+                return fract(worldPos.zy);
+            }
+            return fract(worldPos.xy);
         }
 
         void main() {
-            // 用 worldPos 的 floor 做“每个方块一个值”的效果；+epsilon 避免边界浮点抖动
-            vec3 cell = floor(vWorldPos + 0.0001);
+            int id = int(floor(vPacked.r * 255.0 + 0.5)) + int(floor(vPacked.g * 255.0 + 0.5)) * 256;
+            float brightness = clamp(vPacked.b, 0.0, 1.0);
+            float alpha = clamp(vPacked.a, 0.0, 1.0);
+            if (alpha < 0.5) {
+                discard;
+            }
 
-            // 对应 CPU: randomJitter = 0.90 + ((hash & 15)/15)*0.18
-            float h = hash31(cell);
-            float randomJitter = 0.90 + h * 0.18;
+            float lutX = (clamp(float(id), 0.0, 4095.0) + 0.5) / 4096.0;
+            vec4 row0 = texture2D(uMatLut, vec2(lutX, 0.25));
+            vec4 row1 = texture2D(uMatLut, vec2(lutX, 0.75));
+            vec3 base = row0.rgb;
+            vec3 accent = row1.rgb;
+            float noiseScale = mix(0.2, 1.4, row0.a);
+            float patternType = row1.a * 255.0;
+            vec2 uv = faceUv(vWorldPos);
+            vec3 material = base;
 
-            // “是否水平面”的近似：水平面 y 常数 -> fwidth(y) ~ 0
-            // horiz = 1 表示水平面，0 表示非水平面（侧面等）
-            float horiz = 1.0 - step(0.001, fwidth(vWorldPos.y));
+            if (patternType < 0.5) {
+                float n = valueNoise(uv * (8.0 * noiseScale) + vWorldPos.xz * 0.03);
+                material = mix(base, accent, n * 0.65);
+            } else if (patternType < 1.5) {
+                float n = valueNoise(uv * (2.5 + noiseScale) + vWorldPos.xy * 0.015);
+                material = mix(base, accent, 0.22 + n * 0.25);
+            } else if (patternType < 2.5) {
+                vec2 brickUv = uv * 6.0;
+                float row = floor(brickUv.y);
+                float offset = step(1.0, mod(row, 2.0)) * 0.5;
+                vec2 st = fract(vec2(brickUv.x + offset, brickUv.y));
+                float mortar = max(step(st.x, 0.06), max(step(0.94, st.x), max(step(st.y, 0.06), step(0.94, st.y))));
+                material = mix(mix(base, accent, 0.32), vec3(0.13, 0.13, 0.13), mortar * 0.9);
+            } else if (patternType < 3.5) {
+                vec2 tileUv = uv * 4.0;
+                vec2 st = fract(tileUv);
+                float grout = max(step(st.x, 0.05), max(step(0.95, st.x), max(step(st.y, 0.05), step(0.95, st.y))));
+                float n = valueNoise(tileUv * 0.9 + vWorldPos.xz * 0.02);
+                material = mix(mix(base, accent, n * 0.25), vec3(0.12, 0.12, 0.12), grout * 0.85);
+            } else if (patternType < 4.5) {
+                float n = valueNoise(uv * (10.0 * noiseScale) + vWorldPos.xy * 0.03);
+                float speckle = step(0.82, n);
+                vec3 rock = mix(base, accent, n * 0.2);
+                material = mix(rock, accent * 1.28, speckle * 0.75);
+            } else if (patternType < 5.5) {
+                float grain = sin((uv.x + valueNoise(uv * 2.0)) * (34.0 * noiseScale));
+                float rings = valueNoise(vec2(uv.y * 7.0, uv.x * 1.6));
+                material = mix(base, accent, 0.25 + (grain * 0.5 + 0.5) * 0.35 + rings * 0.2);
+            } else {
+                float n = valueNoise(uv * (7.0 * noiseScale) + vWorldPos.xz * 0.02);
+                float stripe = mix(0.92, 1.08, step(1.0, mod(floor(vWorldPos.x + vWorldPos.z), 2.0)));
+                material = mix(base, accent, n * 0.45) * stripe;
+            }
 
-            // “是否绿色材质”的近似：g 明显大于 r,b（主要为了草地/树叶）
-            float isGreenish = step((vColor.r + vColor.b) * 0.55, vColor.g);
-
-            // grass 条纹：((x+z)&1) ? 0.96 : 1.02
-            float parity = mod(cell.x + cell.z, 2.0);          // 0 or 1
-            float stripe = mix(0.96, 1.02, step(1.0, parity)); // parity=0 -> 0.96, parity=1 -> 1.02
-
-            float detail = randomJitter;
-
-            // 只给“绿色 + 水平面”额外条纹（模拟 software 的 GRASS+UP 特殊处理）
-            detail *= mix(1.0, stripe, isGreenish * horiz);
-
-            gl_FragColor = vec4(vColor.rgb * detail, vColor.a);
+            vec3 lit = material * (brightness * uAmbient);
+            gl_FragColor = vec4(clamp(lit, 0.0, 1.0), alpha);
         }
         """;
 
@@ -387,6 +462,8 @@ public final class GpuChunkRenderer implements AutoCloseable {
     private int ambientShaderProgramId; // meaning
     // 中文标注（字段）：`ambientUniformLocation`，含义：用于表示环境光、uniform、location。
     private int ambientUniformLocation = -1; // meaning
+    private int materialLutUniformLocation = -1; // meaning
+    private int materialLutTextureId; // meaning
     // 中文标注（字段）：`latestTitleStats`，含义：用于表示latest、title、stats。
     private volatile String latestTitleStats = "gpu init"; // meaning
     // 中文标注（字段）：`closing`，含义：用于表示closing。
@@ -432,6 +509,7 @@ public final class GpuChunkRenderer implements AutoCloseable {
         long renderStarted = System.nanoTime(); // meaning
         initializeCapabilitiesIfNeeded();
         ensureAmbientShaderProgram();
+        ensureMaterialLutTexture();
         frameSequence++;
         // 中文标注（局部变量）：`safeWidth`，含义：用于表示safe、宽度。
         int safeWidth = clampViewportDimension(width); // meaning
@@ -770,6 +848,224 @@ public final class GpuChunkRenderer implements AutoCloseable {
         return Math.max(0.0f, Math.min(255.0f, value * multiplier)) / 255.0f;
     }
 
+    private void ensureMaterialLutTexture() {
+        if (materialLutTextureId != 0) {
+            return;
+        }
+        ByteBuffer pixels = buildMaterialLutTextureData(); // meaning
+        materialLutTextureId = glGenTextures();
+        glBindTexture(GL_TEXTURE_2D, materialLutTextureId);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, MATERIAL_LUT_WIDTH, MATERIAL_LUT_HEIGHT, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+        glBindTexture(GL_TEXTURE_2D, 0);
+    }
+
+    private ByteBuffer buildMaterialLutTextureData() {
+        MaterialEntry[] entries = new MaterialEntry[MATERIAL_LUT_WIDTH]; // meaning
+        for (int id = 0; id < entries.length; id++) { // meaning
+            entries[id] = fallbackMaterialEntry(id);
+        }
+        for (BlockDef def : Blocks.definitions().all()) {
+            int id = def.id().asUnsignedInt(); // meaning
+            if (id < 0 || id >= MATERIAL_LUT_WIDTH) {
+                continue;
+            }
+            entries[id] = materialEntryFor(def, id);
+        }
+
+        ByteBuffer bytes = ByteBuffer.allocateDirect(MATERIAL_LUT_WIDTH * MATERIAL_LUT_HEIGHT * 4); // meaning
+        for (int x = 0; x < MATERIAL_LUT_WIDTH; x++) { // meaning
+            MaterialEntry entry = entries[x]; // meaning
+            bytes.put((byte) entry.baseR());
+            bytes.put((byte) entry.baseG());
+            bytes.put((byte) entry.baseB());
+            bytes.put((byte) entry.noiseByte());
+        }
+        for (int x = 0; x < MATERIAL_LUT_WIDTH; x++) { // meaning
+            MaterialEntry entry = entries[x]; // meaning
+            bytes.put((byte) entry.accentR());
+            bytes.put((byte) entry.accentG());
+            bytes.put((byte) entry.accentB());
+            bytes.put((byte) entry.patternByte());
+        }
+        bytes.flip();
+        return bytes;
+    }
+
+    private static MaterialEntry fallbackMaterialEntry(int id) {
+        int seed = hashMaterial(id, 0x6D2B79F5, 0x9E3779B9, 0x85EBCA6B); // meaning
+        int baseR = clampByte(82 + (seed & 63));
+        int baseG = clampByte(88 + ((seed >>> 6) & 63));
+        int baseB = clampByte(90 + ((seed >>> 12) & 63));
+        int accentR = clampByte(baseR + 18);
+        int accentG = clampByte(baseG + 16);
+        int accentB = clampByte(baseB + 14);
+        return new MaterialEntry(baseR, baseG, baseB, 140, accentR, accentG, accentB, MATERIAL_PATTERN_RAW_STONE);
+    }
+
+    private static MaterialEntry materialEntryFor(BlockDef def, int id) {
+        String category = lower(def.category()); // meaning
+        String material = lower(def.material()); // meaning
+        String variant = lower(def.variant()); // meaning
+        String key = lower(def.key()); // meaning
+        int seed = hashMaterial(id, category.hashCode(), material.hashCode(), variant.hashCode()); // meaning
+        int pattern = patternTypeFor(category, material, key, variant); // meaning
+
+        int[] base = baseColorFor(category, material, key, seed); // meaning
+        int[] accent = accentColorFor(pattern, base, material, key, seed); // meaning
+        int noiseByte = noiseScaleByte(pattern, seed); // meaning
+        return new MaterialEntry(
+            base[0],
+            base[1],
+            base[2],
+            noiseByte,
+            accent[0],
+            accent[1],
+            accent[2],
+            clampByte(pattern)
+        );
+    }
+
+    private static int patternTypeFor(String category, String material, String key, String variant) {
+        if (category.contains("ore:") || material.contains("ore") || key.contains("ore_") || key.contains("_ore_")) {
+            return MATERIAL_PATTERN_ORE;
+        }
+        if (containsAny(material, key, variant, "wood", "bark", "sapwood", "heartwood", "timber")) {
+            return MATERIAL_PATTERN_WOOD;
+        }
+        if (containsAny(material, key, variant, "brick", "cobbled")) {
+            return MATERIAL_PATTERN_BRICKS;
+        }
+        if (containsAny(material, key, variant, "tile", "slab")) {
+            return MATERIAL_PATTERN_TILES;
+        }
+        if (containsAny(material, key, variant, "polished", "smooth")) {
+            return MATERIAL_PATTERN_POLISHED;
+        }
+        if (category.startsWith("biology:") || containsAny(material, key, variant, "moss", "leaf", "humus", "fung", "biofilm")) {
+            return MATERIAL_PATTERN_ORGANIC;
+        }
+        return MATERIAL_PATTERN_RAW_STONE;
+    }
+
+    private static int[] baseColorFor(String category, String material, String key, int seed) {
+        int[] base;
+        if (containsAny(material, key, category, "sand", "saline", "chalk", "loess")) {
+            base = new int[] {214, 198, 148};
+        } else if (containsAny(material, key, category, "soil", "mud", "dirt", "humus", "clay", "loam", "peat")) {
+            base = new int[] {124, 96, 70};
+        } else if (containsAny(material, key, category, "wood", "bark", "sapwood", "heartwood")) {
+            base = new int[] {132, 94, 58};
+        } else if (containsAny(material, key, category, "leaf", "moss", "lichen", "biofilm", "algae", "grass")) {
+            base = new int[] {86, 146, 84};
+        } else if (containsAny(material, key, category, "coral", "sponge")) {
+            base = new int[] {186, 132, 134};
+        } else if (category.startsWith("geology:")) {
+            base = new int[] {132, 136, 143};
+        } else {
+            base = new int[] {96 + (seed & 31), 100 + ((seed >>> 5) & 31), 104 + ((seed >>> 10) & 31)};
+        }
+        int jitterR = ((seed >>> 15) & 15) - 7; // meaning
+        int jitterG = ((seed >>> 19) & 15) - 7; // meaning
+        int jitterB = ((seed >>> 23) & 15) - 7; // meaning
+        return new int[] {
+            clampByte(base[0] + jitterR),
+            clampByte(base[1] + jitterG),
+            clampByte(base[2] + jitterB)
+        };
+    }
+
+    private static int[] accentColorFor(int pattern, int[] base, String material, String key, int seed) {
+        if (pattern == MATERIAL_PATTERN_ORE) {
+            int warm = containsAny(material, key, "", "copper", "gold", "sulfur", "phosphate") ? 34 : 8; // meaning
+            return new int[] {
+                clampByte(base[0] + 52 + warm),
+                clampByte(base[1] + 44 + (seed & 15)),
+                clampByte(base[2] + 32 + ((seed >>> 4) & 23))
+            };
+        }
+        if (pattern == MATERIAL_PATTERN_WOOD) {
+            return new int[] {
+                clampByte(base[0] + 30),
+                clampByte(base[1] + 20),
+                clampByte(base[2] + 12)
+            };
+        }
+        if (pattern == MATERIAL_PATTERN_ORGANIC) {
+            return new int[] {
+                clampByte(base[0] + 18),
+                clampByte(base[1] + 36),
+                clampByte(base[2] + 16)
+            };
+        }
+        if (pattern == MATERIAL_PATTERN_POLISHED) {
+            return new int[] {
+                clampByte(base[0] + 22),
+                clampByte(base[1] + 22),
+                clampByte(base[2] + 22)
+            };
+        }
+        return new int[] {
+            clampByte(base[0] + 16 + (seed & 7)),
+            clampByte(base[1] + 16 + ((seed >>> 3) & 7)),
+            clampByte(base[2] + 16 + ((seed >>> 6) & 7))
+        };
+    }
+
+    private static int noiseScaleByte(int pattern, int seed) {
+        return switch (pattern) {
+            case MATERIAL_PATTERN_POLISHED -> clampByte(48 + (seed & 15));
+            case MATERIAL_PATTERN_BRICKS -> clampByte(82 + (seed & 12));
+            case MATERIAL_PATTERN_TILES -> clampByte(70 + (seed & 14));
+            case MATERIAL_PATTERN_ORE -> clampByte(186 + (seed & 25));
+            case MATERIAL_PATTERN_WOOD -> clampByte(146 + (seed & 18));
+            case MATERIAL_PATTERN_ORGANIC -> clampByte(172 + (seed & 24));
+            default -> clampByte(124 + (seed & 55));
+        };
+    }
+
+    private static boolean containsAny(String a, String b, String c, String... needles) {
+        for (String needle : needles) {
+            if ((!a.isEmpty() && a.contains(needle))
+                || (!b.isEmpty() && b.contains(needle))
+                || (!c.isEmpty() && c.contains(needle))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static String lower(String value) {
+        return value == null ? "" : value.toLowerCase(Locale.ROOT);
+    }
+
+    private static int hashMaterial(int a, int b, int c, int d) {
+        int value = a * 0x9E3779B9 + b * 0x7F4A7C15 + c * 0x85EBCA6B + d * 0xC2B2AE35; // meaning
+        value ^= (value >>> 15);
+        value *= 0x2C1B3C6D;
+        value ^= (value >>> 12);
+        return value;
+    }
+
+    private static int clampByte(int value) {
+        return Math.max(0, Math.min(255, value));
+    }
+
+    private record MaterialEntry(
+        int baseR,
+        int baseG,
+        int baseB,
+        int noiseByte,
+        int accentR,
+        int accentG,
+        int accentB,
+        int patternByte
+    ) {
+    }
+
     // 中文标注（方法）：`close`，参数：无；用途：执行close相关逻辑。
     @Override
     public synchronized void close() {
@@ -818,6 +1114,11 @@ public final class GpuChunkRenderer implements AutoCloseable {
             GL20.glDeleteProgram(ambientShaderProgramId);
             ambientShaderProgramId = 0;
             ambientUniformLocation = -1;
+            materialLutUniformLocation = -1;
+        }
+        if (materialLutTextureId != 0) {
+            glDeleteTextures(materialLutTextureId);
+            materialLutTextureId = 0;
         }
         mdiCommandUploadBytes = null;
         uploadBufferPool.clear();
@@ -1299,7 +1600,11 @@ public final class GpuChunkRenderer implements AutoCloseable {
 
         GL20.glUseProgram(ambientShaderProgramId);
         GL20.glUniform1f(ambientUniformLocation, features.applyAmbientToBlocks() ? ambient : 1.0f);
-        pass.stateChanges += 2;
+        GL20.glUniform1i(materialLutUniformLocation, 0);
+        GL13.glActiveTexture(GL13.GL_TEXTURE0);
+        glEnable(GL_TEXTURE_2D);
+        glBindTexture(GL_TEXTURE_2D, materialLutTextureId);
+        pass.stateChanges += 5;
 
         glEnableClientState(GL_VERTEX_ARRAY);
         glEnableClientState(GL_COLOR_ARRAY);
@@ -1520,8 +1825,10 @@ public final class GpuChunkRenderer implements AutoCloseable {
         bindArrayBuffer(pass, 0);
         bindElementBuffer(pass, 0);
         bindIndirectBuffer(pass, 0);
+        GL13.glActiveTexture(GL13.GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, 0);
         GL20.glUseProgram(0);
-        pass.stateChanges++;
+        pass.stateChanges += 2;
         glDisableClientState(GL_COLOR_ARRAY);
         glDisableClientState(GL_VERTEX_ARRAY);
     }
@@ -2205,9 +2512,14 @@ public final class GpuChunkRenderer implements AutoCloseable {
             if (uniformLoc < 0) {
                 throw new IllegalStateException("Ambient shader missing uniform uAmbient");
             }
+            int materialLutLoc = GL20.glGetUniformLocation(program, "uMatLut"); // meaning
+            if (materialLutLoc < 0) {
+                throw new IllegalStateException("Ambient shader missing uniform uMatLut");
+            }
 
             ambientShaderProgramId = program;
             ambientUniformLocation = uniformLoc;
+            materialLutUniformLocation = materialLutLoc;
             program = 0;
         } finally {
             if (program != 0) {

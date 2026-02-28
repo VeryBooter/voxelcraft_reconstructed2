@@ -45,6 +45,8 @@ public final class Window implements AutoCloseable {
     private volatile boolean open = true; // meaning
     // 中文标注（字段）：`mouseCaptured`，含义：用于表示鼠标、captured。
     private volatile boolean mouseCaptured; // meaning
+    // 中文标注（字段）：`mouseCaptureEnabled`，含义：用于表示鼠标捕获是否启用。
+    private volatile boolean mouseCaptureEnabled = true; // meaning
     // 中文标注（字段）：`suppressCenterEvent`，含义：用于表示suppress、center、event。
     private volatile boolean suppressCenterEvent; // meaning
     // 中文标注（字段）：`bufferStrategy`，含义：用于表示缓冲区、strategy。
@@ -96,7 +98,9 @@ public final class Window implements AutoCloseable {
             public void mousePressed(MouseEvent event) {
                 canvas.requestFocusInWindow();
                 input.onMousePressed(event.getButton());
-                captureMouse();
+                if (mouseCaptureEnabled) {
+                    captureMouse();
+                }
             }
 
             // 中文标注（方法）：`mouseReleased`，参数：event；用途：执行鼠标、released相关逻辑。
@@ -136,7 +140,9 @@ public final class Window implements AutoCloseable {
             @Override
             // 中文标注（参数）：`event`，含义：用于表示event。
             public void focusGained(FocusEvent event) {
-                captureMouse();
+                if (mouseCaptureEnabled) {
+                    captureMouse();
+                }
             }
         });
 
@@ -237,6 +243,17 @@ public final class Window implements AutoCloseable {
         frame.setTitle(title);
     }
 
+    public void setMouseCaptureEnabled(boolean enabled) {
+        mouseCaptureEnabled = enabled;
+        if (!enabled) {
+            releaseMouse();
+            return;
+        }
+        if (frame.isFocused() && canvas.isFocusOwner()) {
+            captureMouse();
+        }
+    }
+
     // 中文标注（方法）：`close`，参数：无；用途：执行close相关逻辑。
     @Override
     public void close() {
@@ -278,7 +295,7 @@ public final class Window implements AutoCloseable {
 
     // 中文标注（方法）：`captureMouse`，参数：无；用途：构建或创建capture、鼠标。
     private void captureMouse() {
-        if (mouseCaptured || !canvas.isShowing()) {
+        if (!mouseCaptureEnabled || mouseCaptured || !canvas.isShowing()) {
             return;
         }
         mouseCaptured = true;

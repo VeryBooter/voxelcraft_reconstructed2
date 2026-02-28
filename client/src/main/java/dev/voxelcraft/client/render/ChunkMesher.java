@@ -433,6 +433,8 @@ public final class ChunkMesher {
         // 中文标注（参数）：`scratch`，含义：用于表示临时工作区。
         MeshBuildScratch scratch
     ) {
+        // LOD 高度场底部钳位：避免边缘补边从过深 y 开始拉出超长竖墙。
+        int lodFloor = Math.max(snapshot.minY(), World.DEFAULT_SOLID_BELOW_Y); // meaning
         // 中文标注（局部变量）：`columnHeights`，含义：用于表示column、heights。
         int[] columnHeights = scratch.lodColumnHeights(); // meaning
         // 中文标注（局部变量）：`columnBlocks`，含义：用于表示column、方块集合。
@@ -458,7 +460,7 @@ public final class ChunkMesher {
                     int exY = localY + 1; // meaning
                     // 中文标注（局部变量）：`block`，含义：用于表示方块。
                     Block block = snapshot.blockAtExpanded(exX, exY, exZ, expandedHeight); // meaning
-                    if (!isSolid(block)) {
+                    if (!isSolid(block) || block == Blocks.LEAVES || block == Blocks.WOOD) {
                         continue;
                     }
                     columnHeights[columnIndex] = snapshot.minY() + localY;
@@ -591,7 +593,7 @@ public final class ChunkMesher {
                 }
                 if (cellX == 0) {
                     // 中文标注（局部变量）：`y0`，含义：用于表示Y坐标、0。
-                    float y0 = snapshot.minY(); // meaning
+                    float y0 = lodFloor; // meaning
                     // 中文标注（局部变量）：`y1`，含义：用于表示Y坐标、1。
                     float y1 = topY + 1.0f; // meaning
                     // 中文标注（局部变量）：`x`，含义：用于表示X坐标。
@@ -606,7 +608,7 @@ public final class ChunkMesher {
                 }
                 if (cellZ == 0) {
                     // 中文标注（局部变量）：`y0`，含义：用于表示Y坐标、0。
-                    float y0 = snapshot.minY(); // meaning
+                    float y0 = lodFloor; // meaning
                     // 中文标注（局部变量）：`y1`，含义：用于表示Y坐标、1。
                     float y1 = topY + 1.0f; // meaning
                     // 中文标注（局部变量）：`z`，含义：用于表示Z坐标。
@@ -621,7 +623,7 @@ public final class ChunkMesher {
                 }
                 if (cellX == coarseWidth - 1) {
                     // 中文标注（局部变量）：`y0`，含义：用于表示Y坐标、0。
-                    float y0 = snapshot.minY(); // meaning
+                    float y0 = lodFloor; // meaning
                     // 中文标注（局部变量）：`y1`，含义：用于表示Y坐标、1。
                     float y1 = topY + 1.0f; // meaning
                     // 中文标注（局部变量）：`x`，含义：用于表示X坐标。
@@ -636,7 +638,7 @@ public final class ChunkMesher {
                 }
                 if (cellZ == coarseHeight - 1) {
                     // 中文标注（局部变量）：`y0`，含义：用于表示Y坐标、0。
-                    float y0 = snapshot.minY(); // meaning
+                    float y0 = lodFloor; // meaning
                     // 中文标注（局部变量）：`y1`，含义：用于表示Y坐标、1。
                     float y1 = topY + 1.0f; // meaning
                     // 中文标注（局部变量）：`z`，含义：用于表示Z坐标。
@@ -1014,17 +1016,13 @@ public final class ChunkMesher {
     // 中文标注（参数）：`block`，含义：用于表示方块。
     // 中文标注（参数）：`direction`，含义：用于表示direction。
     private static int gpuPackedColor(Block block, FaceDirection direction) {
-        // 中文标注（局部变量）：`base`，含义：用于表示base。
-        Color base = colorFor(block); // meaning
-        // 中文标注（局部变量）：`brightness`，含义：用于表示亮度。
-        float brightness = direction.brightness; // meaning
-        // 中文标注（局部变量）：`red`，含义：用于表示red。
-        int red = clamp((int) (base.getRed() * brightness)); // meaning
-        // 中文标注（局部变量）：`green`，含义：用于表示green。
-        int green = clamp((int) (base.getGreen() * brightness)); // meaning
-        // 中文标注（局部变量）：`blue`，含义：用于表示blue。
-        int blue = clamp((int) (base.getBlue() * brightness)); // meaning
-        return packRgba(red, green, blue, 255);
+        int blockId = block.blockId().asUnsignedInt(); // meaning
+        int idLow = blockId & 0xFF; // meaning
+        int idHigh = (blockId >>> 8) & 0xFF; // meaning
+        int brightness = clamp(Math.round(direction.brightness * 255.0f)); // meaning
+        BlockDef def = block.def();
+        int alpha = (def != null && def.renderBucket() == BlockDef.RenderBucket.TRANSLUCENT) ? 180 : 255; // meaning
+        return packRgba(idLow, idHigh, brightness, alpha);
     }
 
     // 中文标注（方法）：`packRgba`，参数：red、green、blue、alpha；用途：执行pack、颜色值相关逻辑。

@@ -6,6 +6,8 @@ import dev.voxelcraft.core.block.GrowthRuleSchema;
 import dev.voxelcraft.core.block.MeshProfileDef;
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -25,37 +27,50 @@ public final class BlockCsvDataLoader {
     private static final String DEFAULT_BLOCKS_FILE = "blocks_mesh_library_v2_ecohardcore.csv";
     private static final String DEFAULT_MESH_PROFILES_FILE = "mesh_profiles.csv";
     private static final String DEFAULT_GROWTH_RULES_FILE = "growth_rules.csv";
+    private static final String CLASSPATH_DATA_DIR = "/data/";
 
     private static final Path[] BLOCKS_FALLBACK_PATHS = {
         Paths.get(DEFAULT_BLOCKS_FILE),
-        Paths.get("data", DEFAULT_BLOCKS_FILE),
-        Paths.get("/Users/kevinli/Downloads/DownloadFromInternet/AtlasDownloadSection", DEFAULT_BLOCKS_FILE)
+        Paths.get("data", DEFAULT_BLOCKS_FILE)
     };
     private static final Path[] MESH_PROFILE_FALLBACK_PATHS = {
         Paths.get(DEFAULT_MESH_PROFILES_FILE),
-        Paths.get("data", DEFAULT_MESH_PROFILES_FILE),
-        Paths.get("/Users/kevinli/Downloads/DownloadFromInternet/AtlasDownloadSection", DEFAULT_MESH_PROFILES_FILE)
+        Paths.get("data", DEFAULT_MESH_PROFILES_FILE)
     };
     private static final Path[] GROWTH_RULE_FALLBACK_PATHS = {
         Paths.get(DEFAULT_GROWTH_RULES_FILE),
-        Paths.get("data", DEFAULT_GROWTH_RULES_FILE),
-        Paths.get("/Users/kevinli/Downloads/DownloadFromInternet/AtlasDownloadSection", DEFAULT_GROWTH_RULES_FILE)
+        Paths.get("data", DEFAULT_GROWTH_RULES_FILE)
     };
 
     private BlockCsvDataLoader() {
     }
 
     public static Optional<LoadResult> loadFromConfiguredPaths(int startingBlockId) {
-        Path blocksPath = resolvePath("vc.blocks.csv", "voxelcraft.blocks.csv", BLOCKS_FALLBACK_PATHS);
-        if (blocksPath == null || !Files.isRegularFile(blocksPath)) {
+        CsvSource blocksSource = resolveSource(
+            "vc.blocks.csv",
+            "voxelcraft.blocks.csv",
+            DEFAULT_BLOCKS_FILE,
+            BLOCKS_FALLBACK_PATHS
+        );
+        if (blocksSource == null) {
             return Optional.empty();
         }
 
-        Path meshProfilesPath = resolvePath("vc.meshProfiles.csv", "voxelcraft.meshProfiles.csv", MESH_PROFILE_FALLBACK_PATHS);
-        Path growthRulesPath = resolvePath("vc.growthRules.csv", "voxelcraft.growthRules.csv", GROWTH_RULE_FALLBACK_PATHS);
+        CsvSource meshProfilesSource = resolveSource(
+            "vc.meshProfiles.csv",
+            "voxelcraft.meshProfiles.csv",
+            DEFAULT_MESH_PROFILES_FILE,
+            MESH_PROFILE_FALLBACK_PATHS
+        );
+        CsvSource growthRulesSource = resolveSource(
+            "vc.growthRules.csv",
+            "voxelcraft.growthRules.csv",
+            DEFAULT_GROWTH_RULES_FILE,
+            GROWTH_RULE_FALLBACK_PATHS
+        );
 
         try {
-            return Optional.of(load(blocksPath, meshProfilesPath, growthRulesPath, startingBlockId));
+            return Optional.of(load(blocksSource, meshProfilesSource, growthRulesSource, startingBlockId));
         } catch (IOException exception) {
             System.err.println("[block-csv] failed to load csv data: " + exception.getMessage());
             return Optional.empty();
@@ -64,16 +79,29 @@ public final class BlockCsvDataLoader {
 
     public static LoadResult load(Path blocksPath, Path meshProfilesPath, Path growthRulesPath, int startingBlockId)
         throws IOException {
-        Map<String, MeshProfileDef> meshProfiles =
-            meshProfilesPath != null && Files.isRegularFile(meshProfilesPath)
-                ? loadMeshProfiles(meshProfilesPath)
-                : Map.of();
-        Map<String, GrowthRuleSchema> growthSchemas =
-            growthRulesPath != null && Files.isRegularFile(growthRulesPath)
-                ? loadGrowthRules(growthRulesPath)
-                : Map.of("NONE", new GrowthRuleSchema("NONE", Map.of()));
+        if (blocksPath == null) {
+            throw new IllegalArgumentException("blocksPath");
+        }
+        CsvSource blocksSource = CsvSource.file(blocksPath);
+        CsvSource meshProfilesSource = meshProfilesPath == null ? null : CsvSource.file(meshProfilesPath);
+        CsvSource growthRulesSource = growthRulesPath == null ? null : CsvSource.file(growthRulesPath);
+        return load(blocksSource, meshProfilesSource, growthRulesSource, startingBlockId);
+    }
 
-        List<Map<String, String>> rows = readCsv(blocksPath);
+    private static LoadResult load(
+        CsvSource blocksSource,
+        CsvSource meshProfilesSource,
+        CsvSource growthRulesSource,
+        int startingBlockId
+    ) throws IOException {
+        Map<String, MeshProfileDef> meshProfiles =
+            meshProfilesSource == null ? Map.of() : loadMeshProfiles(meshProfilesSource);
+        Map<String, GrowthRuleSchema> growthSchemas =
+            growthRulesSource == null
+                ? Map.of("NONE", new GrowthRuleSchema("NONE", Map.of()))
+                : loadGrowthRules(growthRulesSource);
+
+        List<Map<String, String>> rows = readCsv(blocksSource);
         List<BlockDef> defs = new ArrayList<>(rows.size());
         int validationErrors = 0;
         int enabledGrowthRuleCount = 0;
@@ -197,7 +225,8 @@ public final class BlockCsvDataLoader {
         }
 
         return new LoadResult(defs, meshProfiles, growthSchemas, validationErrors, enabledGrowthRuleCount,
-            blocksPath, meshProfilesPath, growthRulesPath);
+            blocksSource.source(), meshProfilesSource == null ? "none" : meshProfilesSource.source(),
+            growthRulesSource == null ? "none" : growthRulesSource.source());
     }
 
     private static String defaultAttachFacesText(int mask) {
@@ -220,8 +249,8 @@ public final class BlockCsvDataLoader {
         return normalized.isEmpty() ? "NONE" : normalized;
     }
 
-    private static Map<String, MeshProfileDef> loadMeshProfiles(Path path) throws IOException {
-        List<Map<String, String>> rows = readCsv(path);
+    private static Map<String, MeshProfileDef> loadMeshProfiles(CsvSource source) throws IOException {
+        List<Map<String, String>> rows = readCsv(source);
         Map<String, MeshProfileDef> map = new HashMap<>();
 
         for (Map<String, String> row : rows) {
@@ -247,8 +276,8 @@ public final class BlockCsvDataLoader {
         return Collections.unmodifiableMap(map);
     }
 
-    private static Map<String, GrowthRuleSchema> loadGrowthRules(Path path) throws IOException {
-        List<Map<String, String>> rows = readCsv(path);
+    private static Map<String, GrowthRuleSchema> loadGrowthRules(CsvSource source) throws IOException {
+        List<Map<String, String>> rows = readCsv(source);
         Map<String, GrowthRuleSchema> map = new LinkedHashMap<>();
 
         for (Map<String, String> row : rows) {
@@ -276,25 +305,93 @@ public final class BlockCsvDataLoader {
         return Collections.unmodifiableMap(map);
     }
 
-    private static Path resolvePath(String key, String legacyKey, Path[] fallbackCandidates) {
+    private static CsvSource resolveSource(
+        String key,
+        String legacyKey,
+        String defaultFileName,
+        Path[] fallbackCandidates
+    ) {
         String configured = System.getProperty(key);
         if (configured == null || configured.isBlank()) {
             configured = System.getProperty(legacyKey);
         }
         if (configured != null && !configured.isBlank()) {
-            return Paths.get(configured.trim());
+            CsvSource configuredSource = parseConfiguredSource(configured.trim());
+            if (configuredSource != null) {
+                return configuredSource;
+            }
+        }
+
+        CsvSource classpathSource = resolveClasspathSource(CLASSPATH_DATA_DIR + defaultFileName);
+        if (classpathSource != null) {
+            return classpathSource;
         }
 
         for (Path candidate : fallbackCandidates) {
             if (Files.isRegularFile(candidate)) {
-                return candidate;
+                return CsvSource.file(candidate);
             }
         }
         return null;
     }
 
+    private static CsvSource parseConfiguredSource(String configured) {
+        if (configured.regionMatches(true, 0, "classpath:", 0, "classpath:".length())) {
+            String rawResource = configured.substring("classpath:".length()).trim();
+            CsvSource classpathSource = resolveClasspathSource(rawResource);
+            if (classpathSource == null) {
+                System.err.println("[block-csv] classpath resource not found: " + rawResource);
+            }
+            return classpathSource;
+        }
+
+        Path configuredPath = Paths.get(configured);
+        if (Files.isRegularFile(configuredPath)) {
+            return CsvSource.file(configuredPath);
+        }
+        System.err.println("[block-csv] configured csv path not found: " + configuredPath);
+        return null;
+    }
+
+    private static CsvSource resolveClasspathSource(String resourcePath) {
+        String normalized = normalizeClasspathResource(resourcePath); // meaning
+        try (InputStream stream = BlockCsvDataLoader.class.getResourceAsStream(normalized)) {
+            if (stream == null) {
+                return null;
+            }
+            return CsvSource.classpath(normalized);
+        } catch (IOException exception) {
+            return null;
+        }
+    }
+
+    private static String normalizeClasspathResource(String path) {
+        if (path == null || path.isBlank()) {
+            return CLASSPATH_DATA_DIR + DEFAULT_BLOCKS_FILE;
+        }
+        return path.startsWith("/") ? path : "/" + path;
+    }
+
     private static List<Map<String, String>> readCsv(Path path) throws IOException {
-        try (BufferedReader reader = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
+        try (InputStream stream = Files.newInputStream(path)) {
+            return readCsv(stream);
+        }
+    }
+
+    private static List<Map<String, String>> readCsv(CsvSource source) throws IOException {
+        if (source.path() != null) {
+            return readCsv(source.path());
+        }
+        try (InputStream stream = BlockCsvDataLoader.class.getResourceAsStream(source.classpathResource())) {
+            if (stream == null) {
+                throw new IOException("Classpath resource not found: " + source.classpathResource());
+            }
+            return readCsv(stream);
+        }
+    }
+
+    private static List<Map<String, String>> readCsv(InputStream inputStream) throws IOException {
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8))) {
             String headerLine = reader.readLine();
             if (headerLine == null) {
                 return List.of();
@@ -388,9 +485,20 @@ public final class BlockCsvDataLoader {
         Map<String, GrowthRuleSchema> growthSchemas,
         int growthValidationErrors,
         int enabledGrowthRuleCount,
-        Path blocksPath,
-        Path meshProfilesPath,
-        Path growthRulesPath
+        String blocksSource,
+        String meshProfilesSource,
+        String growthRulesSource
     ) {
+    }
+
+    private record CsvSource(String source, Path path, String classpathResource) {
+        private static CsvSource file(Path path) {
+            Path absolute = path.toAbsolutePath().normalize(); // meaning
+            return new CsvSource("file:" + absolute, absolute, null);
+        }
+
+        private static CsvSource classpath(String classpathResource) {
+            return new CsvSource("classpath:" + classpathResource, null, classpathResource);
+        }
     }
 }

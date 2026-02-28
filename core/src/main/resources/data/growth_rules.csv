@@ -1,0 +1,10 @@
+growth_rule_id,description,params_schema_json
+ACCUMULATE_GUANO,Guano accumulates near roost/nest markers.,"{""chance_per_tick"":""float"",""radius"":""int"",""max_layers"":""int""}"
+AQUATIC_GROW,Aquatic plants grow upward/nearby in water.,"{""chance_per_tick"":""float"",""max_height"":""int"",""requires_water"":""bool""}"
+COLONIZE_SURFACE_BIOFILM,Thin biofilm/lichen colonizes damp surfaces; patch attachment.,"{""chance_per_tick"":""float"",""needs_humidity"":""bool"",""underwater_only"":""bool"",""substrate_tags"":""string""}"
+COMPOSTING,Organic layer composts into humus over time.,"{""ticks_to_compost"":""int"",""output_block_id"":""string""}"
+CORAL_LIVE_OR_DIE,Live coral requires water; dries into skeleton; can regrow in water.,"{""dry_ticks_to_die"":""int"",""regrow_chance"":""float""}"
+FUNGAL_SPREAD,Mycelium/fungal duff spreads through organic substrates.,"{""chance_per_tick"":""float"",""radius"":""int"",""substrate_tags"":""string""}"
+LAYER_ACCUMULATE,"Layered detritus accumulates from sources (leaf fall, spores, sediment).","{""max_layers"":""int"",""chance_per_tick"":""float"",""source_tag"":""string""}"
+NONE,No autonomous growth/spread.,{}
+SPREAD_MOSS_HUMID,Moss spreads to adjacent suitable surfaces under humidity.,"{""chance_per_tick"":""float"",""radius"":""int"",""needs_humidity"":""bool"",""substrate_tags"":""string""}"

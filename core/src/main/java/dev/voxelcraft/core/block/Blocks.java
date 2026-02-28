@@ -42,13 +42,15 @@ public final class Blocks {
             }
             growthRuleSchemas = result.growthSchemas();
             System.out.printf(
-                "[block-csv] loaded blocks=%d meshProfiles=%d growthSchemas=%d enabledGrowth=%d validationErrors=%d path=%s%n",
+                "[block-csv] loaded blocks=%d meshProfiles=%d growthSchemas=%d enabledGrowth=%d validationErrors=%d source=%s meshSource=%s growthSource=%s%n",
                 result.blockDefs().size(),
                 result.meshProfiles().size(),
                 result.growthSchemas().size(),
                 result.enabledGrowthRuleCount(),
                 result.growthValidationErrors(),
-                result.blocksPath()
+                result.blocksSource(),
+                result.meshProfilesSource(),
+                result.growthRulesSource()
             );
         } else {
             System.out.println("[block-csv] csv files not found, using builtin block set only.");

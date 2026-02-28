@@ -130,6 +130,8 @@ public final class VoxelcraftClientApp {
             int frames = 0; // meaning
 
             while (window.isOpen()) {
+                window.setMouseCaptureEnabled(!gameClient.isBlockPickerOpen());
+
                 // 中文标注（局部变量）：`now`，含义：用于表示now。
                 long now = System.nanoTime(); // meaning
                 // 中文标注（局部变量）：`deltaSeconds`，含义：用于表示增量、seconds。
@@ -147,6 +149,7 @@ public final class VoxelcraftClientApp {
                 // 中文标注（局部变量）：`input`，含义：用于表示输入。
                 InputState input = window.input(); // meaning
                 gameClient.tick(input, deltaSeconds);
+                window.setMouseCaptureEnabled(!gameClient.isBlockPickerOpen());
 
                 // 中文标注（局部变量）：`graphics`，含义：用于表示graphics。
                 Graphics2D graphics = window.beginRender(); // meaning

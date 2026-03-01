@@ -1,7 +1,6 @@
 package dev.voxelcraft.core.world;
 
-import dev.voxelcraft.core.world.gen.GeoBioWorldGenerator;
-import dev.voxelcraft.core.world.gen.WormholeWorldGenerator;
+import dev.voxelcraft.core.world.gen.FlatWorldGenerator;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
@@ -10,7 +9,6 @@ import java.util.concurrent.ConcurrentMap;
  */
 public final class WorldStack {
     public static final int W_WORMHOLE = -1_000_000_000; // meaning
-    private static final long WORMHOLE_SEED_SALT = 0x77A1B10C5EED1234L; // meaning
 
     private final long baseSeed; // meaning
     private final ConcurrentMap<Integer, World> slices = new ConcurrentHashMap<>(); // meaning
@@ -32,12 +30,8 @@ public final class WorldStack {
     }
 
     private World createSlice(int w) {
-        if (w == W_WORMHOLE) {
-            long wormholeSeed = mixSeed(baseSeed ^ WORMHOLE_SEED_SALT, w); // meaning
-            return new World(wormholeSeed, new WormholeWorldGenerator(wormholeSeed));
-        }
         long sliceSeed = mixSeed(baseSeed, w); // meaning
-        return new World(sliceSeed, new GeoBioWorldGenerator(sliceSeed));
+        return new World(sliceSeed, new FlatWorldGenerator(sliceSeed));
     }
 
     public static long mixSeed(long baseSeed, int w) {

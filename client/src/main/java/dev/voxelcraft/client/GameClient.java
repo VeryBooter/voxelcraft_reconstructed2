@@ -49,6 +49,26 @@ public final class GameClient implements AutoCloseable {
     private static final long IMMEDIATE_CHUNK_SYNC_LOG_THROTTLE_NANOS = 1_000_000_000L; // meaning
     // 中文标注（字段）：`LOCAL_CHUNK_GENERATION_BUDGET_PER_TICK`，含义：用于表示局部、区块、generation、budget、per、刻。
     private static final int LOCAL_CHUNK_GENERATION_BUDGET_PER_TICK = 2; // meaning
+    private static final boolean W_FEATURE_ENABLED = booleanPropertyCompat(
+        "vc.w.enabled",
+        "voxelcraft.w.enabled",
+        false
+    );
+    private static final int W_KEY_DECREMENT = KeyEvent.VK_Z; // meaning
+    private static final int W_KEY_INCREMENT = KeyEvent.VK_X; // meaning
+    private static final int WCUBE_CAVITY_MIN_X = 0; // meaning
+    private static final int WCUBE_CAVITY_MIN_Y = 64; // meaning
+    private static final int WCUBE_CAVITY_MIN_Z = 0; // meaning
+    private static final int WCUBE_CAVITY_MAX_X = WCUBE_CAVITY_MIN_X + 1; // meaning
+    private static final int WCUBE_CAVITY_MAX_Y = WCUBE_CAVITY_MIN_Y + 1; // meaning
+    private static final int WCUBE_CAVITY_MAX_Z = WCUBE_CAVITY_MIN_Z + 1; // meaning
+    private static final int WCUBE_SHELL_MIN_X = WCUBE_CAVITY_MIN_X - 1; // meaning
+    private static final int WCUBE_SHELL_MAX_X = WCUBE_CAVITY_MAX_X + 1; // meaning
+    private static final int WCUBE_SHELL_MIN_Y = WCUBE_CAVITY_MIN_Y - 1; // meaning
+    private static final int WCUBE_SHELL_MAX_Y = WCUBE_CAVITY_MAX_Y + 1; // meaning
+    private static final int WCUBE_SHELL_MIN_Z = WCUBE_CAVITY_MIN_Z - 1; // meaning
+    private static final int WCUBE_SHELL_MAX_Z = WCUBE_CAVITY_MAX_Z + 1; // meaning
+    private static final int WCUBE_TARGET_PRELOAD_RADIUS = 1; // meaning
     private static final boolean WORMHOLE_FEATURE_ENABLED = booleanPropertyCompat(
         "vc.wormhole.enabled",
         "voxelcraft.wormhole.enabled",
@@ -198,6 +218,7 @@ public final class GameClient implements AutoCloseable {
         lastInputMouseX = input.mouseX();
         lastInputMouseY = input.mouseY();
         handleWormholeToggleInput(input);
+        handleWCubeSliceInput(input);
         handleSettingsInput(input);
         if (!settingsOpen) {
             handleBlockPickerInput(input);
@@ -423,7 +444,11 @@ public final class GameClient implements AutoCloseable {
         if (newW == game.w()) {
             return;
         }
+        rebuildClientForSlice(newW);
+        System.out.printf("[wormhole] switched to slice w=%d%n", newW);
+    }
 
+    private void rebuildClientForSlice(int newW) {
         ClientWorldView oldWorldView = worldView; // meaning
         oldWorldView.close();
         game.switchW(newW);
@@ -439,7 +464,6 @@ public final class GameClient implements AutoCloseable {
         networkStateSendAccumulator = 0.0;
         lightEngine.tick(worldView);
         requestChunksIfNeeded(true);
-        System.out.printf("[wormhole] switched to slice w=%d%n", newW);
     }
 
     // 中文标注（方法）：`close`，参数：无；用途：执行close相关逻辑。
@@ -519,6 +543,101 @@ public final class GameClient implements AutoCloseable {
             }
         }
         worldView.ensureChunkRadius(chunkX, chunkZ, localChunkRadius);
+    }
+
+    private void handleWCubeSliceInput(InputState input) {
+        if (!W_FEATURE_ENABLED) {
+            return;
+        }
+        if (isAnyUiOpen()) {
+            return;
+        }
+        if (networkClient != null && networkClient.isConnected()) {
+            if (input.wasKeyPressed(W_KEY_DECREMENT) || input.wasKeyPressed(W_KEY_INCREMENT)) {
+                System.out.println("[w-cube] disabled while connected to multiplayer server.");
+            }
+            return;
+        }
+        ensureWCubeBuiltInCurrentWorld();
+        if (!isPlayerInsideWCubeSwitchZone()) {
+            return;
+        }
+        if (input.wasKeyPressed(W_KEY_DECREMENT)) {
+            requestSwitchW(game.activeW() - 1);
+        } else if (input.wasKeyPressed(W_KEY_INCREMENT)) {
+            requestSwitchW(game.activeW() + 1);
+        }
+    }
+
+    private void requestSwitchW(int newW) {
+        if (!W_FEATURE_ENABLED) {
+            return;
+        }
+        if (networkClient != null && networkClient.isConnected()) {
+            System.out.println("[w-cube] slice switch denied in multiplayer.");
+            return;
+        }
+        if (newW == game.activeW()) {
+            return;
+        }
+        World targetWorld = game.worldStack().get(newW); // meaning
+        preGenerateWCubeChunks(targetWorld);
+        rebuildClientForSlice(newW);
+        ensureWCubeBuiltInCurrentWorld();
+        playerController.teleport(wCubeCenterX(), WCUBE_CAVITY_MIN_Y, wCubeCenterZ());
+        ensureLocalChunksAroundPlayer();
+        targetedBlock = null;
+        System.out.printf("[w-cube] switched to w=%d (Z=-1, X=+1)%n", newW);
+    }
+
+    private void preGenerateWCubeChunks(World targetWorld) {
+        int centerChunkX = Math.floorDiv((WCUBE_CAVITY_MIN_X + WCUBE_CAVITY_MAX_X) / 2, Section.SIZE); // meaning
+        int centerChunkZ = Math.floorDiv((WCUBE_CAVITY_MIN_Z + WCUBE_CAVITY_MAX_Z) / 2, Section.SIZE); // meaning
+        for (int dz = -WCUBE_TARGET_PRELOAD_RADIUS; dz <= WCUBE_TARGET_PRELOAD_RADIUS; dz++) { // meaning
+            for (int dx = -WCUBE_TARGET_PRELOAD_RADIUS; dx <= WCUBE_TARGET_PRELOAD_RADIUS; dx++) { // meaning
+                targetWorld.getOrGenerateChunk(centerChunkX + dx, centerChunkZ + dz);
+            }
+        }
+    }
+
+    private void ensureWCubeBuiltInCurrentWorld() {
+        if (!W_FEATURE_ENABLED) {
+            return;
+        }
+        if (networkClient != null && networkClient.isConnected()) {
+            return;
+        }
+        for (int y = WCUBE_SHELL_MIN_Y; y <= WCUBE_SHELL_MAX_Y; y++) { // meaning
+            for (int z = WCUBE_SHELL_MIN_Z; z <= WCUBE_SHELL_MAX_Z; z++) { // meaning
+                for (int x = WCUBE_SHELL_MIN_X; x <= WCUBE_SHELL_MAX_X; x++) { // meaning
+                    boolean onShellBoundary = x == WCUBE_SHELL_MIN_X || x == WCUBE_SHELL_MAX_X
+                        || y == WCUBE_SHELL_MIN_Y || y == WCUBE_SHELL_MAX_Y
+                        || z == WCUBE_SHELL_MIN_Z || z == WCUBE_SHELL_MAX_Z; // meaning
+                    Block target = onShellBoundary ? Blocks.STONE : Blocks.AIR; // meaning
+                    worldView.setBlock(x, y, z, target);
+                }
+            }
+        }
+    }
+
+    private boolean isPlayerInsideWCubeSwitchZone() {
+        AABB bounds = playerController.boundingBox(); // meaning
+        double minX = WCUBE_CAVITY_MIN_X; // meaning
+        double minZ = WCUBE_CAVITY_MIN_Z; // meaning
+        double maxX = WCUBE_CAVITY_MAX_X + 1.0; // meaning
+        double maxZ = WCUBE_CAVITY_MAX_Z + 1.0; // meaning
+        return bounds.minX() >= minX
+            && bounds.maxX() <= maxX
+            && bounds.minZ() >= minZ
+            && bounds.maxZ() <= maxZ;
+    }
+
+    private static double wCubeCenterX() {
+        return (WCUBE_CAVITY_MIN_X + WCUBE_CAVITY_MAX_X + 1.0) * 0.5;
+    }
+
+    private static double wCubeCenterZ() {
+        return (WCUBE_CAVITY_MIN_Z + WCUBE_CAVITY_MAX_Z + 1.0) * 0.5;
     }
 
     private void runSimulationStep(InputState input, boolean uiOpen, double stepSeconds) {
@@ -1249,16 +1368,16 @@ public final class GameClient implements AutoCloseable {
         graphics.setColor(Color.WHITE);
         int y = 34; // meaning
         if (showLocation) {
-            graphics.drawString(String.format("XYZ: %.2f %.2f %.2f", playerController.x(), playerController.y(), playerController.z()), 24, y);
+            graphics.drawString(
+                String.format("WXYZ: %d %.2f %.2f %.2f", game.activeW(), playerController.x(), playerController.y(), playerController.z()),
+                24,
+                y
+            );
             y += 20;
             graphics.drawString(String.format("Yaw/Pitch: %.1f / %.1f", playerController.yaw(), playerController.pitch()), 24, y);
             y += 20;
         }
-        String driftLabel = wormholeDwPerSecond >= 0.0 ? "ANA" : "KATA"; // meaning
-        graphics.drawString(inWormhole
-                ? String.format("W-phase: %.2f  snap=%d  drift=%.2f (%s)", wormholeWPhase, wormholeWCandidate, wormholeDwPerSecond, driftLabel)
-                : "W: " + game.w(),
-            24, y);
+        graphics.drawString(buildSliceHudLine(), 24, y);
         y += 20;
         if (showStats) {
             graphics.drawString(
@@ -1270,7 +1389,11 @@ public final class GameClient implements AutoCloseable {
         }
         graphics.drawString(String.format("Held Block: %s", selectedBlock.id()), 24, y);
         y += 20;
-        graphics.drawString("WASD Move | Space Jump | Mouse Look | LMB Break | RMB Place | 1/2/3/4/5 Block | E Picker | O Settings", 24, y);
+        String controlsLine = "WASD Move | Space Jump | Mouse Look | LMB Break | RMB Place | 1/2/3/4/5 Block | E Picker | O Settings"; // meaning
+        if (W_FEATURE_ENABLED) {
+            controlsLine += " | Z/X WSlice (in WCube)";
+        }
+        graphics.drawString(controlsLine, 24, y);
         y += 20;
         if (showFps) {
             graphics.drawString(
@@ -1297,6 +1420,22 @@ public final class GameClient implements AutoCloseable {
         );
         y += 20;
         graphics.drawString("Mouse auto-captured and cursor hidden while focused | ESC exits", 24, y);
+    }
+
+    private String buildSliceHudLine() {
+        if (W_FEATURE_ENABLED) {
+            if (networkClient != null && networkClient.isConnected()) {
+                return "W: " + game.activeW() + " | WCube: disabled in multiplayer";
+            }
+            if (isPlayerInsideWCubeSwitchZone()) {
+                return "W: " + game.activeW() + " | WCube: Z=KATA(-w), X=ANA(+w)";
+            }
+            return "W: " + game.activeW() + " | WCube: move to x/z center zone to switch (Z/X)";
+        }
+        String driftLabel = wormholeDwPerSecond >= 0.0 ? "ANA" : "KATA"; // meaning
+        return inWormhole
+            ? String.format("W-phase: %.2f  snap=%d  drift=%.2f (%s)", wormholeWPhase, wormholeWCandidate, wormholeDwPerSecond, driftLabel)
+            : "W: " + game.w();
     }
 
     private void drawSettingsPanel(Graphics2D graphics, int width, int height) {

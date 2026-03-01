@@ -253,7 +253,8 @@ public final class GpuClientRuntime implements AutoCloseable {
         if (gameClient.showLocationSetting()) {
             out.append(
                 String.format(
-                    " | XYZ %.2f %.2f %.2f | Y/P %.1f %.1f",
+                    " | WXYZ %d %.2f %.2f %.2f | Y/P %.1f %.1f",
+                    gameClient.activeSliceW(),
                     player.eyeX(),
                     player.eyeY(),
                     player.eyeZ(),

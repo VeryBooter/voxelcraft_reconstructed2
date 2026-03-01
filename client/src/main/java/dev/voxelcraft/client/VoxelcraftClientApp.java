@@ -210,7 +210,7 @@ public final class VoxelcraftClientApp {
             title.append(" | FPS ").append(fps);
         }
         if (gameClient.showLocationSetting()) {
-            title.append(String.format(" | XYZ %.2f %.2f %.2f", player.x(), player.y(), player.z()));
+            title.append(String.format(" | WXYZ %d %.2f %.2f %.2f", gameClient.activeSliceW(), player.x(), player.y(), player.z()));
         }
         if (gameClient.showStatsSetting()) {
             title.append(

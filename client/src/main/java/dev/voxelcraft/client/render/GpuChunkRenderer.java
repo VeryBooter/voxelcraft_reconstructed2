@@ -135,8 +135,8 @@ public final class GpuChunkRenderer implements AutoCloseable {
     // 中文标注（字段）：`FAR_PLANE`，含义：用于表示far、plane。
     private static final double FAR_PLANE = 4_800.0; // meaning
 
-    // 中文标注（字段）：`RENDER_CHUNK_RADIUS`，含义：用于表示渲染、区块、radius。
-    private static final int RENDER_CHUNK_RADIUS = 50; // meaning
+    // 中文标注（字段）：`DEFAULT_RENDER_CHUNK_RADIUS`，含义：用于表示默认、渲染、区块、radius。
+    private static final int DEFAULT_RENDER_CHUNK_RADIUS = 50; // meaning
     // 中文标注（字段）：`MIN_UPLOADS_PER_FRAME`，含义：用于表示最小、uploads、per、帧。
     private static final int MIN_UPLOADS_PER_FRAME = 1; // meaning
     // 中文标注（字段）：`DEFAULT_UPLOADS_PER_FRAME`，含义：用于表示默认、uploads、per、帧。
@@ -550,7 +550,11 @@ public final class GpuChunkRenderer implements AutoCloseable {
             configurePlayerCameraAndFrustum(player, safeWidth, safeHeight);
 
             // 中文标注（局部变量）：`frameSet`，含义：用于表示帧、集合。
-            ChunkFrameSet frameSet = collectChunksInRange(worldView, player); // meaning
+            int renderChunkRadius = Math.max(0, gameClient.renderDistanceChunkRadius()); // meaning
+            if (renderChunkRadius <= 0) {
+                renderChunkRadius = DEFAULT_RENDER_CHUNK_RADIUS;
+            }
+            ChunkFrameSet frameSet = collectChunksInRange(worldView, player, renderChunkRadius); // meaning
             // 中文标注（局部变量）：`meshingSubmitStarted`，含义：用于表示meshing、submit、started。
             long meshingSubmitStarted = System.nanoTime(); // meaning
             submitMeshJobsForDirtyChunks(worldView, frameSet.chunks(), player);
@@ -1141,7 +1145,7 @@ public final class GpuChunkRenderer implements AutoCloseable {
     // 中文标注（方法）：`collectChunksInRange`，参数：worldView、player；用途：执行collect、区块集合、in、范围相关逻辑。
     // 中文标注（参数）：`worldView`，含义：用于表示世界、view。
     // 中文标注（参数）：`player`，含义：用于表示玩家。
-    private ChunkFrameSet collectChunksInRange(ClientWorldView worldView, PlayerController player) {
+    private ChunkFrameSet collectChunksInRange(ClientWorldView worldView, PlayerController player, int renderChunkRadius) {
         worldView.copyLoadedChunksInto(scratchLoadedChunks);
         scratchChunksInRange.clear();
         scratchActiveChunkPositions.clear();
@@ -1157,7 +1161,7 @@ public final class GpuChunkRenderer implements AutoCloseable {
             int dx = Math.abs(chunk.pos().x() - playerChunkX); // meaning
             // 中文标注（局部变量）：`dz`，含义：用于表示dz。
             int dz = Math.abs(chunk.pos().z() - playerChunkZ); // meaning
-            if (dx > RENDER_CHUNK_RADIUS || dz > RENDER_CHUNK_RADIUS) {
+            if (dx > renderChunkRadius || dz > renderChunkRadius) {
                 continue;
             }
             scratchChunksInRange.add(chunk);

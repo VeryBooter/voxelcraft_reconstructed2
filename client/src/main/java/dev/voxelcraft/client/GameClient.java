@@ -37,10 +37,16 @@ public final class GameClient implements AutoCloseable {
     private static final double INTERACTION_REACH = 6.0; // meaning
     // 中文标注（字段）：`NETWORK_STATE_SEND_INTERVAL_SECONDS`，含义：用于表示网络、状态、send、interval、seconds。
     private static final double NETWORK_STATE_SEND_INTERVAL_SECONDS = 0.05; // meaning
-    // 中文标注（字段）：`NETWORK_CHUNK_RADIUS`，含义：用于表示网络、区块、radius。
-    private static final int NETWORK_CHUNK_RADIUS = 27; // meaning
-    // 中文标注（字段）：`LOCAL_CHUNK_RADIUS`，含义：用于表示局部、区块、radius。
-    private static final int LOCAL_CHUNK_RADIUS = 27; // meaning
+    // 中文标注（字段）：`RENDER_DISTANCE_NEAR_RADIUS`，含义：用于表示渲染、距离、近、半径。
+    private static final int RENDER_DISTANCE_NEAR_RADIUS = 16; // meaning
+    // 中文标注（字段）：`RENDER_DISTANCE_MEDIUM_RADIUS`，含义：用于表示渲染、距离、中、半径。
+    private static final int RENDER_DISTANCE_MEDIUM_RADIUS = 27; // meaning
+    // 中文标注（字段）：`RENDER_DISTANCE_FAR_RADIUS`，含义：用于表示渲染、距离、远、半径。
+    private static final int RENDER_DISTANCE_FAR_RADIUS = 50; // meaning
+    private static final int LOCAL_CHUNK_IMMEDIATE_RADIUS = clampImmediateChunkRadius(
+        intPropertyCompat("vc.chunkImmediateRadius", "voxelcraft.chunkImmediateRadius", 2)
+    ); // meaning
+    private static final long IMMEDIATE_CHUNK_SYNC_LOG_THROTTLE_NANOS = 1_000_000_000L; // meaning
     // 中文标注（字段）：`LOCAL_CHUNK_GENERATION_BUDGET_PER_TICK`，含义：用于表示局部、区块、generation、budget、per、刻。
     private static final int LOCAL_CHUNK_GENERATION_BUDGET_PER_TICK = 2; // meaning
     private static final boolean WORMHOLE_FEATURE_ENABLED = booleanPropertyCompat(
@@ -56,6 +62,9 @@ public final class GameClient implements AutoCloseable {
     private static final double WORMHOLE_WEST_DRIFT = -2.0; // meaning
     private static final double WORMHOLE_SNAP_HYSTERESIS = 0.60; // meaning
     private static final int BLOCK_PICKER_TOGGLE_KEY = KeyEvent.VK_E; // meaning
+    private static final int SETTINGS_TOGGLE_KEY = KeyEvent.VK_O; // meaning
+    private static final double MAX_SIMULATION_STEP_SECONDS = 0.05; // meaning
+    private static final double MAX_SIMULATION_CATCHUP_SECONDS = 0.25; // meaning
     private static final int BLOCK_PICKER_MAX_COLUMNS = 12; // meaning
     private static final int BLOCK_PICKER_MAX_ROWS = 7; // meaning
 
@@ -121,6 +130,15 @@ public final class GameClient implements AutoCloseable {
     private long lastEnsureLocalChunksNanos; // meaning
     // 中文标注（字段）：`lastChunkGenerationDrainNanos`，含义：用于表示last、区块、generation、drain、nanos。
     private long lastChunkGenerationDrainNanos; // meaning
+    private long lastImmediateChunkSyncLogNanos; // meaning
+    private RenderDistancePreset renderDistancePreset = RenderDistancePreset.MEDIUM; // meaning
+    private int localChunkRadius = renderDistancePreset.chunkRadius(); // meaning
+    private int networkChunkRadius = renderDistancePreset.chunkRadius(); // meaning
+    private boolean showFps = true; // meaning
+    private boolean showLocation = true; // meaning
+    private boolean showStats = true; // meaning
+    private boolean settingsOpen; // meaning
+    private int settingsSelectedOption; // meaning
     private boolean blockPickerOpen; // meaning
     private String blockPickerSearchQuery = ""; // meaning
     private int blockPickerSelectedCategoryIndex; // meaning
@@ -178,26 +196,34 @@ public final class GameClient implements AutoCloseable {
         lastInputMouseX = input.mouseX();
         lastInputMouseY = input.mouseY();
         handleWormholeToggleInput(input);
-        handleBlockPickerInput(input);
-        handleBlockSelection(input);
-        if (!blockPickerOpen) {
-            playerController.tick(worldView, input, deltaSeconds);
+        handleSettingsInput(input);
+        if (!settingsOpen) {
+            handleBlockPickerInput(input);
         }
-        tickWormholeIfActive(deltaSeconds);
+        boolean uiOpen = isAnyUiOpen(); // meaning
+        if (!uiOpen) {
+            handleBlockSelection(input);
+        }
 
-        // 中文标注（局部变量）：`ensureStarted`，含义：用于表示ensure、started。
-        long ensureStarted = System.nanoTime(); // meaning
-        ensureLocalChunksAroundPlayer();
-        lastEnsureLocalChunksNanos = System.nanoTime() - ensureStarted;
-        // 中文标注（局部变量）：`chunkDrainStarted`，含义：用于表示区块、drain、started。
-        long chunkDrainStarted = System.nanoTime(); // meaning
-        worldView.drainChunkGenerationBudget(LOCAL_CHUNK_GENERATION_BUDGET_PER_TICK);
-        lastChunkGenerationDrainNanos = System.nanoTime() - chunkDrainStarted;
-        requestChunksIfNeeded(false);
+        // 物理/碰撞按固定子步推进，避免大 dt 突刺导致单帧穿透。
+        double remainingSeconds = clampSimulationCatchupSeconds(deltaSeconds); // meaning
+        if (remainingSeconds <= 0.0) {
+            runSimulationStep(input, uiOpen, 0.0);
+        } else {
+            while (remainingSeconds > 0.0) {
+                double stepSeconds = Math.min(remainingSeconds, MAX_SIMULATION_STEP_SECONDS); // meaning
+                runSimulationStep(input, uiOpen, stepSeconds);
+                remainingSeconds -= stepSeconds;
+            }
+        }
 
         if (blockPickerOpen) {
             refreshBlockPickerView(lastRenderWidth, lastRenderHeight);
             handleBlockPickerClick(input);
+            targetedBlock = null;
+            breakButtonDownLastTick = input.isMouseDown(MouseEvent.BUTTON1);
+            placeButtonDownLastTick = input.isMouseDown(MouseEvent.BUTTON3);
+        } else if (settingsOpen) {
             targetedBlock = null;
             breakButtonDownLastTick = input.isMouseDown(MouseEvent.BUTTON1);
             placeButtonDownLastTick = input.isMouseDown(MouseEvent.BUTTON3);
@@ -234,17 +260,20 @@ public final class GameClient implements AutoCloseable {
 
         // 中文标注（局部变量）：`stats`，含义：用于表示stats。
         RenderStats stats = renderSystem.draw(graphics, width, height, worldView, playerController, ambientLight()); // meaning
-        if (targetedBlock != null && !blockPickerOpen) {
+        if (targetedBlock != null && !isAnyUiOpen()) {
             renderSystem.drawSelectionBox(graphics, width, height, playerController, targetedBlock.targetBlock());
         }
 
-        if (!blockPickerOpen) {
+        if (!isAnyUiOpen()) {
             drawCrosshair(graphics, width, height);
         }
         drawHotbar(graphics, width, height);
         drawHud(graphics, stats);
         if (blockPickerOpen) {
             drawBlockPicker(graphics, width, height);
+        }
+        if (settingsOpen) {
+            drawSettingsPanel(graphics, width, height);
         }
     }
 
@@ -284,6 +313,44 @@ public final class GameClient implements AutoCloseable {
 
     public boolean isBlockPickerOpen() {
         return blockPickerOpen;
+    }
+
+    public boolean isSettingsOpen() {
+        return settingsOpen;
+    }
+
+    public boolean isAnyUiOpen() {
+        return blockPickerOpen || settingsOpen;
+    }
+
+    public int renderDistanceChunkRadius() {
+        return localChunkRadius;
+    }
+
+    public boolean showFpsSetting() {
+        return showFps;
+    }
+
+    public boolean showLocationSetting() {
+        return showLocation;
+    }
+
+    public boolean showStatsSetting() {
+        return showStats;
+    }
+
+    public String renderDistanceLabel() {
+        return renderDistancePreset.label();
+    }
+
+    public String settingsSummaryText() {
+        return String.format(
+            "Render=%s | FPS=%s | Location=%s | Stats=%s",
+            renderDistancePreset.label(),
+            onOffLabel(showFps),
+            onOffLabel(showLocation),
+            onOffLabel(showStats)
+        );
     }
 
     public int selectedHotbarSlot() {
@@ -405,12 +472,13 @@ public final class GameClient implements AutoCloseable {
 
         lastRequestedChunkX = chunkX;
         lastRequestedChunkZ = chunkZ;
-        networkClient.requestChunkRadius(chunkX, chunkZ, NETWORK_CHUNK_RADIUS);
+        networkClient.requestChunkRadius(chunkX, chunkZ, networkChunkRadius);
     }
 
     // 中文标注（方法）：`ensureLocalChunksAroundPlayer`，参数：无；用途：执行ensure、局部、区块集合、around、玩家相关逻辑。
     private void ensureLocalChunksAroundPlayer() {
         if (networkClient != null && networkClient.isConnected()) {
+            requestChunksIfNeeded(false);
             return;
         }
 
@@ -422,7 +490,46 @@ public final class GameClient implements AutoCloseable {
         int chunkX = Math.floorDiv(blockX, Section.SIZE); // meaning
         // 中文标注（局部变量）：`chunkZ`，含义：用于表示区块、Z坐标。
         int chunkZ = Math.floorDiv(blockZ, Section.SIZE); // meaning
-        worldView.ensureChunkRadius(chunkX, chunkZ, LOCAL_CHUNK_RADIUS);
+        int immediateGenerated = 0; // meaning
+        for (int dz = -LOCAL_CHUNK_IMMEDIATE_RADIUS; dz <= LOCAL_CHUNK_IMMEDIATE_RADIUS; dz++) { // meaning
+            for (int dx = -LOCAL_CHUNK_IMMEDIATE_RADIUS; dx <= LOCAL_CHUNK_IMMEDIATE_RADIUS; dx++) { // meaning
+                int cx = chunkX + dx; // meaning
+                int cz = chunkZ + dz; // meaning
+                if (worldView.getChunk(cx, cz) != null) {
+                    continue;
+                }
+                worldView.world().getOrGenerateChunk(cx, cz);
+                immediateGenerated++;
+            }
+        }
+        if (immediateGenerated > 0) {
+            long now = System.nanoTime(); // meaning
+            if (now - lastImmediateChunkSyncLogNanos >= IMMEDIATE_CHUNK_SYNC_LOG_THROTTLE_NANOS) {
+                System.out.printf(
+                    "[chunk-gen] immediate-sync center=(%d,%d) r=%d generated=%d%n",
+                    chunkX,
+                    chunkZ,
+                    LOCAL_CHUNK_IMMEDIATE_RADIUS,
+                    immediateGenerated
+                );
+                lastImmediateChunkSyncLogNanos = now;
+            }
+        }
+        worldView.ensureChunkRadius(chunkX, chunkZ, localChunkRadius);
+    }
+
+    private void runSimulationStep(InputState input, boolean uiOpen, double stepSeconds) {
+        long ensureStarted = System.nanoTime(); // meaning
+        ensureLocalChunksAroundPlayer();
+        lastEnsureLocalChunksNanos = System.nanoTime() - ensureStarted;
+        if (!uiOpen && stepSeconds > 0.0) {
+            playerController.tick(worldView, input, stepSeconds);
+            tickWormholeIfActive(stepSeconds);
+        }
+        long chunkDrainStarted = System.nanoTime(); // meaning
+        worldView.drainChunkGenerationBudget(LOCAL_CHUNK_GENERATION_BUDGET_PER_TICK);
+        lastChunkGenerationDrainNanos = System.nanoTime() - chunkDrainStarted;
+        requestChunksIfNeeded(false);
     }
 
     private void handleWormholeToggleInput(InputState input) {
@@ -453,10 +560,67 @@ public final class GameClient implements AutoCloseable {
         tickWormhole(deltaSeconds);
     }
 
+    private void handleSettingsInput(InputState input) {
+        if (input.wasKeyPressed(SETTINGS_TOGGLE_KEY)) {
+            settingsOpen = !settingsOpen;
+            if (settingsOpen) {
+                blockPickerOpen = false;
+            }
+            settingsSelectedOption = Math.max(0, Math.min(3, settingsSelectedOption));
+            return;
+        }
+        if (!settingsOpen) {
+            return;
+        }
+        if (input.wasKeyPressed(KeyEvent.VK_ESCAPE)) {
+            settingsOpen = false;
+            return;
+        }
+        if (input.wasKeyPressed(KeyEvent.VK_UP)) {
+            settingsSelectedOption = Math.max(0, settingsSelectedOption - 1);
+        }
+        if (input.wasKeyPressed(KeyEvent.VK_DOWN)) {
+            settingsSelectedOption = Math.min(3, settingsSelectedOption + 1);
+        }
+
+        boolean change = input.wasKeyPressed(KeyEvent.VK_LEFT)
+            || input.wasKeyPressed(KeyEvent.VK_RIGHT)
+            || input.wasKeyPressed(KeyEvent.VK_SPACE); // meaning
+        if (change) {
+            applyCurrentSettingsSelection();
+        }
+    }
+
+    private void applyCurrentSettingsSelection() {
+        switch (settingsSelectedOption) {
+            case 0 -> applyRenderDistancePreset(renderDistancePreset.next());
+            case 1 -> showFps = !showFps;
+            case 2 -> showLocation = !showLocation;
+            case 3 -> showStats = !showStats;
+            default -> {
+            }
+        }
+    }
+
+    private void applyRenderDistancePreset(RenderDistancePreset preset) {
+        if (preset == renderDistancePreset) {
+            return;
+        }
+        renderDistancePreset = preset;
+        localChunkRadius = preset.chunkRadius();
+        networkChunkRadius = preset.chunkRadius();
+        lastRequestedChunkX = Integer.MIN_VALUE;
+        lastRequestedChunkZ = Integer.MIN_VALUE;
+        ensureLocalChunksAroundPlayer();
+        requestChunksIfNeeded(true);
+        System.out.printf("[settings] render-distance=%s radius=%d%n", preset.label(), preset.chunkRadius());
+    }
+
     private void handleBlockPickerInput(InputState input) {
         if (input.wasKeyPressed(BLOCK_PICKER_TOGGLE_KEY)) {
             blockPickerOpen = !blockPickerOpen;
             if (blockPickerOpen) {
+                settingsOpen = false;
                 blockPickerScrollRow = 0;
                 blockPickerSelectedIndex = -1;
                 blockPickerHoveredIndex = -1;
@@ -880,7 +1044,7 @@ public final class GameClient implements AutoCloseable {
         // 中文标注（局部变量）：`spawnY`，含义：用于表示spawn、Y坐标。
         double spawnY = Math.max(surfaceY + 1.0, 6.0); // meaning
         playerController.setSpawn(spawnBlockX + 0.5, spawnY, spawnBlockZ + 0.5);
-        worldView.ensureChunkRadius(0, 0, LOCAL_CHUNK_RADIUS);
+        worldView.ensureChunkRadius(0, 0, localChunkRadius);
     }
 
     // 中文标注（方法）：`findSurfaceY`，参数：x、z；用途：获取或读取find、surface、Y坐标。
@@ -1065,45 +1229,111 @@ public final class GameClient implements AutoCloseable {
     // 中文标注（参数）：`stats`，含义：用于表示stats。
     private void drawHud(Graphics2D graphics, RenderStats stats) {
         graphics.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 13));
+        int lineCount = 4; // meaning
+        if (showLocation) {
+            lineCount += 2;
+        }
+        if (showStats) {
+            lineCount += 1;
+        }
+        if (showFps) {
+            lineCount += 1;
+        }
+        int panelHeight = 18 + lineCount * 20; // meaning
         graphics.setColor(new Color(0, 0, 0, 130));
-        graphics.fillRoundRect(12, 12, 980, 205, 12, 12);
+        graphics.fillRoundRect(12, 12, 980, panelHeight, 12, 12);
 
         graphics.setColor(Color.WHITE);
-        graphics.drawString(String.format("XYZ: %.2f %.2f %.2f", playerController.x(), playerController.y(), playerController.z()), 24, 34);
-        graphics.drawString(String.format("Yaw/Pitch: %.1f / %.1f", playerController.yaw(), playerController.pitch()), 24, 54);
+        int y = 34; // meaning
+        if (showLocation) {
+            graphics.drawString(String.format("XYZ: %.2f %.2f %.2f", playerController.x(), playerController.y(), playerController.z()), 24, y);
+            y += 20;
+            graphics.drawString(String.format("Yaw/Pitch: %.1f / %.1f", playerController.yaw(), playerController.pitch()), 24, y);
+            y += 20;
+        }
         String driftLabel = wormholeDwPerSecond >= 0.0 ? "ANA" : "KATA"; // meaning
         graphics.drawString(inWormhole
                 ? String.format("W-phase: %.2f  snap=%d  drift=%.2f (%s)", wormholeWPhase, wormholeWCandidate, wormholeDwPerSecond, driftLabel)
                 : "W: " + game.w(),
-            24, 74);
-        graphics.drawString(
-            String.format("Faces: total=%d, frustum=%d, drawn=%d", stats.totalFaces(), stats.frustumCandidates(), stats.drawnFaces()),
-            24,
-            94
-        );
-        graphics.drawString(String.format("Held Block: %s", selectedBlock.id()), 24, 114);
-        graphics.drawString("WASD Move | Space Jump | Mouse Look | LMB Break | RMB Place | 1/2/3/4/5 Block | E Picker", 24, 134);
-        graphics.drawString(
-            String.format(
-                "Perf: %.1f FPS | %.1f ms | CPU %s | RAM %d/%d MB | Cores %d",
-                smoothedFps,
-                smoothedFrameMs,
-                hardwareSnapshot.cpuText(),
-                hardwareSnapshot.heapUsedMb(),
-                hardwareSnapshot.heapMaxMb(),
-                hardwareSnapshot.logicalCores()
-            ),
-            24,
-            154
-        );
+            24, y);
+        y += 20;
+        if (showStats) {
+            graphics.drawString(
+                String.format("Faces: total=%d, frustum=%d, drawn=%d", stats.totalFaces(), stats.frustumCandidates(), stats.drawnFaces()),
+                24,
+                y
+            );
+            y += 20;
+        }
+        graphics.drawString(String.format("Held Block: %s", selectedBlock.id()), 24, y);
+        y += 20;
+        graphics.drawString("WASD Move | Space Jump | Mouse Look | LMB Break | RMB Place | 1/2/3/4/5 Block | E Picker | O Settings", 24, y);
+        y += 20;
+        if (showFps) {
+            graphics.drawString(
+                String.format(
+                    "Perf: %.1f FPS | %.1f ms | CPU %s | RAM %d/%d MB | Cores %d",
+                    smoothedFps,
+                    smoothedFrameMs,
+                    hardwareSnapshot.cpuText(),
+                    hardwareSnapshot.heapUsedMb(),
+                    hardwareSnapshot.heapMaxMb(),
+                    hardwareSnapshot.logicalCores()
+                ),
+                24,
+                y
+            );
+            y += 20;
+        }
         graphics.drawString(
             WORMHOLE_FEATURE_ENABLED
                 ? "Network: " + networkStatusLine + " | Wormhole: press V to enter/exit (exit only in center room)"
                 : "Network: " + networkStatusLine,
             24,
-            174
+            y
         );
-        graphics.drawString("Mouse auto-captured and cursor hidden while focused | ESC exits", 24, 194);
+        y += 20;
+        graphics.drawString("Mouse auto-captured and cursor hidden while focused | ESC exits", 24, y);
+    }
+
+    private void drawSettingsPanel(Graphics2D graphics, int width, int height) {
+        int panelWidth = 420; // meaning
+        int panelHeight = 210; // meaning
+        int left = (width - panelWidth) / 2; // meaning
+        int top = (height - panelHeight) / 2; // meaning
+
+        graphics.setColor(new Color(0, 0, 0, 155));
+        graphics.fillRect(0, 0, width, height);
+        graphics.setColor(new Color(22, 29, 38, 236));
+        graphics.fillRoundRect(left, top, panelWidth, panelHeight, 14, 14);
+        graphics.setColor(new Color(220, 230, 240, 220));
+        graphics.drawRoundRect(left, top, panelWidth, panelHeight, 14, 14);
+
+        graphics.setFont(new Font(Font.MONOSPACED, Font.BOLD, 16));
+        graphics.setColor(Color.WHITE);
+        graphics.drawString("Settings", left + 16, top + 28);
+
+        graphics.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 14));
+        String[] rows = {
+            "Render distance: " + renderDistancePreset.label(),
+            "Show FPS: " + onOffLabel(showFps),
+            "Show location: " + onOffLabel(showLocation),
+            "Show stats: " + onOffLabel(showStats)
+        }; // meaning
+        int rowTop = top + 54; // meaning
+        int rowHeight = 32; // meaning
+        for (int i = 0; i < rows.length; i++) { // meaning
+            int y = rowTop + i * rowHeight; // meaning
+            boolean selected = i == settingsSelectedOption; // meaning
+            graphics.setColor(selected ? new Color(90, 128, 168, 220) : new Color(40, 49, 58, 210));
+            graphics.fillRoundRect(left + 16, y - 18, panelWidth - 32, 24, 8, 8);
+            graphics.setColor(selected ? Color.WHITE : new Color(205, 216, 228));
+            graphics.drawString(rows[i], left + 26, y);
+        }
+
+        graphics.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
+        graphics.setColor(new Color(200, 214, 226, 230));
+        graphics.drawString("O toggle | Up/Down select | Left/Right/Space change | Esc close", left + 16, top + panelHeight - 16);
     }
 
     private static String shortDisplayName(String rawLabel) {
@@ -1190,6 +1420,40 @@ public final class GameClient implements AutoCloseable {
     // 中文标注（参数）：`value`，含义：用于表示值。
     private static int clamp(int value) {
         return Math.max(0, Math.min(255, value));
+    }
+
+    private static String onOffLabel(boolean value) {
+        return value ? "On" : "Off";
+    }
+
+    private enum RenderDistancePreset {
+        NEAR("近", RENDER_DISTANCE_NEAR_RADIUS),
+        MEDIUM("中", RENDER_DISTANCE_MEDIUM_RADIUS),
+        FAR("远", RENDER_DISTANCE_FAR_RADIUS);
+
+        private final String label; // meaning
+        private final int chunkRadius; // meaning
+
+        RenderDistancePreset(String label, int chunkRadius) {
+            this.label = label;
+            this.chunkRadius = chunkRadius;
+        }
+
+        private String label() {
+            return label;
+        }
+
+        private int chunkRadius() {
+            return chunkRadius;
+        }
+
+        private RenderDistancePreset next() {
+            return switch (this) {
+                case NEAR -> MEDIUM;
+                case MEDIUM -> FAR;
+                case FAR -> NEAR;
+            };
+        }
     }
 
     private record PickerLayout(
@@ -1296,6 +1560,32 @@ public final class GameClient implements AutoCloseable {
             int index = (scrollRow + row) * gridColumns + col; // meaning
             return index >= 0 && index < totalItems ? index : -1;
         }
+    }
+
+    private static int intPropertyCompat(String key, String legacyKey, int defaultValue) {
+        String raw = System.getProperty(key); // meaning
+        if (raw == null) {
+            raw = System.getProperty(legacyKey);
+        }
+        if (raw == null) {
+            return defaultValue;
+        }
+        try {
+            return Integer.parseInt(raw.trim());
+        } catch (NumberFormatException ignored) {
+            return defaultValue;
+        }
+    }
+
+    private static int clampImmediateChunkRadius(int value) {
+        return Math.max(1, Math.min(2, value));
+    }
+
+    private static double clampSimulationCatchupSeconds(double deltaSeconds) {
+        if (deltaSeconds <= 0.0) {
+            return 0.0;
+        }
+        return Math.min(deltaSeconds, MAX_SIMULATION_CATCHUP_SECONDS);
     }
 
     private static boolean booleanPropertyCompat(String key, String legacyKey, boolean defaultValue) {

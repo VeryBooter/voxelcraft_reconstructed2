@@ -128,9 +128,10 @@ public final class VoxelcraftClientApp {
             long fpsWindowStart = previousNanos; // meaning
             // 中文标注（局部变量）：`frames`，含义：用于表示frames。
             int frames = 0; // meaning
+            int displayedFps = 0; // meaning
 
             while (window.isOpen()) {
-                window.setMouseCaptureEnabled(!gameClient.isBlockPickerOpen());
+                window.setMouseCaptureEnabled(!gameClient.isAnyUiOpen());
 
                 // 中文标注（局部变量）：`now`，含义：用于表示now。
                 long now = System.nanoTime(); // meaning
@@ -149,7 +150,7 @@ public final class VoxelcraftClientApp {
                 // 中文标注（局部变量）：`input`，含义：用于表示输入。
                 InputState input = window.input(); // meaning
                 gameClient.tick(input, deltaSeconds);
-                window.setMouseCaptureEnabled(!gameClient.isBlockPickerOpen());
+                window.setMouseCaptureEnabled(!gameClient.isAnyUiOpen());
 
                 // 中文标注（局部变量）：`graphics`，含义：用于表示graphics。
                 Graphics2D graphics = window.beginRender(); // meaning
@@ -160,10 +161,11 @@ public final class VoxelcraftClientApp {
 
                 frames++;
                 if (now - fpsWindowStart >= 1_000_000_000L) {
-                    window.setTitle("Voxelcraft | FPS " + frames + " | " + gameClient.networkStatusLine());
+                    displayedFps = frames;
                     frames = 0;
                     fpsWindowStart = now;
                 }
+                window.setTitle(buildSoftwareWindowTitle(gameClient, displayedFps));
 
                 sleepBriefly();
             }
@@ -196,6 +198,30 @@ public final class VoxelcraftClientApp {
         } catch (InterruptedException interrupted) {
             Thread.currentThread().interrupt();
         }
+    }
+
+    private static String buildSoftwareWindowTitle(GameClient gameClient, int fps) {
+        if (gameClient.isSettingsOpen()) {
+            return "Voxelcraft | Settings | " + gameClient.settingsSummaryText();
+        }
+        var player = gameClient.playerController(); // meaning
+        StringBuilder title = new StringBuilder("Voxelcraft"); // meaning
+        if (gameClient.showFpsSetting()) {
+            title.append(" | FPS ").append(fps);
+        }
+        if (gameClient.showLocationSetting()) {
+            title.append(String.format(" | XYZ %.2f %.2f %.2f", player.x(), player.y(), player.z()));
+        }
+        if (gameClient.showStatsSetting()) {
+            title.append(
+                " | cg p/r/i "
+                    + gameClient.pendingChunkGenerationCount() + "/"
+                    + gameClient.readyGeneratedChunkCount() + "/"
+                    + gameClient.chunkGenerationJobsInFlight()
+            );
+        }
+        title.append(" | ").append(gameClient.networkStatusLine());
+        return title.toString();
     }
 
     // 中文标注（类）：`LaunchConfig`，职责：封装launch、config相关逻辑。

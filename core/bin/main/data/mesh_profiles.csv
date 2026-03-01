@@ -1,0 +1,13 @@
+mesh_profile,default_alpha_mode,default_occlusion_mode,collision_kind,aabb_min,aabb_max,attach_faces,requires_support,double_sided,notes
+CLUSTER,CUTOUT,none,none,,,any,true,false,Implement as procedural mesher template; see Codex prompt.
+CROSS,CUTOUT,none,none,,,bottom,true,true,Implement as procedural mesher template; see Codex prompt.
+CUBE,OPAQUE,full,full,"0,0,0","1,1,1",,false,false,Implement as procedural mesher template; see Codex prompt.
+DEPOSIT_PATCH,CUTOUT,none,none,,,top,true,false,Implement as procedural mesher template; see Codex prompt.
+LAYERED_1_8,CUTOUT,none,layered,"0,0,0","1,(layers/8),1",top,true,false,Implement as procedural mesher template; see Codex prompt.
+PILE_LOW,CUTOUT,none,pile,"0,0,0","1,0.25,1",top,true,false,Implement as procedural mesher template; see Codex prompt.
+PILLAR,OPAQUE,partial,full,"0,0,0","1,1,1",,false,false,Implement as procedural mesher template; see Codex prompt.
+RUBBLE,CUTOUT,none,rubble,"0,0,0","1,0.35,1",,false,false,Implement as procedural mesher template; see Codex prompt.
+SLAB_HALF,OPAQUE,partial,slab,"0,0,0","1,0.5,1",,false,false,Implement as procedural mesher template; see Codex prompt.
+STAIRS,OPAQUE,partial,stairs,,,,false,false,Implement as procedural mesher template; see Codex prompt.
+SURFACE_PATCH,CUTOUT,none,none,,,any,true,false,Implement as procedural mesher template; see Codex prompt.
+WALL,OPAQUE,partial,wall,,,,false,false,Implement as procedural mesher template; see Codex prompt.

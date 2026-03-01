@@ -560,10 +560,9 @@ public final class ChunkMesher {
                 if (cellX + 1 < coarseWidth) {
                     // 中文标注（局部变量）：`neighborHeight`，含义：用于表示邻居、高度。
                     int neighborHeight = cellHeights[cellIndex + 1]; // meaning
-                    int effectiveNeighborHeight = effectiveLodNeighborHeight(neighborHeight); // meaning
-                    if (effectiveNeighborHeight < topY) {
+                    if (neighborHeight != Integer.MIN_VALUE && neighborHeight < topY) {
                         // 中文标注（局部变量）：`y0`，含义：用于表示Y坐标、0。
-                        float y0 = lodSideBottomY(lodFloor, neighborHeight); // meaning
+                        float y0 = Math.max(lodFloor, neighborHeight + 1.0f); // meaning
                         // 中文标注（局部变量）：`y1`，含义：用于表示Y坐标、1。
                         float y1 = topY + 1.0f; // meaning
                         // 中文标注（局部变量）：`x`，含义：用于表示X坐标。
@@ -580,10 +579,9 @@ public final class ChunkMesher {
                 if (cellZ + 1 < coarseHeight) {
                     // 中文标注（局部变量）：`neighborHeight`，含义：用于表示邻居、高度。
                     int neighborHeight = cellHeights[cellIndex + coarseWidth]; // meaning
-                    int effectiveNeighborHeight = effectiveLodNeighborHeight(neighborHeight); // meaning
-                    if (effectiveNeighborHeight < topY) {
+                    if (neighborHeight != Integer.MIN_VALUE && neighborHeight < topY) {
                         // 中文标注（局部变量）：`y0`，含义：用于表示Y坐标、0。
-                        float y0 = lodSideBottomY(lodFloor, neighborHeight); // meaning
+                        float y0 = Math.max(lodFloor, neighborHeight + 1.0f); // meaning
                         // 中文标注（局部变量）：`y1`，含义：用于表示Y坐标、1。
                         float y1 = topY + 1.0f; // meaning
                         // 中文标注（局部变量）：`z`，含义：用于表示Z坐标。
@@ -605,10 +603,9 @@ public final class ChunkMesher {
                         localStartZ,
                         localEndZExclusive
                     ); // meaning
-                    int effectiveNeighborHeight = effectiveLodNeighborHeight(boundaryNeighborHeight); // meaning
-                    if (effectiveNeighborHeight < topY) {
+                    if (boundaryNeighborHeight != Integer.MIN_VALUE && boundaryNeighborHeight < topY) {
                         // 中文标注（局部变量）：`y0`，含义：用于表示Y坐标、0。
-                        float y0 = lodSideBottomY(lodFloor, boundaryNeighborHeight); // meaning
+                        float y0 = lodFloor; // meaning
                         // 中文标注（局部变量）：`y1`，含义：用于表示Y坐标、1。
                         float y1 = topY + 1.0f; // meaning
                         // 中文标注（局部变量）：`x`，含义：用于表示X坐标。
@@ -630,10 +627,9 @@ public final class ChunkMesher {
                         localStartX,
                         localEndXExclusive
                     ); // meaning
-                    int effectiveNeighborHeight = effectiveLodNeighborHeight(boundaryNeighborHeight); // meaning
-                    if (effectiveNeighborHeight < topY) {
+                    if (boundaryNeighborHeight != Integer.MIN_VALUE && boundaryNeighborHeight < topY) {
                         // 中文标注（局部变量）：`y0`，含义：用于表示Y坐标、0。
-                        float y0 = lodSideBottomY(lodFloor, boundaryNeighborHeight); // meaning
+                        float y0 = lodFloor; // meaning
                         // 中文标注（局部变量）：`y1`，含义：用于表示Y坐标、1。
                         float y1 = topY + 1.0f; // meaning
                         // 中文标注（局部变量）：`z`，含义：用于表示Z坐标。
@@ -655,10 +651,9 @@ public final class ChunkMesher {
                         localStartZ,
                         localEndZExclusive
                     ); // meaning
-                    int effectiveNeighborHeight = effectiveLodNeighborHeight(boundaryNeighborHeight); // meaning
-                    if (effectiveNeighborHeight < topY) {
+                    if (boundaryNeighborHeight != Integer.MIN_VALUE && boundaryNeighborHeight < topY) {
                         // 中文标注（局部变量）：`y0`，含义：用于表示Y坐标、0。
-                        float y0 = lodSideBottomY(lodFloor, boundaryNeighborHeight); // meaning
+                        float y0 = lodFloor; // meaning
                         // 中文标注（局部变量）：`y1`，含义：用于表示Y坐标、1。
                         float y1 = topY + 1.0f; // meaning
                         // 中文标注（局部变量）：`x`，含义：用于表示X坐标。
@@ -680,10 +675,9 @@ public final class ChunkMesher {
                         localStartX,
                         localEndXExclusive
                     ); // meaning
-                    int effectiveNeighborHeight = effectiveLodNeighborHeight(boundaryNeighborHeight); // meaning
-                    if (effectiveNeighborHeight < topY) {
+                    if (boundaryNeighborHeight != Integer.MIN_VALUE && boundaryNeighborHeight < topY) {
                         // 中文标注（局部变量）：`y0`，含义：用于表示Y坐标、0。
-                        float y0 = lodSideBottomY(lodFloor, boundaryNeighborHeight); // meaning
+                        float y0 = lodFloor; // meaning
                         // 中文标注（局部变量）：`y1`，含义：用于表示Y坐标、1。
                         float y1 = topY + 1.0f; // meaning
                         // 中文标注（局部变量）：`z`，含义：用于表示Z坐标。
@@ -703,17 +697,6 @@ public final class ChunkMesher {
 
     private static boolean isLodHeightfieldSolidCandidate(Block block) {
         return isSolid(block) && block != Blocks.LEAVES && block != Blocks.WOOD;
-    }
-
-    private static int effectiveLodNeighborHeight(int neighborHeight) {
-        return neighborHeight == Integer.MIN_VALUE ? (World.DEFAULT_SOLID_BELOW_Y - 1) : neighborHeight;
-    }
-
-    private static float lodSideBottomY(float lodFloor, int neighborHeight) {
-        return Math.max(
-            lodFloor,
-            neighborHeight == Integer.MIN_VALUE ? (float) World.DEFAULT_SOLID_BELOW_Y : (neighborHeight + 1.0f)
-        );
     }
 
     private static int scanBoundaryNeighborHeightAtFixedExpandedX(

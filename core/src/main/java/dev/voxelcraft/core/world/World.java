@@ -21,6 +21,11 @@ public final class World {
     public static final int MAX_Y = 319; // meaning
     // 中文标注（字段）：`DEFAULT_SOLID_BELOW_Y`，含义：用于表示默认、实体、below、Y坐标。
     public static final int DEFAULT_SOLID_BELOW_Y = -16; // meaning
+    private static final boolean PEEK_STONE_BELOW_FALLBACK_ENABLED = booleanPropertyCompat(
+        "vc.peekStoneBelow",
+        "voxelcraft.peekStoneBelow",
+        true
+    ); // meaning
 
     // 中文标注（字段）：`chunkManager`，含义：用于表示区块、管理器。
     private final ChunkManager chunkManager = new ChunkManager(); // meaning
@@ -133,6 +138,9 @@ public final class World {
         // 中文标注（局部变量）：`chunk`，含义：用于表示区块。
         Chunk chunk = chunkManager.getChunk(chunkX, chunkZ); // meaning
         if (chunk == null) {
+            if (PEEK_STONE_BELOW_FALLBACK_ENABLED && y <= DEFAULT_SOLID_BELOW_Y) {
+                return Blocks.STONE;
+            }
             return Blocks.AIR;
         }
 
@@ -251,5 +259,23 @@ public final class World {
             blockUpdateVersion.incrementAndGet();
         }
         return installed;
+    }
+
+    private static boolean booleanPropertyCompat(String key, String legacyKey, boolean defaultValue) {
+        String raw = System.getProperty(key); // meaning
+        if (raw == null) {
+            raw = System.getProperty(legacyKey);
+        }
+        if (raw == null) {
+            return defaultValue;
+        }
+        String normalized = raw.trim().toLowerCase(); // meaning
+        if (normalized.equals("1") || normalized.equals("true") || normalized.equals("yes") || normalized.equals("on")) {
+            return true;
+        }
+        if (normalized.equals("0") || normalized.equals("false") || normalized.equals("no") || normalized.equals("off")) {
+            return false;
+        }
+        return defaultValue;
     }
 }

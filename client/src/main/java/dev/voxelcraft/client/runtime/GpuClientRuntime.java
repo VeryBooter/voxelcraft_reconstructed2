@@ -14,6 +14,7 @@ import static org.lwjgl.glfw.GLFW.GLFW_CONTEXT_VERSION_MAJOR;
 import static org.lwjgl.glfw.GLFW.GLFW_CONTEXT_VERSION_MINOR;
 import static org.lwjgl.glfw.GLFW.GLFW_CURSOR;
 import static org.lwjgl.glfw.GLFW.GLFW_CURSOR_DISABLED;
+import static org.lwjgl.glfw.GLFW.GLFW_CURSOR_NORMAL;
 import static org.lwjgl.glfw.GLFW.GLFW_KEY_1;
 import static org.lwjgl.glfw.GLFW.GLFW_KEY_2;
 import static org.lwjgl.glfw.GLFW.GLFW_KEY_3;
@@ -22,6 +23,7 @@ import static org.lwjgl.glfw.GLFW.GLFW_KEY_5;
 import static org.lwjgl.glfw.GLFW.GLFW_KEY_A;
 import static org.lwjgl.glfw.GLFW.GLFW_KEY_D;
 import static org.lwjgl.glfw.GLFW.GLFW_KEY_DOWN;
+import static org.lwjgl.glfw.GLFW.GLFW_KEY_E;
 import static org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE;
 import static org.lwjgl.glfw.GLFW.GLFW_KEY_KP_1;
 import static org.lwjgl.glfw.GLFW.GLFW_KEY_KP_2;
@@ -29,6 +31,7 @@ import static org.lwjgl.glfw.GLFW.GLFW_KEY_KP_3;
 import static org.lwjgl.glfw.GLFW.GLFW_KEY_KP_4;
 import static org.lwjgl.glfw.GLFW.GLFW_KEY_KP_5;
 import static org.lwjgl.glfw.GLFW.GLFW_KEY_LEFT;
+import static org.lwjgl.glfw.GLFW.GLFW_KEY_O;
 import static org.lwjgl.glfw.GLFW.GLFW_KEY_RIGHT;
 import static org.lwjgl.glfw.GLFW.GLFW_KEY_S;
 import static org.lwjgl.glfw.GLFW.GLFW_KEY_SPACE;
@@ -92,6 +95,7 @@ public final class GpuClientRuntime implements AutoCloseable {
     private boolean initialized; // meaning
     // 中文标注（字段）：`firstMouseSample`，含义：用于表示first、鼠标、sample。
     private boolean firstMouseSample = true; // meaning
+    private boolean cursorCaptured = true; // meaning
     // 中文标注（字段）：`frameTimeWindowIndex`，含义：用于表示帧、时间、窗口、索引。
     private int frameTimeWindowIndex; // meaning
     // 中文标注（字段）：`frameTimeWindowCount`，含义：用于表示帧、时间、窗口、数量。
@@ -126,6 +130,7 @@ public final class GpuClientRuntime implements AutoCloseable {
         long fpsWindowStart = previousNanos; // meaning
         // 中文标注（局部变量）：`frames`，含义：用于表示frames。
         int frames = 0; // meaning
+        int displayedFps = 0; // meaning
         framePerfWindowStartNanos = previousNanos;
         framePerfFrames = 0;
         framePerfWorstMs = 0.0;
@@ -147,16 +152,24 @@ public final class GpuClientRuntime implements AutoCloseable {
             }
 
             glfwPollEvents();
-
-            if (input.wasKeyPressed(KeyEvent.VK_ESCAPE)) {
-                glfwSetWindowShouldClose(windowHandle, true);
+            boolean shouldCaptureCursor = !gameClient.isAnyUiOpen(); // meaning
+            if (shouldCaptureCursor != cursorCaptured) {
+                glfwSetInputMode(windowHandle, GLFW_CURSOR, shouldCaptureCursor ? GLFW_CURSOR_DISABLED : GLFW_CURSOR_NORMAL);
+                cursorCaptured = shouldCaptureCursor;
+                if (shouldCaptureCursor) {
+                    firstMouseSample = true;
+                }
             }
+            boolean hadUiOpen = gameClient.isAnyUiOpen(); // meaning
 
             // 中文标注（局部变量）：`tickStartedNanos`，含义：用于表示刻、started、nanos。
             long tickStartedNanos = System.nanoTime(); // meaning
             gameClient.tick(input, deltaSeconds);
             // 中文标注（局部变量）：`tickNanos`，含义：用于表示刻、nanos。
             long tickNanos = System.nanoTime() - tickStartedNanos; // meaning
+            if (input.wasKeyPressed(KeyEvent.VK_ESCAPE) && !hadUiOpen && !gameClient.isAnyUiOpen()) {
+                glfwSetWindowShouldClose(windowHandle, true);
+            }
 
             // 中文标注（局部变量）：`width`，含义：用于表示宽度。
             int width; // meaning
@@ -220,35 +233,54 @@ public final class GpuClientRuntime implements AutoCloseable {
 
             frames++;
             if (now - fpsWindowStart >= 1_000_000_000L) {
-                var player = gameClient.playerController(); // meaning
-                glfwSetWindowTitle(
-                    windowHandle,
-                    title + " | GPU FPS " + frames
-                        + String.format(
-                            " | XYZ %.2f %.2f %.2f | Y/P %.1f %.1f",
-                            player.eyeX(),
-                            player.eyeY(),
-                            player.eyeZ(),
-                            player.yaw(),
-                            player.pitch()
-                        )
-                        + String.format(
-                            " | Faces t/f/d %d/%d/%d",
-                            stats.totalFaces(),
-                            stats.frustumCandidates(),
-                            stats.drawnFaces()
-                        )
-                        + " | cg p/r/i "
-                        + gameClient.pendingChunkGenerationCount() + "/"
-                        + gameClient.readyGeneratedChunkCount() + "/"
-                        + gameClient.chunkGenerationJobsInFlight()
-                        + " | " + renderer.latestTitleStats()
-                        + " | " + gameClient.networkStatusLine()
-                );
+                displayedFps = frames;
                 frames = 0;
                 fpsWindowStart = now;
             }
+            glfwSetWindowTitle(windowHandle, buildGpuWindowTitle(gameClient, stats, displayedFps));
         }
+    }
+
+    private String buildGpuWindowTitle(GameClient gameClient, RenderStats stats, int fps) {
+        if (gameClient.isSettingsOpen()) {
+            return title + " | Settings | " + gameClient.settingsSummaryText();
+        }
+        var player = gameClient.playerController(); // meaning
+        StringBuilder out = new StringBuilder(title).append(" | GPU"); // meaning
+        if (gameClient.showFpsSetting()) {
+            out.append(" FPS ").append(fps);
+        }
+        if (gameClient.showLocationSetting()) {
+            out.append(
+                String.format(
+                    " | XYZ %.2f %.2f %.2f | Y/P %.1f %.1f",
+                    player.eyeX(),
+                    player.eyeY(),
+                    player.eyeZ(),
+                    player.yaw(),
+                    player.pitch()
+                )
+            );
+        }
+        if (gameClient.showStatsSetting()) {
+            out.append(
+                String.format(
+                    " | Faces t/f/d %d/%d/%d",
+                    stats.totalFaces(),
+                    stats.frustumCandidates(),
+                    stats.drawnFaces()
+                )
+            );
+            out.append(
+                " | cg p/r/i "
+                    + gameClient.pendingChunkGenerationCount() + "/"
+                    + gameClient.readyGeneratedChunkCount() + "/"
+                    + gameClient.chunkGenerationJobsInFlight()
+            );
+            out.append(" | ").append(renderer.latestTitleStats());
+        }
+        out.append(" | ").append(gameClient.networkStatusLine());
+        return out.toString();
     }
 
     // 中文标注（方法）：`close`，参数：无；用途：执行close相关逻辑。
@@ -294,6 +326,7 @@ public final class GpuClientRuntime implements AutoCloseable {
         glfwSwapInterval(resolveSwapInterval());
         glfwShowWindow(windowHandle);
         glfwSetInputMode(windowHandle, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+        cursorCaptured = true;
 
         GL.createCapabilities();
         firstMouseSample = true;
@@ -484,6 +517,8 @@ public final class GpuClientRuntime implements AutoCloseable {
             case GLFW_KEY_S -> KeyEvent.VK_S;
             case GLFW_KEY_A -> KeyEvent.VK_A;
             case GLFW_KEY_D -> KeyEvent.VK_D;
+            case GLFW_KEY_E -> KeyEvent.VK_E;
+            case GLFW_KEY_O -> KeyEvent.VK_O;
             case GLFW_KEY_SPACE -> KeyEvent.VK_SPACE;
             case GLFW_KEY_LEFT_SHIFT -> KeyEvent.VK_SHIFT;
             case GLFW_KEY_LEFT -> KeyEvent.VK_LEFT;

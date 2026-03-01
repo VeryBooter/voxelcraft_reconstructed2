@@ -5,6 +5,7 @@ import dev.voxelcraft.core.block.Blocks;
 import dev.voxelcraft.core.world.BlockPos;
 import dev.voxelcraft.core.world.Chunk;
 import dev.voxelcraft.core.world.ChunkPos;
+import dev.voxelcraft.core.world.Section;
 import dev.voxelcraft.core.world.World;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -76,6 +77,7 @@ public final class ClientWorldView implements AutoCloseable {
     private int lastChunkInstalledCount; // meaning
     // 中文标注（字段）：`closing`，含义：用于表示关闭中的生命周期状态。
     private volatile boolean closing; // meaning
+    private volatile boolean generateMissingChunksOnPeek = true; // meaning
 
     // 中文标注（构造方法）：`ClientWorldView`，参数：world；用途：初始化`ClientWorldView`实例。
     // 中文标注（参数）：`world`，含义：用于表示世界。
@@ -164,7 +166,18 @@ public final class ClientWorldView implements AutoCloseable {
     // 中文标注（参数）：`y`，含义：用于表示Y坐标。
     // 中文标注（参数）：`z`，含义：用于表示Z坐标。
     public Block peekBlock(int x, int y, int z) {
+        if (generateMissingChunksOnPeek && world.isWithinWorldY(y)) {
+            int chunkX = Math.floorDiv(x, Section.SIZE); // meaning
+            int chunkZ = Math.floorDiv(z, Section.SIZE); // meaning
+            if (world.chunkManager().getChunk(chunkX, chunkZ) == null) {
+                return world.getBlock(x, y, z);
+            }
+        }
         return world.peekBlock(x, y, z);
+    }
+
+    public void setGenerateMissingChunksOnPeek(boolean enabled) {
+        this.generateMissingChunksOnPeek = enabled;
     }
 
     // 中文标注（方法）：`setBlock`，参数：x、y、z、block；用途：设置、写入或注册方块。

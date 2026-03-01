@@ -161,6 +161,7 @@ public final class GameClient implements AutoCloseable {
 
     // 中文标注（构造方法）：`GameClient`，参数：无；用途：初始化`GameClient`实例。
     public GameClient() {
+        worldView.setGenerateMissingChunksOnPeek(true);
         initializeSpawn();
     }
 
@@ -168,6 +169,7 @@ public final class GameClient implements AutoCloseable {
     // 中文标注（参数）：`networkClient`，含义：用于表示网络、客户端。
     public void attachNetwork(NetworkClient networkClient) {
         this.networkClient = networkClient;
+        worldView.setGenerateMissingChunksOnPeek(false);
         this.networkStatusLine = networkClient.statusLine();
         requestChunksIfNeeded(true);
     }
@@ -426,6 +428,7 @@ public final class GameClient implements AutoCloseable {
         oldWorldView.close();
         game.switchW(newW);
         worldView = new ClientWorldView(game.world());
+        worldView.setGenerateMissingChunksOnPeek(networkClient == null || !networkClient.isConnected());
         renderSystem = new ChunkRenderSystem();
         lightEngine = new LightEngine();
         targetedBlock = null;

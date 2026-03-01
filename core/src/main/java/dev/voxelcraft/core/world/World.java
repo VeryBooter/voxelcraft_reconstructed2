@@ -20,7 +20,7 @@ public final class World {
     // 中文标注（字段）：`MAX_Y`，含义：用于表示最大、Y坐标。
     public static final int MAX_Y = 319; // meaning
     // 中文标注（字段）：`DEFAULT_SOLID_BELOW_Y`，含义：用于表示默认、实体、below、Y坐标。
-    public static final int DEFAULT_SOLID_BELOW_Y = -16; // meaning
+    public static final int DEFAULT_SOLID_BELOW_Y = -13; // meaning
     private static final boolean PEEK_STONE_BELOW_FALLBACK_ENABLED = booleanPropertyCompat(
         "vc.peekStoneBelow",
         "voxelcraft.peekStoneBelow",
@@ -168,6 +168,10 @@ public final class World {
     public boolean setBlock(int x, int y, int z, Block block) {
         Objects.requireNonNull(block, "block");
         if (!isWithinWorldY(y)) {
+            return false;
+        }
+        // Demo 规则：-13 及以下为不可破坏“基岩层”。
+        if (y <= DEFAULT_SOLID_BELOW_Y) {
             return false;
         }
         // 中文标注（局部变量）：`chunkX`，含义：用于表示区块、X坐标。

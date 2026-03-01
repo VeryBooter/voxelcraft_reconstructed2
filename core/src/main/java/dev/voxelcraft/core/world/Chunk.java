@@ -60,7 +60,7 @@ public final class Chunk {
         // 中文标注（局部变量）：`section`，含义：用于表示分段。
         Section section = sections.get(sectionY); // meaning
         if (section == null) {
-            return y < World.DEFAULT_SOLID_BELOW_Y ? Blocks.STONE : Blocks.AIR;
+            return y <= World.DEFAULT_SOLID_BELOW_Y ? Blocks.STONE : Blocks.AIR;
         }
 
         // 中文标注（局部变量）：`localY`，含义：用于表示局部、Y坐标。

@@ -87,6 +87,11 @@ public final class GameClient implements AutoCloseable {
     private static final double MAX_SIMULATION_CATCHUP_SECONDS = 0.25; // meaning
     private static final int BLOCK_PICKER_MAX_COLUMNS = 12; // meaning
     private static final int BLOCK_PICKER_MAX_ROWS = 7; // meaning
+    private static final boolean DEBUG_FALL_HUD = booleanPropertyCompat(
+        "vc.debugFall",
+        "voxelcraft.debugFall",
+        false
+    );
 
     // 中文标注（字段）：`game`，含义：用于表示game。
     private final Game game = new Game(); // meaning
@@ -108,7 +113,8 @@ public final class GameClient implements AutoCloseable {
         Blocks.STONE,
         Blocks.GRASS,
         Blocks.SAND,
-        Blocks.WOOD
+        Blocks.WOOD,
+        Blocks.PORTAL
     };
     // 中文标注（字段）：`hotbarDownLastTick`，含义：用于表示hotbar、down、last、刻。
     private final boolean[] hotbarDownLastTick = new boolean[hotbarBlocks.length]; // meaning
@@ -1037,6 +1043,17 @@ public final class GameClient implements AutoCloseable {
         if (placeButtonDown && !placeButtonDownLastTick && hit.placementBlock() != null) {
             // 中文标注（局部变量）：`placePos`，含义：用于表示place、位置。
             BlockPos placePos = hit.placementBlock(); // meaning
+            if (selectedBlock == Blocks.PORTAL) {
+                if (networkClient != null && networkClient.isConnected()) {
+                    System.out.println("[portal] disabled in multiplayer; local room generation only.");
+                } else if (buildPortalRoom(placePos.x(), placePos.y(), placePos.z())) {
+                    teleportToSafeAnchor(placePos.x() + 1.5, placePos.y() + 1.0, placePos.z() + 1.5);
+                    musicDirector.triggerStinger("craft_success");
+                }
+                placeButtonDownLastTick = placeButtonDown;
+                breakButtonDownLastTick = breakButtonDown;
+                return;
+            }
             if (canPlaceBlock(placePos) && worldView.setBlock(placePos, selectedBlock)) {
                 sendNetworkBlockUpdate(placePos, selectedBlock);
                 musicDirector.triggerStinger("craft_success");
@@ -1070,6 +1087,26 @@ public final class GameClient implements AutoCloseable {
         // 中文标注（局部变量）：`blockBounds`，含义：用于表示方块、bounds。
         AABB blockBounds = new AABB(pos.x(), pos.y(), pos.z(), pos.x() + 1.0, pos.y() + 1.0, pos.z() + 1.0); // meaning
         return !playerController.boundingBox().intersects(blockBounds);
+    }
+
+    private boolean buildPortalRoom(int shellMinX, int shellMinY, int shellMinZ) {
+        int shellMaxX = shellMinX + 3; // meaning
+        int shellMaxY = shellMinY + 3; // meaning
+        int shellMaxZ = shellMinZ + 3; // meaning
+        if (!worldView.isWithinWorldY(shellMinY) || !worldView.isWithinWorldY(shellMaxY)) {
+            return false;
+        }
+        for (int y = shellMinY; y <= shellMaxY; y++) { // meaning
+            for (int z = shellMinZ; z <= shellMaxZ; z++) { // meaning
+                for (int x = shellMinX; x <= shellMaxX; x++) { // meaning
+                    boolean boundary = x == shellMinX || x == shellMaxX
+                        || y == shellMinY || y == shellMaxY
+                        || z == shellMinZ || z == shellMaxZ; // meaning
+                    worldView.setBlock(x, y, z, boundary ? Blocks.PORTAL : Blocks.AIR);
+                }
+            }
+        }
+        return true;
     }
 
     // 中文标注（方法）：`raycastFromPlayer`，参数：maxDistance；用途：执行raycast、from、玩家相关逻辑。
@@ -1148,6 +1185,7 @@ public final class GameClient implements AutoCloseable {
             case 2 -> isAnyKeyDown(input, KeyEvent.VK_3, KeyEvent.VK_NUMPAD3);
             case 3 -> isAnyKeyDown(input, KeyEvent.VK_4, KeyEvent.VK_NUMPAD4);
             case 4 -> isAnyKeyDown(input, KeyEvent.VK_5, KeyEvent.VK_NUMPAD5);
+            case 5 -> isAnyKeyDown(input, KeyEvent.VK_6, KeyEvent.VK_NUMPAD6);
             default -> false;
         };
     }
@@ -1361,6 +1399,9 @@ public final class GameClient implements AutoCloseable {
         if (showFps) {
             lineCount += 1;
         }
+        if (DEBUG_FALL_HUD) {
+            lineCount += 1;
+        }
         int panelHeight = 18 + lineCount * 20; // meaning
         graphics.setColor(new Color(0, 0, 0, 130));
         graphics.fillRoundRect(12, 12, 980, panelHeight, 12, 12);
@@ -1379,6 +1420,29 @@ public final class GameClient implements AutoCloseable {
         }
         graphics.drawString(buildSliceHudLine(), 24, y);
         y += 20;
+        if (DEBUG_FALL_HUD) {
+            int blockX = (int) Math.floor(playerController.x()); // meaning
+            int blockY = (int) Math.floor(playerController.y()); // meaning
+            int blockZ = (int) Math.floor(playerController.z()); // meaning
+            int chunkX = Math.floorDiv(blockX, Section.SIZE); // meaning
+            int chunkZ = Math.floorDiv(blockZ, Section.SIZE); // meaning
+            boolean chunkLoaded = worldView.getChunk(chunkX, chunkZ) != null; // meaning
+            Block feet = worldView.peekBlock(blockX, blockY - 1, blockZ); // meaning
+            boolean feetSolid = worldView.isSolid(blockX, blockY - 1, blockZ); // meaning
+            graphics.drawString(
+                String.format(
+                    "fallDbg y=%.2f chunkLoaded=%s feet=%s solid=%s w=%d",
+                    playerController.y(),
+                    chunkLoaded,
+                    feet.id(),
+                    feetSolid,
+                    game.activeW()
+                ),
+                24,
+                y
+            );
+            y += 20;
+        }
         if (showStats) {
             graphics.drawString(
                 String.format("Faces: total=%d, frustum=%d, drawn=%d", stats.totalFaces(), stats.frustumCandidates(), stats.drawnFaces()),
@@ -1389,7 +1453,7 @@ public final class GameClient implements AutoCloseable {
         }
         graphics.drawString(String.format("Held Block: %s", selectedBlock.id()), 24, y);
         y += 20;
-        String controlsLine = "WASD Move | Space Jump | Mouse Look | LMB Break | RMB Place | 1/2/3/4/5 Block | E Picker | O Settings"; // meaning
+        String controlsLine = "WASD Move | Space Jump | Mouse Look | LMB Break | RMB Place | 1/2/3/4/5/6 Block | E Picker | O Settings"; // meaning
         if (W_FEATURE_ENABLED) {
             controlsLine += " | Z/X WSlice (in WCube)";
         }
@@ -1537,6 +1601,9 @@ public final class GameClient implements AutoCloseable {
         }
         if (block == Blocks.WOOD) {
             return "Wood";
+        }
+        if (block == Blocks.PORTAL) {
+            return "Portal";
         }
         BlockDef def = block.def();
         if (def != null && !def.displayName().isBlank()) {

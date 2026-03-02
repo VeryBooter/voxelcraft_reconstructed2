@@ -23,6 +23,7 @@ public final class Blocks {
     public static Block SAND;
     public static Block WOOD;
     public static Block LEAVES;
+    public static Block PORTAL;
 
     private Blocks() {
     }
@@ -111,6 +112,8 @@ public final class Blocks {
             BlockDef.CollisionKind.FULL, BlockDef.RenderBucket.OPAQUE, "hard", "wood", true, false, "none");
         nextId = registerBuiltin(nextId, "leaves", true, false, BlockDef.OcclusionMode.PARTIAL, BlockDef.MeshProfile.CUBE,
             BlockDef.CollisionKind.FULL, BlockDef.RenderBucket.CUTOUT, "soft", "leaf", true, false, "foliage");
+        nextId = registerBuiltin(nextId, "portal", true, true, BlockDef.OcclusionMode.FULL, BlockDef.MeshProfile.CUBE,
+            BlockDef.CollisionKind.FULL, BlockDef.RenderBucket.OPAQUE, "hard", "stone", false, false, "none");
         return nextId;
     }
 
@@ -194,6 +197,7 @@ public final class Blocks {
         SAND = BLOCKS_BY_KEY.getOrDefault("sand", DIRT);
         WOOD = BLOCKS_BY_KEY.getOrDefault("wood", STONE);
         LEAVES = BLOCKS_BY_KEY.getOrDefault("leaves", WOOD);
+        PORTAL = BLOCKS_BY_KEY.getOrDefault("portal", STONE);
     }
 
     private static void buildNumericIndex() {

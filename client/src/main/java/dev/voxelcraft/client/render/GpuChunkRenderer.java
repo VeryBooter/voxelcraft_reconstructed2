@@ -13,6 +13,9 @@ import dev.voxelcraft.core.world.Chunk;
 import dev.voxelcraft.core.world.ChunkPos;
 import dev.voxelcraft.core.world.Section;
 import dev.voxelcraft.core.world.World;
+import java.awt.image.BufferedImage;
+import java.io.IOException;
+import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
@@ -34,6 +37,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import javax.imageio.ImageIO;
 import org.lwjgl.opengl.GL;
 import org.lwjgl.opengl.GL13;
 import org.lwjgl.opengl.GL20;
@@ -195,7 +199,9 @@ public final class GpuChunkRenderer implements AutoCloseable {
     private static final float[] HOTBAR_COLOR_GRASS = rgb(101, 178, 83);
     private static final float[] HOTBAR_COLOR_SAND = rgb(215, 201, 150);
     private static final float[] HOTBAR_COLOR_WOOD = rgb(143, 91, 48);
+    private static final float[] HOTBAR_COLOR_PORTAL = rgb(176, 58, 196);
     private static final float[] HOTBAR_COLOR_FALLBACK = rgb(210, 210, 210);
+    private static final String PORTAL_TEXTURE_RESOURCE = "/textures/1758252625670.jpg";
     private static final int MATERIAL_LUT_WIDTH = 4096; // meaning
     private static final int MATERIAL_LUT_HEIGHT = 2; // meaning
     private static final int MATERIAL_PATTERN_RAW_STONE = 0; // meaning
@@ -221,6 +227,8 @@ public final class GpuChunkRenderer implements AutoCloseable {
         #version 120
         uniform float uAmbient;
         uniform sampler2D uMatLut;
+        uniform sampler2D uPortalTex;
+        uniform int uPortalId;
         varying vec4 vPacked;
         varying vec3 vWorldPos;
 
@@ -261,6 +269,14 @@ public final class GpuChunkRenderer implements AutoCloseable {
             float alpha = clamp(vPacked.a, 0.0, 1.0);
             if (alpha < 0.5) {
                 discard;
+            }
+            if (id == uPortalId) {
+                vec2 uv = faceUv(vWorldPos, faceIndex);
+                uv.y = 1.0 - uv.y;
+                vec4 px = texture2D(uPortalTex, uv);
+                vec3 lit = px.rgb * (brightness * uAmbient);
+                gl_FragColor = vec4(clamp(lit, 0.0, 1.0), alpha);
+                return;
             }
 
             float lutX = (clamp(float(id), 0.0, 4095.0) + 0.5) / 4096.0;
@@ -477,7 +493,10 @@ public final class GpuChunkRenderer implements AutoCloseable {
     // 中文标注（字段）：`ambientUniformLocation`，含义：用于表示环境光、uniform、location。
     private int ambientUniformLocation = -1; // meaning
     private int materialLutUniformLocation = -1; // meaning
+    private int portalTexUniformLocation = -1; // meaning
+    private int portalIdUniformLocation = -1; // meaning
     private int materialLutTextureId; // meaning
+    private int portalTextureId; // meaning
     // 中文标注（字段）：`latestTitleStats`，含义：用于表示latest、title、stats。
     private volatile String latestTitleStats = "gpu init"; // meaning
     // 中文标注（字段）：`closing`，含义：用于表示closing。
@@ -524,6 +543,7 @@ public final class GpuChunkRenderer implements AutoCloseable {
         initializeCapabilitiesIfNeeded();
         ensureAmbientShaderProgram();
         ensureMaterialLutTexture();
+        ensurePortalTexture();
         frameSequence++;
         // 中文标注（局部变量）：`safeWidth`，含义：用于表示safe、宽度。
         int safeWidth = clampViewportDimension(width); // meaning
@@ -855,6 +875,9 @@ public final class GpuChunkRenderer implements AutoCloseable {
         if (block == Blocks.WOOD) {
             return HOTBAR_COLOR_WOOD;
         }
+        if (block == Blocks.PORTAL) {
+            return HOTBAR_COLOR_PORTAL;
+        }
         return HOTBAR_COLOR_FALLBACK;
     }
 
@@ -879,6 +902,86 @@ public final class GpuChunkRenderer implements AutoCloseable {
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, MATERIAL_LUT_WIDTH, MATERIAL_LUT_HEIGHT, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
         glBindTexture(GL_TEXTURE_2D, 0);
+    }
+
+    private void ensurePortalTexture() {
+        if (portalTextureId != 0) {
+            return;
+        }
+        BufferedImage image = loadPortalTextureImage(); // meaning
+        if (image == null) {
+            portalTextureId = createFallbackPortalTexture();
+            return;
+        }
+        ByteBuffer pixels = convertImageToRgba(image); // meaning
+        portalTextureId = glGenTextures();
+        glBindTexture(GL_TEXTURE_2D, portalTextureId);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, image.getWidth(), image.getHeight(), 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+        glBindTexture(GL_TEXTURE_2D, 0);
+        System.out.printf(
+            "[gpu-portal] loaded texture %s %dx%d%n",
+            "classpath:" + PORTAL_TEXTURE_RESOURCE,
+            image.getWidth(),
+            image.getHeight()
+        );
+    }
+
+    private static BufferedImage loadPortalTextureImage() {
+        try (InputStream stream = GpuChunkRenderer.class.getResourceAsStream(PORTAL_TEXTURE_RESOURCE)) {
+            if (stream == null) {
+                System.err.println("[gpu-portal] missing texture resource: classpath:" + PORTAL_TEXTURE_RESOURCE);
+                return null;
+            }
+            BufferedImage image = ImageIO.read(stream); // meaning
+            if (image == null) {
+                System.err.println("[gpu-portal] failed to decode texture resource: classpath:" + PORTAL_TEXTURE_RESOURCE);
+                return null;
+            }
+            return image;
+        } catch (IOException ioException) {
+            System.err.println("[gpu-portal] failed to load texture resource: classpath:" + PORTAL_TEXTURE_RESOURCE);
+            ioException.printStackTrace(System.err);
+            return null;
+        }
+    }
+
+    private static ByteBuffer convertImageToRgba(BufferedImage image) {
+        int width = image.getWidth(); // meaning
+        int height = image.getHeight(); // meaning
+        ByteBuffer pixels = ByteBuffer.allocateDirect(width * height * 4); // meaning
+        for (int y = 0; y < height; y++) { // meaning
+            for (int x = 0; x < width; x++) { // meaning
+                int argb = image.getRGB(x, y); // meaning
+                pixels.put((byte) ((argb >> 16) & 0xFF));
+                pixels.put((byte) ((argb >> 8) & 0xFF));
+                pixels.put((byte) (argb & 0xFF));
+                pixels.put((byte) 0xFF);
+            }
+        }
+        pixels.flip();
+        return pixels;
+    }
+
+    private static int createFallbackPortalTexture() {
+        ByteBuffer pixels = ByteBuffer.allocateDirect(4); // meaning
+        pixels.put((byte) 0xFF);
+        pixels.put((byte) 0x00);
+        pixels.put((byte) 0xFF);
+        pixels.put((byte) 0xFF);
+        pixels.flip();
+        int textureId = glGenTextures(); // meaning
+        glBindTexture(GL_TEXTURE_2D, textureId);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+        glBindTexture(GL_TEXTURE_2D, 0);
+        return textureId;
     }
 
     private ByteBuffer buildMaterialLutTextureData() {
@@ -1133,10 +1236,16 @@ public final class GpuChunkRenderer implements AutoCloseable {
             ambientShaderProgramId = 0;
             ambientUniformLocation = -1;
             materialLutUniformLocation = -1;
+            portalTexUniformLocation = -1;
+            portalIdUniformLocation = -1;
         }
         if (materialLutTextureId != 0) {
             glDeleteTextures(materialLutTextureId);
             materialLutTextureId = 0;
+        }
+        if (portalTextureId != 0) {
+            glDeleteTextures(portalTextureId);
+            portalTextureId = 0;
         }
         mdiCommandUploadBytes = null;
         uploadBufferPool.clear();
@@ -1619,10 +1728,17 @@ public final class GpuChunkRenderer implements AutoCloseable {
         GL20.glUseProgram(ambientShaderProgramId);
         GL20.glUniform1f(ambientUniformLocation, features.applyAmbientToBlocks() ? ambient : 1.0f);
         GL20.glUniform1i(materialLutUniformLocation, 0);
+        GL20.glUniform1i(portalTexUniformLocation, 1);
+        int portalId = Blocks.PORTAL != null ? Blocks.PORTAL.blockId().asUnsignedInt() : -1; // meaning
+        GL20.glUniform1i(portalIdUniformLocation, portalId);
         GL13.glActiveTexture(GL13.GL_TEXTURE0);
         glEnable(GL_TEXTURE_2D);
         glBindTexture(GL_TEXTURE_2D, materialLutTextureId);
-        pass.stateChanges += 5;
+        GL13.glActiveTexture(GL13.GL_TEXTURE1);
+        glEnable(GL_TEXTURE_2D);
+        glBindTexture(GL_TEXTURE_2D, portalTextureId);
+        GL13.glActiveTexture(GL13.GL_TEXTURE0);
+        pass.stateChanges += 8;
 
         glEnableClientState(GL_VERTEX_ARRAY);
         glEnableClientState(GL_COLOR_ARRAY);
@@ -1843,10 +1959,12 @@ public final class GpuChunkRenderer implements AutoCloseable {
         bindArrayBuffer(pass, 0);
         bindElementBuffer(pass, 0);
         bindIndirectBuffer(pass, 0);
+        GL13.glActiveTexture(GL13.GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, 0);
         GL13.glActiveTexture(GL13.GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, 0);
         GL20.glUseProgram(0);
-        pass.stateChanges += 2;
+        pass.stateChanges += 3;
         glDisableClientState(GL_COLOR_ARRAY);
         glDisableClientState(GL_VERTEX_ARRAY);
     }
@@ -2534,10 +2652,20 @@ public final class GpuChunkRenderer implements AutoCloseable {
             if (materialLutLoc < 0) {
                 throw new IllegalStateException("Ambient shader missing uniform uMatLut");
             }
+            int portalTexLoc = GL20.glGetUniformLocation(program, "uPortalTex"); // meaning
+            if (portalTexLoc < 0) {
+                throw new IllegalStateException("Ambient shader missing uniform uPortalTex");
+            }
+            int portalIdLoc = GL20.glGetUniformLocation(program, "uPortalId"); // meaning
+            if (portalIdLoc < 0) {
+                throw new IllegalStateException("Ambient shader missing uniform uPortalId");
+            }
 
             ambientShaderProgramId = program;
             ambientUniformLocation = uniformLoc;
             materialLutUniformLocation = materialLutLoc;
+            portalTexUniformLocation = portalTexLoc;
+            portalIdUniformLocation = portalIdLoc;
             program = 0;
         } finally {
             if (program != 0) {

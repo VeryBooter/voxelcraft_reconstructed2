@@ -8,6 +8,7 @@ import dev.voxelcraft.core.world.gen.WorldGenerator;
 import java.util.Collection;
 import java.util.Objects;
 import java.util.SplittableRandom;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 /**
  * 中文说明：世界对象：管理区块容器、生成器、方块读写与全局版本号。
@@ -26,6 +27,7 @@ public final class World {
         "voxelcraft.peekStoneBelow",
         true
     ); // meaning
+    private static final AtomicBoolean PEEK_STONE_CONFIG_LOGGED = new AtomicBoolean(false); // meaning
 
     // 中文标注（字段）：`chunkManager`，含义：用于表示区块、管理器。
     private final ChunkManager chunkManager = new ChunkManager(); // meaning
@@ -56,6 +58,13 @@ public final class World {
         this.seed = seed;
         this.worldGenerator = Objects.requireNonNull(generator, "generator");
         this.growthSystem = new GrowthSystem(seed);
+        if (PEEK_STONE_CONFIG_LOGGED.compareAndSet(false, true)) {
+            System.out.printf(
+                "[world] vc.peekStoneBelow=%s DEFAULT_SOLID_BELOW_Y=%d%n",
+                PEEK_STONE_BELOW_FALLBACK_ENABLED,
+                DEFAULT_SOLID_BELOW_Y
+            );
+        }
         // 中文标注（局部变量）：`chunkX`，含义：用于表示区块、X坐标。
         for (int chunkX = -2; chunkX <= 2; chunkX++) { // meaning
             // 中文标注（局部变量）：`chunkZ`，含义：用于表示区块、Z坐标。

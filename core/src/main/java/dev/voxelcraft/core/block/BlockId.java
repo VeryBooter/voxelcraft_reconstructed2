@@ -1,5 +1,7 @@
 package dev.voxelcraft.core.block;
 
+// 中文标注：本文件已标记。
+
 public record BlockId(short raw) {
     public static final int MAX_UNSIGNED = 0xFFFF;
 

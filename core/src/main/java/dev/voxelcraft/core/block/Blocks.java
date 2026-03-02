@@ -1,5 +1,7 @@
 package dev.voxelcraft.core.block;
 
+// 中文标注：本文件已标记。
+
 import dev.voxelcraft.core.block.data.BlockCsvDataLoader;
 import dev.voxelcraft.core.registry.Registries;
 import dev.voxelcraft.core.util.ResourceLocation;
@@ -24,6 +26,9 @@ public final class Blocks {
     public static Block WOOD;
     public static Block LEAVES;
     public static Block PORTAL;
+    public static Block GUN;
+    public static Block MISSILE;
+    public static Block BULLET;
 
     private Blocks() {
     }
@@ -114,6 +119,12 @@ public final class Blocks {
             BlockDef.CollisionKind.FULL, BlockDef.RenderBucket.CUTOUT, "soft", "leaf", true, false, "foliage");
         nextId = registerBuiltin(nextId, "portal", true, true, BlockDef.OcclusionMode.FULL, BlockDef.MeshProfile.CUBE,
             BlockDef.CollisionKind.FULL, BlockDef.RenderBucket.OPAQUE, "hard", "stone", false, false, "none");
+        nextId = registerBuiltin(nextId, "gun", false, false, BlockDef.OcclusionMode.NONE, BlockDef.MeshProfile.CUBE,
+            BlockDef.CollisionKind.NONE, BlockDef.RenderBucket.OPAQUE, "hard", "metal", false, false, "none");
+        nextId = registerBuiltin(nextId, "missile", true, true, BlockDef.OcclusionMode.FULL, BlockDef.MeshProfile.CUBE,
+            BlockDef.CollisionKind.FULL, BlockDef.RenderBucket.OPAQUE, "hard", "metal", false, false, "none");
+        nextId = registerBuiltin(nextId, "bullet", false, false, BlockDef.OcclusionMode.NONE, BlockDef.MeshProfile.CUBE,
+            BlockDef.CollisionKind.NONE, BlockDef.RenderBucket.OPAQUE, "hard", "metal", false, false, "none");
         return nextId;
     }
 
@@ -198,6 +209,9 @@ public final class Blocks {
         WOOD = BLOCKS_BY_KEY.getOrDefault("wood", STONE);
         LEAVES = BLOCKS_BY_KEY.getOrDefault("leaves", WOOD);
         PORTAL = BLOCKS_BY_KEY.getOrDefault("portal", STONE);
+        GUN = BLOCKS_BY_KEY.getOrDefault("gun", STONE);
+        MISSILE = BLOCKS_BY_KEY.getOrDefault("missile", STONE);
+        BULLET = BLOCKS_BY_KEY.getOrDefault("bullet", AIR);
     }
 
     private static void buildNumericIndex() {

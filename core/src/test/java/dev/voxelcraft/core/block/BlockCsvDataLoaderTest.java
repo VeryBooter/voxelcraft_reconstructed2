@@ -1,5 +1,7 @@
 package dev.voxelcraft.core.block;
 
+// 中文标注：本文件已标记。
+
 import dev.voxelcraft.core.block.data.BlockCsvDataLoader;
 import java.io.IOException;
 import java.nio.file.Files;

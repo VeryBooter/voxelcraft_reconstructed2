@@ -1,5 +1,7 @@
 package dev.voxelcraft.client.audio;
 
+// 中文标注：本文件已标记。
+
 import java.util.Locale;
 
 public enum MusicCue {

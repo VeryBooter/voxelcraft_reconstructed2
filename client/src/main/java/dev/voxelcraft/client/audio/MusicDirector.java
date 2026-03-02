@@ -1,5 +1,7 @@
 package dev.voxelcraft.client.audio;
 
+// 中文标注：本文件已标记。
+
 import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;

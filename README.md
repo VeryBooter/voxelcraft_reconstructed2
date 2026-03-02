@@ -93,7 +93,7 @@ Voxelcraft 重构仓库（Java 多模块：`core` / `client` / `server`）。
 - `Mouse` / `Arrow Keys`：视角
 - `LMB`：破坏方块
 - `RMB`：放置方块
-- `1/2/3/4/5`：切换手持方块（泥土/石头/草方块/沙子/木头）
+- `1/2/3/4/5/6/7`：切换手持方块
 - `ESC`：退出
 
 ## 主要代码入口
@@ -117,3 +117,111 @@ Voxelcraft 重构仓库（Java 多模块：`core` / `client` / `server`）。
 - `docs/VOXELCRAFT_FLOW_CN.md`
 - `docs/VOXELCRAFT_CODE_ANNOTATIONS_CN.md`
 - `docs/MUSIC_PACK_INTEGRATION_CN.md`
+
+---
+
+## English
+
+Voxelcraft reconstructed repository (Java multi-module: `core` / `client` / `server`).
+
+### Current Status (A→E)
+
+- Stage A: project skeleton completed (including bootstrap-ready `gradlew`)
+- Stage B: `core` world/chunk/generation/registry + tests completed
+- Stage C: client shell completed (window/input/main loop)
+- Stage D: visible and interactive world completed (software + GPU render)
+- Stage E: server + multiplayer sync + docs completed
+
+### Key Features
+
+- Singleplayer: move/jump/look/break/place
+- Multiplayer: client-server chunk streaming + block update sync
+- Rendering:
+  - `software`: Java2D fallback renderer
+  - `gpu`: LWJGL + GLFW + OpenGL renderer
+  - `accelerated`: GPU-first startup path
+
+### Gradle
+
+The repository `gradlew` can bootstrap Gradle automatically.
+
+```bash
+./gradlew -v
+```
+
+### Common Commands
+
+```bash
+# core tests
+./gradlew :core:test
+
+# compile client/server
+./gradlew :client:classes :server:classes
+
+# server (default 25565)
+./gradlew :server:runLocal
+
+# server (custom port)
+./gradlew :server:runLocal -Pport=25566
+
+# client (GPU + multiplayer)
+./gradlew :client:runGpu -Pconnect=127.0.0.1:25565
+
+# client (GPU accelerated local connect)
+./gradlew :client:runAcceleratedLocal
+
+# client (software, stable)
+./gradlew :client:runSoftware
+
+# client (software + local connect)
+./gradlew :client:runSoftwareLocal
+
+# headless validation
+./gradlew :client:runHeadless
+```
+
+### Client Args
+
+- `--render auto|software|gpu`
+- `--connect host:port`
+
+Example:
+
+```bash
+./gradlew :client:run --args='--render auto --connect 192.168.1.20:25565'
+```
+
+### Troubleshooting Order
+
+```bash
+# 1) verify wrapper
+./gradlew -v
+
+# 2) verify core tests
+./gradlew :core:test
+
+# 3) run stable path first
+./gradlew :server:runLocal
+# new terminal:
+./gradlew :client:runSoftware -Pconnect=127.0.0.1:25565
+```
+
+If `runGpu` fails, verify gameplay/network on `runSoftware` first, then debug GPU/driver/OpenGL.
+
+### Controls
+
+- `WASD`: move
+- `Space`: jump
+- `Mouse` / `Arrow Keys`: look
+- `LMB`: break block
+- `RMB`: place block
+- `1/2/3/4/5/6/7`: switch hotbar slot
+- `ESC`: quit
+
+### Main Code Entrypoints
+
+- `core/src/main/java/dev/voxelcraft/core/world/World.java`
+- `client/src/main/java/dev/voxelcraft/client/GameClient.java`
+- `client/src/main/java/dev/voxelcraft/client/runtime/GpuClientRuntime.java`
+- `client/src/main/java/dev/voxelcraft/client/network/NetworkClient.java`
+- `server/src/main/java/dev/voxelcraft/server/net/VoxelcraftServer.java`

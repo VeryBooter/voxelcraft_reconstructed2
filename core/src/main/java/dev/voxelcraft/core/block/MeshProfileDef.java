@@ -1,5 +1,7 @@
 package dev.voxelcraft.core.block;
 
+// 中文标注：本文件已标记。
+
 public record MeshProfileDef(
     BlockDef.MeshProfile meshProfile,
     BlockDef.AlphaMode defaultAlphaMode,

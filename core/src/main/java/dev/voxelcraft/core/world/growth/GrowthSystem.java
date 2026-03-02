@@ -1,5 +1,7 @@
 package dev.voxelcraft.core.world.growth;
 
+// 中文标注：本文件已标记。
+
 import dev.voxelcraft.core.block.Block;
 import dev.voxelcraft.core.block.BlockDef;
 import dev.voxelcraft.core.block.Blocks;

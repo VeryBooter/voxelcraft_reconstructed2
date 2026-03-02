@@ -1,5 +1,7 @@
 package dev.voxelcraft.core.block.data;
 
+// 中文标注：本文件已标记。
+
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;

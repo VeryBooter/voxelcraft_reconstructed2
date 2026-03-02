@@ -1,5 +1,7 @@
 package dev.voxelcraft.core.block;
 
+// 中文标注：本文件已标记。
+
 import dev.voxelcraft.core.state.BlockState;
 import dev.voxelcraft.core.util.ResourceLocation;
 import java.util.Map;

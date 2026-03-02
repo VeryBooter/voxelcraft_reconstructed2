@@ -25,8 +25,11 @@ import java.awt.GradientPaint;
 import java.awt.Graphics2D;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseEvent;
+import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
+import java.util.SplittableRandom;
 /**
  * 中文说明：客户端主状态对象：串联输入、玩家、世界、交互逻辑与渲染运行时。
  */
@@ -87,6 +90,21 @@ public final class GameClient implements AutoCloseable {
     private static final double MAX_SIMULATION_CATCHUP_SECONDS = 0.25; // meaning
     private static final int BLOCK_PICKER_MAX_COLUMNS = 12; // meaning
     private static final int BLOCK_PICKER_MAX_ROWS = 7; // meaning
+    private static final int PLAYER_MAX_HP = 4; // meaning
+    private static final int MISSILE_MAX_HP = 8; // meaning
+    private static final int BULLET_HIT_DAMAGE = 4; // meaning
+    private static final int PLAYER_HIT_DAMAGE = 2; // meaning
+    private static final int MISSILE_MAX_ACTIVE = 12; // meaning
+    private static final double MISSILE_SPAWN_MIN_SECONDS = 4.0; // meaning
+    private static final double MISSILE_SPAWN_MAX_SECONDS = 7.0; // meaning
+    private static final double MISSILE_STEP_INTERVAL_SECONDS = 0.10; // meaning
+    private static final int MISSILE_SPAWN_MIN_RADIUS = 10; // meaning
+    private static final int MISSILE_SPAWN_MAX_RADIUS = 30; // meaning
+    private static final int MISSILE_SPAWN_ATTEMPTS = 48; // meaning
+    private static final double BULLET_SPEED_BLOCKS_PER_SECOND = 18.0; // meaning
+    private static final double BULLET_LIFE_SECONDS = 2.0; // meaning
+    private static final double BULLET_STEP_MAX_DISTANCE = 0.45; // meaning
+    private static final double GUN_COOLDOWN_SECONDS = 0.12; // meaning
     private static final boolean DEBUG_FALL_HUD = booleanPropertyCompat(
         "vc.debugFall",
         "voxelcraft.debugFall",
@@ -114,7 +132,8 @@ public final class GameClient implements AutoCloseable {
         Blocks.GRASS,
         Blocks.SAND,
         Blocks.WOOD,
-        Blocks.PORTAL
+        Blocks.PORTAL,
+        Blocks.GUN
     };
     // 中文标注（字段）：`hotbarDownLastTick`，含义：用于表示hotbar、down、last、刻。
     private final boolean[] hotbarDownLastTick = new boolean[hotbarBlocks.length]; // meaning
@@ -188,10 +207,19 @@ public final class GameClient implements AutoCloseable {
     private int portalRoomMinX; // meaning
     private int portalRoomMinY; // meaning
     private int portalRoomMinZ; // meaning
+    private final SplittableRandom combatRandom = new SplittableRandom(); // meaning
+    private final List<MissileEntity> activeMissiles = new ArrayList<>(); // meaning
+    private final List<BulletEntity> activeBullets = new ArrayList<>(); // meaning
+    private int playerHp = PLAYER_MAX_HP; // meaning
+    private boolean combatGameOver; // meaning
+    private double gunCooldownSeconds; // meaning
+    private double missileSpawnCooldownSeconds = MISSILE_SPAWN_MIN_SECONDS; // meaning
+    private double missileStepAccumulatorSeconds; // meaning
 
     // 中文标注（构造方法）：`GameClient`，参数：无；用途：初始化`GameClient`实例。
     public GameClient() {
         worldView.setGenerateMissingChunksOnPeek(true);
+        missileSpawnCooldownSeconds = nextMissileSpawnDelaySeconds();
         initializeSpawn();
     }
 
@@ -234,10 +262,13 @@ public final class GameClient implements AutoCloseable {
             handleBlockPickerInput(input);
         }
         boolean uiOpen = isAnyUiOpen(); // meaning
-        if (!uiOpen) {
+        if (!uiOpen && !combatGameOver) {
             handleBlockSelection(input);
         }
-        handlePortalRoomSliceInput(input, uiOpen);
+        if (!combatGameOver) {
+            handlePortalRoomSliceInput(input, uiOpen);
+        }
+        updateCombatSystem(deltaSeconds);
 
         // 物理/碰撞按固定子步推进，避免大 dt 突刺导致单帧穿透。
         double remainingSeconds = clampSimulationCatchupSeconds(deltaSeconds); // meaning
@@ -258,6 +289,10 @@ public final class GameClient implements AutoCloseable {
             breakButtonDownLastTick = input.isMouseDown(MouseEvent.BUTTON1);
             placeButtonDownLastTick = input.isMouseDown(MouseEvent.BUTTON3);
         } else if (settingsOpen) {
+            targetedBlock = null;
+            breakButtonDownLastTick = input.isMouseDown(MouseEvent.BUTTON1);
+            placeButtonDownLastTick = input.isMouseDown(MouseEvent.BUTTON3);
+        } else if (combatGameOver) {
             targetedBlock = null;
             breakButtonDownLastTick = input.isMouseDown(MouseEvent.BUTTON1);
             placeButtonDownLastTick = input.isMouseDown(MouseEvent.BUTTON3);
@@ -338,6 +373,18 @@ public final class GameClient implements AutoCloseable {
     // 中文标注（方法）：`networkStatusLine`，参数：无；用途：执行网络、status、line相关逻辑。
     public String networkStatusLine() {
         return networkStatusLine;
+    }
+
+    public int playerHp() {
+        return playerHp;
+    }
+
+    public int playerMaxHp() {
+        return PLAYER_MAX_HP;
+    }
+
+    public int activeMissileCount() {
+        return activeMissiles.size();
     }
 
     // 中文标注（方法）：`selectedBlock`，参数：无；用途：执行selected、方块相关逻辑。
@@ -475,6 +522,7 @@ public final class GameClient implements AutoCloseable {
         networkStateSendAccumulator = 0.0;
         lightEngine.tick(worldView);
         requestChunksIfNeeded(true);
+        resetCombatTracking();
     }
 
     // 中文标注（方法）：`close`，参数：无；用途：执行close相关逻辑。
@@ -557,6 +605,9 @@ public final class GameClient implements AutoCloseable {
     }
 
     private void handleWCubeSliceInput(InputState input) {
+        if (combatGameOver) {
+            return;
+        }
         if (!W_FEATURE_ENABLED) {
             return;
         }
@@ -648,6 +699,407 @@ public final class GameClient implements AutoCloseable {
         System.out.printf("[portal] switched to w=%d (Z=-1, X=+1)%n", newW);
     }
 
+    private void updateCombatSystem(double deltaSeconds) {
+        if (deltaSeconds <= 0.0) {
+            return;
+        }
+        if (combatGameOver) {
+            return;
+        }
+        if (networkClient != null && networkClient.isConnected()) {
+            return;
+        }
+        if (inWormhole) {
+            return;
+        }
+
+        gunCooldownSeconds = Math.max(0.0, gunCooldownSeconds - deltaSeconds);
+        updateBullets(deltaSeconds);
+
+        missileStepAccumulatorSeconds += deltaSeconds;
+        while (missileStepAccumulatorSeconds >= MISSILE_STEP_INTERVAL_SECONDS) {
+            missileStepAccumulatorSeconds -= MISSILE_STEP_INTERVAL_SECONDS;
+            stepMissilesTowardPlayer();
+        }
+
+        missileSpawnCooldownSeconds -= deltaSeconds;
+        while (missileSpawnCooldownSeconds <= 0.0) {
+            trySpawnMissileNearPlayer();
+            missileSpawnCooldownSeconds += nextMissileSpawnDelaySeconds();
+        }
+    }
+
+    private void fireGunProjectile() {
+        if (networkClient != null && networkClient.isConnected()) {
+            System.out.println("[combat] gun fire disabled in multiplayer.");
+            return;
+        }
+        if (gunCooldownSeconds > 0.0) {
+            return;
+        }
+
+        double lookX = playerController.lookDirX(); // meaning
+        double lookY = playerController.lookDirY(); // meaning
+        double lookZ = playerController.lookDirZ(); // meaning
+        double originX = playerController.eyeX() + lookX * 0.8; // meaning
+        double originY = playerController.eyeY() + lookY * 0.8; // meaning
+        double originZ = playerController.eyeZ() + lookZ * 0.8; // meaning
+        int cellX = (int) Math.floor(originX); // meaning
+        int cellY = (int) Math.floor(originY); // meaning
+        int cellZ = (int) Math.floor(originZ); // meaning
+        if (!worldView.isWithinWorldY(cellY)) {
+            return;
+        }
+        if (damageMissileAt(cellX, cellY, cellZ, BULLET_HIT_DAMAGE)) {
+            gunCooldownSeconds = GUN_COOLDOWN_SECONDS;
+            return;
+        }
+        if (worldView.isSolid(cellX, cellY, cellZ)) {
+            return;
+        }
+        if (!worldView.setBlock(cellX, cellY, cellZ, Blocks.BULLET)) {
+            return;
+        }
+        BulletEntity bullet = new BulletEntity( // meaning
+            originX,
+            originY,
+            originZ,
+            lookX * BULLET_SPEED_BLOCKS_PER_SECOND,
+            lookY * BULLET_SPEED_BLOCKS_PER_SECOND,
+            lookZ * BULLET_SPEED_BLOCKS_PER_SECOND,
+            BULLET_LIFE_SECONDS,
+            cellX,
+            cellY,
+            cellZ
+        );
+        activeBullets.add(bullet);
+        gunCooldownSeconds = GUN_COOLDOWN_SECONDS;
+    }
+
+    private void updateBullets(double deltaSeconds) {
+        for (Iterator<BulletEntity> iterator = activeBullets.iterator(); iterator.hasNext(); ) {
+            BulletEntity bullet = iterator.next(); // meaning
+            bullet.lifeSeconds -= deltaSeconds;
+            if (bullet.lifeSeconds <= 0.0) {
+                removeBulletEntity(iterator, bullet);
+                continue;
+            }
+
+            double totalDx = bullet.vx * deltaSeconds; // meaning
+            double totalDy = bullet.vy * deltaSeconds; // meaning
+            double totalDz = bullet.vz * deltaSeconds; // meaning
+            double maxComponent = Math.max(Math.abs(totalDx), Math.max(Math.abs(totalDy), Math.abs(totalDz))); // meaning
+            int segments = Math.max(1, (int) Math.ceil(maxComponent / BULLET_STEP_MAX_DISTANCE)); // meaning
+            double stepDx = totalDx / segments; // meaning
+            double stepDy = totalDy / segments; // meaning
+            double stepDz = totalDz / segments; // meaning
+            boolean active = true; // meaning
+            for (int segment = 0; segment < segments; segment++) { // meaning
+                double nextX = bullet.x + stepDx; // meaning
+                double nextY = bullet.y + stepDy; // meaning
+                double nextZ = bullet.z + stepDz; // meaning
+                if (!advanceBulletSegment(iterator, bullet, nextX, nextY, nextZ)) {
+                    active = false;
+                    break;
+                }
+            }
+            if (!active) {
+                continue;
+            }
+        }
+    }
+
+    private boolean advanceBulletSegment(
+        Iterator<BulletEntity> iterator,
+        BulletEntity bullet,
+        double nextX,
+        double nextY,
+        double nextZ
+    ) {
+        int nextBlockX = (int) Math.floor(nextX); // meaning
+        int nextBlockY = (int) Math.floor(nextY); // meaning
+        int nextBlockZ = (int) Math.floor(nextZ); // meaning
+        if (!worldView.isWithinWorldY(nextBlockY)) {
+            removeBulletEntity(iterator, bullet);
+            return false;
+        }
+
+        if (nextBlockX != bullet.blockX || nextBlockY != bullet.blockY || nextBlockZ != bullet.blockZ) {
+            clearBulletBlockIfPresent(bullet.blockX, bullet.blockY, bullet.blockZ);
+            if (damageMissileAt(nextBlockX, nextBlockY, nextBlockZ, BULLET_HIT_DAMAGE)) {
+                iterator.remove();
+                return false;
+            }
+            if (worldView.isSolid(nextBlockX, nextBlockY, nextBlockZ)) {
+                iterator.remove();
+                return false;
+            }
+            if (!worldView.setBlock(nextBlockX, nextBlockY, nextBlockZ, Blocks.BULLET)) {
+                iterator.remove();
+                return false;
+            }
+            bullet.blockX = nextBlockX;
+            bullet.blockY = nextBlockY;
+            bullet.blockZ = nextBlockZ;
+        }
+        bullet.x = nextX;
+        bullet.y = nextY;
+        bullet.z = nextZ;
+        return true;
+    }
+
+    private void stepMissilesTowardPlayer() {
+        if (activeMissiles.isEmpty()) {
+            return;
+        }
+        int playerBlockX = (int) Math.floor(playerController.x()); // meaning
+        int playerBlockY = (int) Math.floor(playerController.y()); // meaning
+        int playerBlockZ = (int) Math.floor(playerController.z()); // meaning
+        for (Iterator<MissileEntity> iterator = activeMissiles.iterator(); iterator.hasNext(); ) {
+            MissileEntity missile = iterator.next(); // meaning
+            int dx = playerBlockX - missile.x; // meaning
+            int dy = playerBlockY - missile.y; // meaning
+            int dz = playerBlockZ - missile.z; // meaning
+            if (dx == 0 && dy == 0 && dz == 0) {
+                applyDamageToPlayer(PLAYER_HIT_DAMAGE);
+                removeMissileEntity(iterator, missile);
+                continue;
+            }
+            int ax = Math.abs(dx); // meaning
+            int ay = Math.abs(dy); // meaning
+            int az = Math.abs(dz); // meaning
+            int firstAxis; // meaning
+            int secondAxis; // meaning
+            int thirdAxis; // meaning
+            if (ax >= ay && ax >= az) {
+                firstAxis = 0;
+                if (ay >= az) {
+                    secondAxis = 1;
+                    thirdAxis = 2;
+                } else {
+                    secondAxis = 2;
+                    thirdAxis = 1;
+                }
+            } else if (ay >= ax && ay >= az) {
+                firstAxis = 1;
+                if (ax >= az) {
+                    secondAxis = 0;
+                    thirdAxis = 2;
+                } else {
+                    secondAxis = 2;
+                    thirdAxis = 0;
+                }
+            } else {
+                firstAxis = 2;
+                if (ax >= ay) {
+                    secondAxis = 0;
+                    thirdAxis = 1;
+                } else {
+                    secondAxis = 1;
+                    thirdAxis = 0;
+                }
+            }
+
+            if (tryMoveMissileAlongAxis(iterator, missile, firstAxis, dx, dy, dz)) {
+                continue;
+            }
+            if (tryMoveMissileAlongAxis(iterator, missile, secondAxis, dx, dy, dz)) {
+                continue;
+            }
+            tryMoveMissileAlongAxis(iterator, missile, thirdAxis, dx, dy, dz);
+        }
+    }
+
+    private boolean tryMoveMissileAlongAxis(
+        Iterator<MissileEntity> iterator,
+        MissileEntity missile,
+        int axis,
+        int dx,
+        int dy,
+        int dz
+    ) {
+        int stepX = 0; // meaning
+        int stepY = 0; // meaning
+        int stepZ = 0; // meaning
+        if (axis == 0) {
+            if (dx == 0) {
+                return false;
+            }
+            stepX = Integer.compare(dx, 0);
+        } else if (axis == 1) {
+            if (dy == 0) {
+                return false;
+            }
+            stepY = Integer.compare(dy, 0);
+        } else {
+            if (dz == 0) {
+                return false;
+            }
+            stepZ = Integer.compare(dz, 0);
+        }
+
+        int targetX = missile.x + stepX; // meaning
+        int targetY = missile.y + stepY; // meaning
+        int targetZ = missile.z + stepZ; // meaning
+        if (isPlayerInsideBlock(targetX, targetY, targetZ)) {
+            applyDamageToPlayer(PLAYER_HIT_DAMAGE);
+            removeMissileEntity(iterator, missile);
+            return true;
+        }
+        if (!canMissileOccupy(targetX, targetY, targetZ, missile)) {
+            return false;
+        }
+        clearMissileBlockIfPresent(missile.x, missile.y, missile.z);
+        if (!worldView.setBlock(targetX, targetY, targetZ, Blocks.MISSILE)) {
+            return false;
+        }
+        missile.x = targetX;
+        missile.y = targetY;
+        missile.z = targetZ;
+        return true;
+    }
+
+    private boolean canMissileOccupy(int x, int y, int z, MissileEntity self) {
+        if (!worldView.isWithinWorldY(y)) {
+            return false;
+        }
+        if (worldView.isSolid(x, y, z)) {
+            return false;
+        }
+        for (MissileEntity missile : activeMissiles) {
+            if (missile != self && missile.x == x && missile.y == y && missile.z == z) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean isPlayerInsideBlock(int blockX, int blockY, int blockZ) {
+        AABB bounds = playerController.boundingBox(); // meaning
+        return bounds.minX() < blockX + 1.0 && bounds.maxX() > blockX
+            && bounds.minY() < blockY + 1.0 && bounds.maxY() > blockY
+            && bounds.minZ() < blockZ + 1.0 && bounds.maxZ() > blockZ;
+    }
+
+    private void trySpawnMissileNearPlayer() {
+        if (activeMissiles.size() >= MISSILE_MAX_ACTIVE) {
+            return;
+        }
+        int baseX = (int) Math.floor(playerController.x()); // meaning
+        int baseY = (int) Math.floor(playerController.y()); // meaning
+        int baseZ = (int) Math.floor(playerController.z()); // meaning
+        for (int attempt = 0; attempt < MISSILE_SPAWN_ATTEMPTS; attempt++) { // meaning
+            int radius = MISSILE_SPAWN_MIN_RADIUS + combatRandom.nextInt(MISSILE_SPAWN_MAX_RADIUS - MISSILE_SPAWN_MIN_RADIUS + 1); // meaning
+            double angle = combatRandom.nextDouble() * Math.PI * 2.0; // meaning
+            int x = baseX + (int) Math.round(Math.cos(angle) * radius); // meaning
+            int z = baseZ + (int) Math.round(Math.sin(angle) * radius); // meaning
+            int y = clampInt(baseY + combatRandom.nextInt(11) - 5, World.MIN_Y + 2, World.MAX_Y - 2); // meaning
+            if (!worldView.isWithinWorldY(y)) {
+                continue;
+            }
+            if (worldView.isSolid(x, y, z)) {
+                continue;
+            }
+            if (portalRoomActive
+                && x >= portalRoomMinX + 1 && x < portalRoomMinX + 3
+                && y >= portalRoomMinY + 1 && y < portalRoomMinY + 3
+                && z >= portalRoomMinZ + 1 && z < portalRoomMinZ + 3) {
+                continue;
+            }
+            if (!worldView.setBlock(x, y, z, Blocks.MISSILE)) {
+                continue;
+            }
+            activeMissiles.add(new MissileEntity(x, y, z, MISSILE_MAX_HP));
+            System.out.printf("[combat] missile spawned at (%d,%d,%d) active=%d%n", x, y, z, activeMissiles.size());
+            return;
+        }
+    }
+
+    private boolean damageMissileAt(int x, int y, int z, int damage) {
+        for (Iterator<MissileEntity> iterator = activeMissiles.iterator(); iterator.hasNext(); ) {
+            MissileEntity missile = iterator.next(); // meaning
+            if (missile.x != x || missile.y != y || missile.z != z) {
+                continue;
+            }
+            missile.hp -= damage;
+            if (missile.hp <= 0) {
+                removeMissileEntity(iterator, missile);
+            }
+            return true;
+        }
+        return false;
+    }
+
+    private boolean removeMissileAt(int x, int y, int z) {
+        for (Iterator<MissileEntity> iterator = activeMissiles.iterator(); iterator.hasNext(); ) {
+            MissileEntity missile = iterator.next(); // meaning
+            if (missile.x != x || missile.y != y || missile.z != z) {
+                continue;
+            }
+            removeMissileEntity(iterator, missile);
+            return true;
+        }
+        return false;
+    }
+
+    private boolean removeBulletAt(int x, int y, int z) {
+        for (Iterator<BulletEntity> iterator = activeBullets.iterator(); iterator.hasNext(); ) {
+            BulletEntity bullet = iterator.next(); // meaning
+            if (bullet.blockX != x || bullet.blockY != y || bullet.blockZ != z) {
+                continue;
+            }
+            removeBulletEntity(iterator, bullet);
+            return true;
+        }
+        return false;
+    }
+
+    private void applyDamageToPlayer(int damage) {
+        if (combatGameOver) {
+            return;
+        }
+        playerHp = Math.max(0, playerHp - damage);
+        if (playerHp > 0) {
+            return;
+        }
+        combatGameOver = true;
+        System.out.println("[combat] player down; controls locked. restart client to continue.");
+    }
+
+    private void removeMissileEntity(Iterator<MissileEntity> iterator, MissileEntity missile) {
+        clearMissileBlockIfPresent(missile.x, missile.y, missile.z);
+        iterator.remove();
+    }
+
+    private void removeBulletEntity(Iterator<BulletEntity> iterator, BulletEntity bullet) {
+        clearBulletBlockIfPresent(bullet.blockX, bullet.blockY, bullet.blockZ);
+        iterator.remove();
+    }
+
+    private void clearMissileBlockIfPresent(int x, int y, int z) {
+        if (worldView.peekBlock(x, y, z) == Blocks.MISSILE) {
+            worldView.setBlock(x, y, z, Blocks.AIR);
+        }
+    }
+
+    private void clearBulletBlockIfPresent(int x, int y, int z) {
+        if (worldView.peekBlock(x, y, z) == Blocks.BULLET) {
+            worldView.setBlock(x, y, z, Blocks.AIR);
+        }
+    }
+
+    private double nextMissileSpawnDelaySeconds() {
+        return MISSILE_SPAWN_MIN_SECONDS + combatRandom.nextDouble() * (MISSILE_SPAWN_MAX_SECONDS - MISSILE_SPAWN_MIN_SECONDS);
+    }
+
+    private void resetCombatTracking() {
+        activeMissiles.clear();
+        activeBullets.clear();
+        gunCooldownSeconds = 0.0;
+        missileStepAccumulatorSeconds = 0.0;
+        missileSpawnCooldownSeconds = nextMissileSpawnDelaySeconds();
+    }
+
     private void preGenerateWCubeChunks(World targetWorld) {
         int centerChunkX = Math.floorDiv((WCUBE_CAVITY_MIN_X + WCUBE_CAVITY_MAX_X) / 2, Section.SIZE); // meaning
         int centerChunkZ = Math.floorDiv((WCUBE_CAVITY_MIN_Z + WCUBE_CAVITY_MAX_Z) / 2, Section.SIZE); // meaning
@@ -702,7 +1154,7 @@ public final class GameClient implements AutoCloseable {
         long ensureStarted = System.nanoTime(); // meaning
         ensureLocalChunksAroundPlayer();
         lastEnsureLocalChunksNanos = System.nanoTime() - ensureStarted;
-        if (!uiOpen && stepSeconds > 0.0) {
+        if (!uiOpen && !combatGameOver && stepSeconds > 0.0) {
             playerController.tick(worldView, input, stepSeconds);
             tickWormholeIfActive(stepSeconds);
         }
@@ -713,6 +1165,9 @@ public final class GameClient implements AutoCloseable {
     }
 
     private void handleWormholeToggleInput(InputState input) {
+        if (combatGameOver) {
+            return;
+        }
         if (!WORMHOLE_FEATURE_ENABLED) {
             return;
         }
@@ -1075,20 +1530,32 @@ public final class GameClient implements AutoCloseable {
             placeButtonDownLastTick = input.isMouseDown(MouseEvent.BUTTON3);
             return;
         }
-        // 中文标注（局部变量）：`hit`，含义：用于表示命中。
-        BlockHitResult hit = targetedBlock; // meaning
-        if (hit == null) {
-            return;
-        }
-
         // 中文标注（局部变量）：`breakButtonDown`，含义：用于表示break、button、down。
         boolean breakButtonDown = input.isMouseDown(MouseEvent.BUTTON1); // meaning
         // 中文标注（局部变量）：`placeButtonDown`，含义：用于表示place、button、down。
         boolean placeButtonDown = input.isMouseDown(MouseEvent.BUTTON3); // meaning
 
+        if (selectedBlock == Blocks.GUN && placeButtonDown && !placeButtonDownLastTick) {
+            fireGunProjectile();
+            breakButtonDownLastTick = breakButtonDown;
+            placeButtonDownLastTick = placeButtonDown;
+            return;
+        }
+
+        // 中文标注（局部变量）：`hit`，含义：用于表示命中。
+        BlockHitResult hit = targetedBlock; // meaning
+        if (hit == null) {
+            breakButtonDownLastTick = breakButtonDown;
+            placeButtonDownLastTick = placeButtonDown;
+            return;
+        }
+
         if (breakButtonDown && !breakButtonDownLastTick) {
-            if (worldView.setBlock(hit.targetBlock(), Blocks.AIR)) {
-                sendNetworkBlockUpdate(hit.targetBlock(), Blocks.AIR);
+            BlockPos target = hit.targetBlock(); // meaning
+            removeMissileAt(target.x(), target.y(), target.z());
+            removeBulletAt(target.x(), target.y(), target.z());
+            if (worldView.setBlock(target, Blocks.AIR)) {
+                sendNetworkBlockUpdate(target, Blocks.AIR);
             }
         }
 
@@ -1261,6 +1728,7 @@ public final class GameClient implements AutoCloseable {
             case 3 -> isAnyKeyDown(input, KeyEvent.VK_4, KeyEvent.VK_NUMPAD4);
             case 4 -> isAnyKeyDown(input, KeyEvent.VK_5, KeyEvent.VK_NUMPAD5);
             case 5 -> isAnyKeyDown(input, KeyEvent.VK_6, KeyEvent.VK_NUMPAD6);
+            case 6 -> isAnyKeyDown(input, KeyEvent.VK_7, KeyEvent.VK_NUMPAD7);
             default -> false;
         };
     }
@@ -1474,6 +1942,10 @@ public final class GameClient implements AutoCloseable {
         if (showFps) {
             lineCount += 1;
         }
+        lineCount += 1;
+        if (combatGameOver) {
+            lineCount += 1;
+        }
         if (DEBUG_FALL_HUD) {
             lineCount += 1;
         }
@@ -1528,7 +2000,15 @@ public final class GameClient implements AutoCloseable {
         }
         graphics.drawString(String.format("Held Block: %s", selectedBlock.id()), 24, y);
         y += 20;
-        String controlsLine = "WASD Move | Space Jump | Mouse Look | LMB Break | RMB Place | 1/2/3/4/5/6 Block | E Picker | O Settings"; // meaning
+        graphics.drawString(String.format("HP: %d/%d | Missiles: %d", playerHp, PLAYER_MAX_HP, activeMissiles.size()), 24, y);
+        y += 20;
+        if (combatGameOver) {
+            graphics.setColor(new Color(255, 120, 120));
+            graphics.drawString("GAME OVER: restart client to continue.", 24, y);
+            y += 20;
+            graphics.setColor(Color.WHITE);
+        }
+        String controlsLine = "WASD Move | Space Jump | Mouse Look | LMB Break | RMB Place | 1/2/3/4/5/6/7 Block | E Picker | O Settings"; // meaning
         if (portalRoomActive) {
             controlsLine += " | Z/X Portal Slice (inside cavity)";
         } else if (W_FEATURE_ENABLED) {
@@ -1684,6 +2164,9 @@ public final class GameClient implements AutoCloseable {
         }
         if (block == Blocks.PORTAL) {
             return "Portal";
+        }
+        if (block == Blocks.GUN) {
+            return "Gun";
         }
         BlockDef def = block.def();
         if (def != null && !def.displayName().isBlank()) {
@@ -1848,6 +2331,57 @@ public final class GameClient implements AutoCloseable {
             }
             int index = (scrollRow + row) * gridColumns + col; // meaning
             return index >= 0 && index < totalItems ? index : -1;
+        }
+    }
+
+    private static final class MissileEntity {
+        private int x; // meaning
+        private int y; // meaning
+        private int z; // meaning
+        private int hp; // meaning
+
+        private MissileEntity(int x, int y, int z, int hp) {
+            this.x = x;
+            this.y = y;
+            this.z = z;
+            this.hp = hp;
+        }
+    }
+
+    private static final class BulletEntity {
+        private double x; // meaning
+        private double y; // meaning
+        private double z; // meaning
+        private final double vx; // meaning
+        private final double vy; // meaning
+        private final double vz; // meaning
+        private double lifeSeconds; // meaning
+        private int blockX; // meaning
+        private int blockY; // meaning
+        private int blockZ; // meaning
+
+        private BulletEntity(
+            double x,
+            double y,
+            double z,
+            double vx,
+            double vy,
+            double vz,
+            double lifeSeconds,
+            int blockX,
+            int blockY,
+            int blockZ
+        ) {
+            this.x = x;
+            this.y = y;
+            this.z = z;
+            this.vx = vx;
+            this.vy = vy;
+            this.vz = vz;
+            this.lifeSeconds = lifeSeconds;
+            this.blockX = blockX;
+            this.blockY = blockY;
+            this.blockZ = blockZ;
         }
     }
 

@@ -1,5 +1,7 @@
 package dev.voxelcraft.core.block;
 
+// 中文标注：本文件已标记。
+
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Locale;

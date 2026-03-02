@@ -200,8 +200,10 @@ public final class GpuChunkRenderer implements AutoCloseable {
     private static final float[] HOTBAR_COLOR_SAND = rgb(215, 201, 150);
     private static final float[] HOTBAR_COLOR_WOOD = rgb(143, 91, 48);
     private static final float[] HOTBAR_COLOR_PORTAL = rgb(176, 58, 196);
+    private static final float[] HOTBAR_COLOR_MISSILE = rgb(220, 86, 72);
     private static final float[] HOTBAR_COLOR_FALLBACK = rgb(210, 210, 210);
     private static final String PORTAL_TEXTURE_RESOURCE = "/textures/1758252625670.jpg";
+    private static final String MISSILE_TEXTURE_RESOURCE = "/textures/1740065499332.jpg";
     private static final int MATERIAL_LUT_WIDTH = 4096; // meaning
     private static final int MATERIAL_LUT_HEIGHT = 2; // meaning
     private static final int MATERIAL_PATTERN_RAW_STONE = 0; // meaning
@@ -228,7 +230,9 @@ public final class GpuChunkRenderer implements AutoCloseable {
         uniform float uAmbient;
         uniform sampler2D uMatLut;
         uniform sampler2D uPortalTex;
+        uniform sampler2D uMissileTex;
         uniform int uPortalId;
+        uniform int uMissileId;
         varying vec4 vPacked;
         varying vec3 vWorldPos;
 
@@ -274,6 +278,14 @@ public final class GpuChunkRenderer implements AutoCloseable {
                 vec2 uv = faceUv(vWorldPos, faceIndex);
                 uv.y = 1.0 - uv.y;
                 vec4 px = texture2D(uPortalTex, uv);
+                vec3 lit = px.rgb * (brightness * uAmbient);
+                gl_FragColor = vec4(clamp(lit, 0.0, 1.0), alpha);
+                return;
+            }
+            if (id == uMissileId) {
+                vec2 uv = faceUv(vWorldPos, faceIndex);
+                uv.y = 1.0 - uv.y;
+                vec4 px = texture2D(uMissileTex, uv);
                 vec3 lit = px.rgb * (brightness * uAmbient);
                 gl_FragColor = vec4(clamp(lit, 0.0, 1.0), alpha);
                 return;
@@ -495,8 +507,11 @@ public final class GpuChunkRenderer implements AutoCloseable {
     private int materialLutUniformLocation = -1; // meaning
     private int portalTexUniformLocation = -1; // meaning
     private int portalIdUniformLocation = -1; // meaning
+    private int missileTexUniformLocation = -1; // meaning
+    private int missileIdUniformLocation = -1; // meaning
     private int materialLutTextureId; // meaning
     private int portalTextureId; // meaning
+    private int missileTextureId; // meaning
     // 中文标注（字段）：`latestTitleStats`，含义：用于表示latest、title、stats。
     private volatile String latestTitleStats = "gpu init"; // meaning
     // 中文标注（字段）：`closing`，含义：用于表示closing。
@@ -544,6 +559,7 @@ public final class GpuChunkRenderer implements AutoCloseable {
         ensureAmbientShaderProgram();
         ensureMaterialLutTexture();
         ensurePortalTexture();
+        ensureMissileTexture();
         frameSequence++;
         // 中文标注（局部变量）：`safeWidth`，含义：用于表示safe、宽度。
         int safeWidth = clampViewportDimension(width); // meaning
@@ -711,10 +727,63 @@ public final class GpuChunkRenderer implements AutoCloseable {
     private void renderHudForegroundOverlay(int width, int height, GameClient gameClient) {
         beginScreenSpaceOverlay(width, height);
         try {
+            drawOverlayCombatHud(gameClient);
             drawOverlayCrosshair(width, height);
             drawOverlayHotbar(width, height, gameClient);
         } finally {
             endScreenSpaceOverlay();
+        }
+    }
+
+    private void drawOverlayCombatHud(GameClient gameClient) {
+        int maxHp = Math.max(1, gameClient.playerMaxHp()); // meaning
+        int hp = Math.max(0, Math.min(maxHp, gameClient.playerHp())); // meaning
+        float hpRatio = hp / (float) maxHp; // meaning
+
+        float barX = 24.0f; // meaning
+        float barY = 24.0f; // meaning
+        float barW = 184.0f; // meaning
+        float barH = 12.0f; // meaning
+
+        glColor4f(0.0f, 0.0f, 0.0f, 0.45f);
+        glBegin(GL_QUADS);
+        glVertex2f(barX - 2.0f, barY - 2.0f);
+        glVertex2f(barX + barW + 2.0f, barY - 2.0f);
+        glVertex2f(barX + barW + 2.0f, barY + barH + 2.0f);
+        glVertex2f(barX - 2.0f, barY + barH + 2.0f);
+        glEnd();
+
+        glColor4f(0.33f, 0.08f, 0.08f, 0.92f);
+        glBegin(GL_QUADS);
+        glVertex2f(barX, barY);
+        glVertex2f(barX + barW, barY);
+        glVertex2f(barX + barW, barY + barH);
+        glVertex2f(barX, barY + barH);
+        glEnd();
+
+        glColor4f(0.93f, 0.16f, 0.18f, 0.96f);
+        glBegin(GL_QUADS);
+        glVertex2f(barX, barY);
+        glVertex2f(barX + barW * hpRatio, barY);
+        glVertex2f(barX + barW * hpRatio, barY + barH);
+        glVertex2f(barX, barY + barH);
+        glEnd();
+
+        int missiles = Math.max(0, gameClient.activeMissileCount()); // meaning
+        int markers = Math.min(12, missiles); // meaning
+        float markerSize = 8.0f; // meaning
+        float markerGap = 3.0f; // meaning
+        float markerY = barY + barH + 8.0f; // meaning
+        for (int i = 0; i < 12; i++) { // meaning
+            float x = barX + i * (markerSize + markerGap); // meaning
+            boolean active = i < markers; // meaning
+            glColor4f(active ? 0.95f : 0.25f, active ? 0.66f : 0.18f, active ? 0.18f : 0.18f, active ? 0.95f : 0.5f);
+            glBegin(GL_QUADS);
+            glVertex2f(x, markerY);
+            glVertex2f(x + markerSize, markerY);
+            glVertex2f(x + markerSize, markerY + markerSize);
+            glVertex2f(x, markerY + markerSize);
+            glEnd();
         }
     }
 
@@ -878,6 +947,9 @@ public final class GpuChunkRenderer implements AutoCloseable {
         if (block == Blocks.PORTAL) {
             return HOTBAR_COLOR_PORTAL;
         }
+        if (block == Blocks.MISSILE) {
+            return HOTBAR_COLOR_MISSILE;
+        }
         return HOTBAR_COLOR_FALLBACK;
     }
 
@@ -930,6 +1002,32 @@ public final class GpuChunkRenderer implements AutoCloseable {
         );
     }
 
+    private void ensureMissileTexture() {
+        if (missileTextureId != 0) {
+            return;
+        }
+        BufferedImage image = loadMissileTextureImage(); // meaning
+        if (image == null) {
+            missileTextureId = createFallbackMissileTexture();
+            return;
+        }
+        ByteBuffer pixels = convertImageToRgba(image); // meaning
+        missileTextureId = glGenTextures();
+        glBindTexture(GL_TEXTURE_2D, missileTextureId);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, image.getWidth(), image.getHeight(), 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+        glBindTexture(GL_TEXTURE_2D, 0);
+        System.out.printf(
+            "[gpu-missile] loaded texture %s %dx%d%n",
+            "classpath:" + MISSILE_TEXTURE_RESOURCE,
+            image.getWidth(),
+            image.getHeight()
+        );
+    }
+
     private static BufferedImage loadPortalTextureImage() {
         try (InputStream stream = GpuChunkRenderer.class.getResourceAsStream(PORTAL_TEXTURE_RESOURCE)) {
             if (stream == null) {
@@ -944,6 +1042,25 @@ public final class GpuChunkRenderer implements AutoCloseable {
             return image;
         } catch (IOException ioException) {
             System.err.println("[gpu-portal] failed to load texture resource: classpath:" + PORTAL_TEXTURE_RESOURCE);
+            ioException.printStackTrace(System.err);
+            return null;
+        }
+    }
+
+    private static BufferedImage loadMissileTextureImage() {
+        try (InputStream stream = GpuChunkRenderer.class.getResourceAsStream(MISSILE_TEXTURE_RESOURCE)) {
+            if (stream == null) {
+                System.err.println("[gpu-missile] missing texture resource: classpath:" + MISSILE_TEXTURE_RESOURCE);
+                return null;
+            }
+            BufferedImage image = ImageIO.read(stream); // meaning
+            if (image == null) {
+                System.err.println("[gpu-missile] failed to decode texture resource: classpath:" + MISSILE_TEXTURE_RESOURCE);
+                return null;
+            }
+            return image;
+        } catch (IOException ioException) {
+            System.err.println("[gpu-missile] failed to load texture resource: classpath:" + MISSILE_TEXTURE_RESOURCE);
             ioException.printStackTrace(System.err);
             return null;
         }
@@ -971,6 +1088,24 @@ public final class GpuChunkRenderer implements AutoCloseable {
         pixels.put((byte) 0xFF);
         pixels.put((byte) 0x00);
         pixels.put((byte) 0xFF);
+        pixels.put((byte) 0xFF);
+        pixels.flip();
+        int textureId = glGenTextures(); // meaning
+        glBindTexture(GL_TEXTURE_2D, textureId);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+        glBindTexture(GL_TEXTURE_2D, 0);
+        return textureId;
+    }
+
+    private static int createFallbackMissileTexture() {
+        ByteBuffer pixels = ByteBuffer.allocateDirect(4); // meaning
+        pixels.put((byte) 0xFF);
+        pixels.put((byte) 0x30);
+        pixels.put((byte) 0x30);
         pixels.put((byte) 0xFF);
         pixels.flip();
         int textureId = glGenTextures(); // meaning
@@ -1238,6 +1373,8 @@ public final class GpuChunkRenderer implements AutoCloseable {
             materialLutUniformLocation = -1;
             portalTexUniformLocation = -1;
             portalIdUniformLocation = -1;
+            missileTexUniformLocation = -1;
+            missileIdUniformLocation = -1;
         }
         if (materialLutTextureId != 0) {
             glDeleteTextures(materialLutTextureId);
@@ -1246,6 +1383,10 @@ public final class GpuChunkRenderer implements AutoCloseable {
         if (portalTextureId != 0) {
             glDeleteTextures(portalTextureId);
             portalTextureId = 0;
+        }
+        if (missileTextureId != 0) {
+            glDeleteTextures(missileTextureId);
+            missileTextureId = 0;
         }
         mdiCommandUploadBytes = null;
         uploadBufferPool.clear();
@@ -1729,16 +1870,22 @@ public final class GpuChunkRenderer implements AutoCloseable {
         GL20.glUniform1f(ambientUniformLocation, features.applyAmbientToBlocks() ? ambient : 1.0f);
         GL20.glUniform1i(materialLutUniformLocation, 0);
         GL20.glUniform1i(portalTexUniformLocation, 1);
+        GL20.glUniform1i(missileTexUniformLocation, 2);
         int portalId = Blocks.PORTAL != null ? Blocks.PORTAL.blockId().asUnsignedInt() : -1; // meaning
+        int missileId = Blocks.MISSILE != null ? Blocks.MISSILE.blockId().asUnsignedInt() : -1; // meaning
         GL20.glUniform1i(portalIdUniformLocation, portalId);
+        GL20.glUniform1i(missileIdUniformLocation, missileId);
         GL13.glActiveTexture(GL13.GL_TEXTURE0);
         glEnable(GL_TEXTURE_2D);
         glBindTexture(GL_TEXTURE_2D, materialLutTextureId);
         GL13.glActiveTexture(GL13.GL_TEXTURE1);
         glEnable(GL_TEXTURE_2D);
         glBindTexture(GL_TEXTURE_2D, portalTextureId);
+        GL13.glActiveTexture(GL13.GL_TEXTURE2);
+        glEnable(GL_TEXTURE_2D);
+        glBindTexture(GL_TEXTURE_2D, missileTextureId);
         GL13.glActiveTexture(GL13.GL_TEXTURE0);
-        pass.stateChanges += 8;
+        pass.stateChanges += 11;
 
         glEnableClientState(GL_VERTEX_ARRAY);
         glEnableClientState(GL_COLOR_ARRAY);
@@ -1959,12 +2106,14 @@ public final class GpuChunkRenderer implements AutoCloseable {
         bindArrayBuffer(pass, 0);
         bindElementBuffer(pass, 0);
         bindIndirectBuffer(pass, 0);
+        GL13.glActiveTexture(GL13.GL_TEXTURE2);
+        glBindTexture(GL_TEXTURE_2D, 0);
         GL13.glActiveTexture(GL13.GL_TEXTURE1);
         glBindTexture(GL_TEXTURE_2D, 0);
         GL13.glActiveTexture(GL13.GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, 0);
         GL20.glUseProgram(0);
-        pass.stateChanges += 3;
+        pass.stateChanges += 4;
         glDisableClientState(GL_COLOR_ARRAY);
         glDisableClientState(GL_VERTEX_ARRAY);
     }
@@ -2660,12 +2809,22 @@ public final class GpuChunkRenderer implements AutoCloseable {
             if (portalIdLoc < 0) {
                 throw new IllegalStateException("Ambient shader missing uniform uPortalId");
             }
+            int missileTexLoc = GL20.glGetUniformLocation(program, "uMissileTex"); // meaning
+            if (missileTexLoc < 0) {
+                throw new IllegalStateException("Ambient shader missing uniform uMissileTex");
+            }
+            int missileIdLoc = GL20.glGetUniformLocation(program, "uMissileId"); // meaning
+            if (missileIdLoc < 0) {
+                throw new IllegalStateException("Ambient shader missing uniform uMissileId");
+            }
 
             ambientShaderProgramId = program;
             ambientUniformLocation = uniformLoc;
             materialLutUniformLocation = materialLutLoc;
             portalTexUniformLocation = portalTexLoc;
             portalIdUniformLocation = portalIdLoc;
+            missileTexUniformLocation = missileTexLoc;
+            missileIdUniformLocation = missileIdLoc;
             program = 0;
         } finally {
             if (program != 0) {

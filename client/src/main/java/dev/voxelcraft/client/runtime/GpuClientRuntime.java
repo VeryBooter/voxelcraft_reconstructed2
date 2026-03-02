@@ -21,6 +21,7 @@ import static org.lwjgl.glfw.GLFW.GLFW_KEY_3;
 import static org.lwjgl.glfw.GLFW.GLFW_KEY_4;
 import static org.lwjgl.glfw.GLFW.GLFW_KEY_5;
 import static org.lwjgl.glfw.GLFW.GLFW_KEY_6;
+import static org.lwjgl.glfw.GLFW.GLFW_KEY_7;
 import static org.lwjgl.glfw.GLFW.GLFW_KEY_A;
 import static org.lwjgl.glfw.GLFW.GLFW_KEY_D;
 import static org.lwjgl.glfw.GLFW.GLFW_KEY_DOWN;
@@ -32,6 +33,7 @@ import static org.lwjgl.glfw.GLFW.GLFW_KEY_KP_3;
 import static org.lwjgl.glfw.GLFW.GLFW_KEY_KP_4;
 import static org.lwjgl.glfw.GLFW.GLFW_KEY_KP_5;
 import static org.lwjgl.glfw.GLFW.GLFW_KEY_KP_6;
+import static org.lwjgl.glfw.GLFW.GLFW_KEY_KP_7;
 import static org.lwjgl.glfw.GLFW.GLFW_KEY_LEFT;
 import static org.lwjgl.glfw.GLFW.GLFW_KEY_O;
 import static org.lwjgl.glfw.GLFW.GLFW_KEY_Q;
@@ -287,6 +289,8 @@ public final class GpuClientRuntime implements AutoCloseable {
             );
             out.append(" | ").append(renderer.latestTitleStats());
         }
+        out.append(" | HP ").append(gameClient.playerHp()).append("/").append(gameClient.playerMaxHp());
+        out.append(" | Missiles ").append(gameClient.activeMissileCount());
         out.append(" | ").append(gameClient.networkStatusLine());
         return out.toString();
     }
@@ -545,12 +549,14 @@ public final class GpuClientRuntime implements AutoCloseable {
             case GLFW_KEY_4 -> KeyEvent.VK_4;
             case GLFW_KEY_5 -> KeyEvent.VK_5;
             case GLFW_KEY_6 -> KeyEvent.VK_6;
+            case GLFW_KEY_7 -> KeyEvent.VK_7;
             case GLFW_KEY_KP_1 -> KeyEvent.VK_NUMPAD1;
             case GLFW_KEY_KP_2 -> KeyEvent.VK_NUMPAD2;
             case GLFW_KEY_KP_3 -> KeyEvent.VK_NUMPAD3;
             case GLFW_KEY_KP_4 -> KeyEvent.VK_NUMPAD4;
             case GLFW_KEY_KP_5 -> KeyEvent.VK_NUMPAD5;
             case GLFW_KEY_KP_6 -> KeyEvent.VK_NUMPAD6;
+            case GLFW_KEY_KP_7 -> KeyEvent.VK_NUMPAD7;
             default -> -1;
         };
     }

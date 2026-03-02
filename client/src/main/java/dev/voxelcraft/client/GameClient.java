@@ -184,6 +184,10 @@ public final class GameClient implements AutoCloseable {
     private double wormholeWPhase; // meaning
     private int wormholeWCandidate; // meaning
     private double wormholeDwPerSecond; // meaning
+    private boolean portalRoomActive; // meaning
+    private int portalRoomMinX; // meaning
+    private int portalRoomMinY; // meaning
+    private int portalRoomMinZ; // meaning
 
     // 中文标注（构造方法）：`GameClient`，参数：无；用途：初始化`GameClient`实例。
     public GameClient() {
@@ -233,6 +237,7 @@ public final class GameClient implements AutoCloseable {
         if (!uiOpen) {
             handleBlockSelection(input);
         }
+        handlePortalRoomSliceInput(input, uiOpen);
 
         // 物理/碰撞按固定子步推进，避免大 dt 突刺导致单帧穿透。
         double remainingSeconds = clampSimulationCatchupSeconds(deltaSeconds); // meaning
@@ -555,6 +560,9 @@ public final class GameClient implements AutoCloseable {
         if (!W_FEATURE_ENABLED) {
             return;
         }
+        if (portalRoomActive && isPlayerInsidePortalCavity()) {
+            return;
+        }
         if (isAnyUiOpen()) {
             return;
         }
@@ -594,6 +602,50 @@ public final class GameClient implements AutoCloseable {
         ensureLocalChunksAroundPlayer();
         targetedBlock = null;
         System.out.printf("[w-cube] switched to w=%d (Z=-1, X=+1)%n", newW);
+    }
+
+    private void handlePortalRoomSliceInput(InputState input, boolean uiOpen) {
+        if (!portalRoomActive) {
+            return;
+        }
+        if (uiOpen) {
+            return;
+        }
+        if (networkClient != null && networkClient.isConnected()) {
+            if (input.wasKeyPressed(W_KEY_DECREMENT) || input.wasKeyPressed(W_KEY_INCREMENT)) {
+                System.out.println("[portal] slice switching is disabled in multiplayer.");
+            }
+            return;
+        }
+        if (!isPlayerInsidePortalCavity()) {
+            return;
+        }
+        if (input.wasKeyPressed(W_KEY_DECREMENT)) {
+            switchToNeighborSlice(-1);
+        } else if (input.wasKeyPressed(W_KEY_INCREMENT)) {
+            switchToNeighborSlice(+1);
+        }
+    }
+
+    private void switchToNeighborSlice(int deltaW) {
+        if (!portalRoomActive) {
+            return;
+        }
+        if (networkClient != null && networkClient.isConnected()) {
+            System.out.println("[portal] slice switching is disabled in multiplayer.");
+            return;
+        }
+        int newW = game.w() + deltaW; // meaning
+        if (newW == game.w()) {
+            return;
+        }
+        switchSlice(newW);
+        if (buildPortalRoom(portalRoomMinX, portalRoomMinY, portalRoomMinZ)) {
+            teleportToSafeAnchor(portalRoomMinX + 1.5, portalRoomMinY + 1.0, portalRoomMinZ + 1.5);
+            ensureLocalChunksAroundPlayer();
+            targetedBlock = null;
+        }
+        System.out.printf("[portal] switched to w=%d (Z=-1, X=+1)%n", newW);
     }
 
     private void preGenerateWCubeChunks(World targetWorld) {
@@ -1106,7 +1158,30 @@ public final class GameClient implements AutoCloseable {
                 }
             }
         }
+        portalRoomActive = true;
+        portalRoomMinX = shellMinX;
+        portalRoomMinY = shellMinY;
+        portalRoomMinZ = shellMinZ;
         return true;
+    }
+
+    private boolean isPlayerInsidePortalCavity() {
+        if (!portalRoomActive) {
+            return false;
+        }
+        AABB bounds = playerController.boundingBox(); // meaning
+        double minX = portalRoomMinX + 1.0; // meaning
+        double minY = portalRoomMinY + 1.0; // meaning
+        double minZ = portalRoomMinZ + 1.0; // meaning
+        double maxX = portalRoomMinX + 3.0; // meaning
+        double maxY = portalRoomMinY + 3.0; // meaning
+        double maxZ = portalRoomMinZ + 3.0; // meaning
+        return bounds.minX() >= minX
+            && bounds.maxX() <= maxX
+            && bounds.minY() >= minY
+            && bounds.maxY() <= maxY
+            && bounds.minZ() >= minZ
+            && bounds.maxZ() <= maxZ;
     }
 
     // 中文标注（方法）：`raycastFromPlayer`，参数：maxDistance；用途：执行raycast、from、玩家相关逻辑。
@@ -1454,7 +1529,9 @@ public final class GameClient implements AutoCloseable {
         graphics.drawString(String.format("Held Block: %s", selectedBlock.id()), 24, y);
         y += 20;
         String controlsLine = "WASD Move | Space Jump | Mouse Look | LMB Break | RMB Place | 1/2/3/4/5/6 Block | E Picker | O Settings"; // meaning
-        if (W_FEATURE_ENABLED) {
+        if (portalRoomActive) {
+            controlsLine += " | Z/X Portal Slice (inside cavity)";
+        } else if (W_FEATURE_ENABLED) {
             controlsLine += " | Z/X WSlice (in WCube)";
         }
         graphics.drawString(controlsLine, 24, y);
@@ -1487,6 +1564,9 @@ public final class GameClient implements AutoCloseable {
     }
 
     private String buildSliceHudLine() {
+        if (portalRoomActive && isPlayerInsidePortalCavity()) {
+            return "Portal: Z: w-1, X: w+1 | w=" + game.activeW();
+        }
         if (W_FEATURE_ENABLED) {
             if (networkClient != null && networkClient.isConnected()) {
                 return "W: " + game.activeW() + " | WCube: disabled in multiplayer";

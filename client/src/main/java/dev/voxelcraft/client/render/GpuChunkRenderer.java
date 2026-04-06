@@ -13,6 +13,8 @@ import dev.voxelcraft.core.world.Chunk;
 import dev.voxelcraft.core.world.ChunkPos;
 import dev.voxelcraft.core.world.Section;
 import dev.voxelcraft.core.world.World;
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.io.InputStream;
@@ -43,7 +45,9 @@ import org.lwjgl.opengl.GL13;
 import org.lwjgl.opengl.GL20;
 import org.lwjgl.opengl.GLCapabilities;
 import org.lwjgl.opengl.ARBMultiDrawIndirect;
+import org.lwjgl.opengl.GL33;
 import org.lwjgl.opengl.GL43;
+import static org.lwjgl.opengl.GL33.GL_ANY_SAMPLES_PASSED;
 
 import static org.lwjgl.opengl.GL11.GL_BACK;
 import static org.lwjgl.opengl.GL11.GL_BLEND;
@@ -65,6 +69,7 @@ import static org.lwjgl.opengl.GL11.GL_RGBA;
 import static org.lwjgl.opengl.GL11.GL_RGBA8;
 import static org.lwjgl.opengl.GL11.GL_SRC_ALPHA;
 import static org.lwjgl.opengl.GL11.GL_TEXTURE_2D;
+import static org.lwjgl.opengl.GL11.GL_TEXTURE_COORD_ARRAY;
 import static org.lwjgl.opengl.GL11.GL_TEXTURE_MAG_FILTER;
 import static org.lwjgl.opengl.GL11.GL_TEXTURE_MIN_FILTER;
 import static org.lwjgl.opengl.GL11.GL_TEXTURE_WRAP_S;
@@ -98,6 +103,7 @@ import static org.lwjgl.opengl.GL11.glRotatef;
 import static org.lwjgl.opengl.GL11.glScaled;
 import static org.lwjgl.opengl.GL11.glTexImage2D;
 import static org.lwjgl.opengl.GL11.glTexParameteri;
+import static org.lwjgl.opengl.GL11.glTexCoordPointer;
 import static org.lwjgl.opengl.GL11.glTranslated;
 import static org.lwjgl.opengl.GL11.glVertex2f;
 import static org.lwjgl.opengl.GL11.glVertexPointer;
@@ -180,7 +186,8 @@ public final class GpuChunkRenderer implements AutoCloseable {
     // 中文标注（字段）：`DEFAULT_OCCLUSION_RESULT_POLL_BUDGET`，含义：用于表示默认、occlusion、结果、poll、budget。
     private static final int DEFAULT_OCCLUSION_RESULT_POLL_BUDGET = 192; // meaning
     // 中文标注（字段）：`DEFAULT_LOD_START_CHUNK_DISTANCE`，含义：用于表示默认、细节层级、开始、区块、distance。
-    private static final int DEFAULT_LOD_START_CHUNK_DISTANCE = 4; // meaning
+    private static final int DEFAULT_LOD_START_CHUNK_DISTANCE = 12; // meaning
+    private static final int DEFAULT_LOD_FAR_CHUNK_DISTANCE = 28; // meaning
     // 中文标注（字段）：`DEFAULT_LOD_HYSTERESIS_CHUNKS`，含义：用于表示默认、细节层级、hysteresis、区块集合。
     private static final int DEFAULT_LOD_HYSTERESIS_CHUNKS = 1; // meaning
     // 中文标注（字段）：`DEFAULT_SHARED_ARENA_VERTEX_MB`，含义：用于表示默认、shared、arena、顶点、mb。
@@ -192,6 +199,7 @@ public final class GpuChunkRenderer implements AutoCloseable {
     private static final int VERTEX_STRIDE_BYTES = ChunkMesher.GPU_VERTEX_STRIDE_BYTES; // meaning
     // 中文标注（字段）：`POSITION_OFFSET_BYTES`，含义：用于表示位置、偏移、字节数据。
     private static final long POSITION_OFFSET_BYTES = 0L; // meaning
+    private static final long UV_OFFSET_BYTES = ChunkMesher.GPU_UV_OFFSET_BYTES; // meaning
     // 中文标注（字段）：`COLOR_OFFSET_BYTES`，含义：用于表示颜色、偏移、字节数据。
     private static final long COLOR_OFFSET_BYTES = ChunkMesher.GPU_COLOR_OFFSET_BYTES; // meaning
     private static final float[] HOTBAR_COLOR_DIRT = rgb(120, 84, 58);
@@ -204,6 +212,11 @@ public final class GpuChunkRenderer implements AutoCloseable {
     private static final float[] HOTBAR_COLOR_FALLBACK = rgb(210, 210, 210);
     private static final String PORTAL_TEXTURE_RESOURCE = "/textures/1758252625670.jpg";
     private static final String MISSILE_TEXTURE_RESOURCE = "/textures/1740065499332.jpg";
+    private static final String TILE_TEXTURE_RESOURCE_PREFIX = "/textures/tiles/";
+    private static final int BLOCK_ATLAS_TILE_SIZE = 16; // meaning
+    private static final int BLOCK_ATLAS_META_WIDTH = 4096; // meaning
+    private static final int BLOCK_ATLAS_META_HEIGHT = 3; // meaning
+    private static final int MAX_ATLAS_TILE_COUNT = 4096; // meaning
     private static final int MATERIAL_LUT_WIDTH = 4096; // meaning
     private static final int MATERIAL_LUT_HEIGHT = 2; // meaning
     private static final int MATERIAL_PATTERN_RAW_STONE = 0; // meaning
@@ -218,51 +231,75 @@ public final class GpuChunkRenderer implements AutoCloseable {
         #version 120
         varying vec4 vPacked;
         varying vec3 vWorldPos;
+        varying vec2 vUv;
         void main() {
             gl_Position = ftransform();
             vPacked = gl_Color;
             vWorldPos = gl_Vertex.xyz;
+            vUv = gl_MultiTexCoord0.xy;
         }
         """;
     // 中文标注（字段）：`AMBIENT_FRAGMENT_SHADER_SOURCE`，含义：用于表示环境光、fragment、着色器、source。
     private static final String AMBIENT_FRAGMENT_SHADER_SOURCE = """
         #version 120
         uniform float uAmbient;
-        uniform sampler2D uMatLut;
+        uniform sampler2D uBlockAtlas;
+        uniform sampler2D uFaceTileLut;
+        uniform float uAtlasCols;
+        uniform float uAtlasRows;
+        uniform float uAtlasTileSize;
         uniform sampler2D uPortalTex;
         uniform sampler2D uMissileTex;
         uniform int uPortalId;
         uniform int uMissileId;
         varying vec4 vPacked;
         varying vec3 vWorldPos;
+        varying vec2 vUv;
 
-        float hash21(vec2 p) {
-            return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+        float unpack16(vec2 rg) {
+            float lo = floor(rg.x * 255.0 + 0.5);
+            float hi = floor(rg.y * 255.0 + 0.5);
+            return lo + hi * 256.0;
         }
 
-        float valueNoise(vec2 p) {
-            vec2 i = floor(p);
-            vec2 f = fract(p);
-            float a = hash21(i);
-            float b = hash21(i + vec2(1.0, 0.0));
-            float c = hash21(i + vec2(0.0, 1.0));
-            float d = hash21(i + vec2(1.0, 1.0));
-            vec2 u = f * f * (3.0 - 2.0 * f);
-            return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+        float hash31(vec3 p) {
+            return fract(sin(dot(p, vec3(12.9898, 78.233, 37.719))) * 43758.5453123);
         }
 
-        vec2 faceUv(vec3 worldPos, int faceIndex) {
-            if (faceIndex == 0 || faceIndex == 1) {
-                return fract(worldPos.xz);
+        vec2 atlasUvForTile(float tileIndex, vec2 tileUv) {
+            float cols = max(1.0, uAtlasCols);
+            float rows = max(1.0, uAtlasRows);
+            float maxIndex = max(0.0, cols * rows - 1.0);
+            float idx = clamp(tileIndex, 0.0, maxIndex);
+            float col = mod(idx, cols);
+            float row = floor(idx / cols);
+            vec2 cellMin = vec2(col / cols, row / rows);
+            vec2 cellSize = vec2(1.0 / cols, 1.0 / rows);
+            return cellMin + tileUv * cellSize;
+        }
+
+        vec4 sampleAtlasTile(float tileIndex, vec2 tileUv) {
+            return texture2D(uBlockAtlas, atlasUvForTile(tileIndex, tileUv));
+        }
+
+        vec3 applyTint(vec3 color, float tintCode) {
+            if (tintCode < 0.5) {
+                return color;
             }
-            if (faceIndex == 4 || faceIndex == 5) {
-                return fract(worldPos.zy);
+            float climate = clamp(0.5 + 0.5 * sin(vWorldPos.x * 0.009 + vWorldPos.z * 0.013), 0.0, 1.0);
+            if (tintCode < 1.5) {
+                vec3 grassTint = mix(vec3(0.76, 0.86, 0.62), vec3(0.53, 0.83, 0.41), climate);
+                return color * grassTint;
             }
-            return fract(worldPos.xy);
-        }
-
-        vec2 quantizeUv(vec2 uv, float pixels) {
-            return (floor(uv * pixels) + 0.5) / pixels;
+            if (tintCode < 2.5) {
+                vec3 foliageTint = mix(vec3(0.70, 0.84, 0.58), vec3(0.41, 0.74, 0.37), climate);
+                return color * foliageTint;
+            }
+            if (tintCode < 3.5) {
+                return color * vec3(0.62, 0.76, 1.00);
+            }
+            float custom = 0.92 + hash31(floor(vWorldPos * 0.25)) * 0.16;
+            return color * custom;
         }
 
         void main() {
@@ -274,75 +311,41 @@ public final class GpuChunkRenderer implements AutoCloseable {
             if (alpha < 0.5) {
                 discard;
             }
+
+            vec2 tileUv = fract(vUv);
+            float tilePixels = max(1.0, uAtlasTileSize);
+            tileUv = (floor(tileUv * tilePixels) + 0.5) / tilePixels;
+
             if (id == uPortalId) {
-                vec2 uv = faceUv(vWorldPos, faceIndex);
-                uv.y = 1.0 - uv.y;
+                vec2 uv = vec2(tileUv.x, 1.0 - tileUv.y);
                 vec4 px = texture2D(uPortalTex, uv);
                 vec3 lit = px.rgb * (brightness * uAmbient);
                 gl_FragColor = vec4(clamp(lit, 0.0, 1.0), alpha);
                 return;
             }
             if (id == uMissileId) {
-                vec2 uv = faceUv(vWorldPos, faceIndex);
-                uv.y = 1.0 - uv.y;
+                vec2 uv = vec2(tileUv.x, 1.0 - tileUv.y);
                 vec4 px = texture2D(uMissileTex, uv);
                 vec3 lit = px.rgb * (brightness * uAmbient);
                 gl_FragColor = vec4(clamp(lit, 0.0, 1.0), alpha);
                 return;
             }
 
-            float lutX = (clamp(float(id), 0.0, 4095.0) + 0.5) / 4096.0;
-            vec4 row0 = texture2D(uMatLut, vec2(lutX, 0.25));
-            vec4 row1 = texture2D(uMatLut, vec2(lutX, 0.75));
-            vec3 base = row0.rgb;
-            vec3 accent = row1.rgb;
-            float noiseScale = mix(0.2, 1.4, row0.a);
-            float patternType = row1.a * 255.0;
-            vec2 uvBase = faceUv(vWorldPos, faceIndex);
-            vec2 uv = quantizeUv(uvBase, 16.0);
-            vec2 uvFine = quantizeUv(uvBase, 32.0);
-            vec3 material = base;
+            float faceLutX = (clamp(float(id), 0.0, 4095.0) + 0.5) / 4096.0;
+            float faceLutY = (clamp(float(faceIndex), 0.0, 5.0) + 0.5) / 6.0;
+            vec4 lut = texture2D(uFaceTileLut, vec2(faceLutX, faceLutY));
+            float tileIndex = unpack16(lut.rg);
+            float tintCode = floor(lut.b * 255.0 + 0.5);
+            float overlayTile = floor(lut.a * 255.0 + 0.5);
 
-            if (patternType < 0.5) {
-                float grain = valueNoise(uvFine * (7.0 * noiseScale) + vec2(float(faceIndex) * 0.73, 0.0));
-                float layer = valueNoise(vec2(uv.y * 3.0 + float(faceIndex) * 0.15, floor(vWorldPos.y * 0.25) * 0.4));
-                float mixAmount = clamp(grain * 0.55 + layer * 0.25, 0.0, 1.0);
-                material = mix(base, accent, mixAmount);
-            } else if (patternType < 1.5) {
-                float n = valueNoise(uv * (2.0 + noiseScale) + vec2(float(faceIndex) * 0.19, 0.0));
-                material = mix(base, accent, 0.14 + n * 0.16);
-            } else if (patternType < 2.5) {
-                vec2 brickUv = uvBase * 8.0;
-                vec2 brickCell = floor(brickUv);
-                float offset = step(1.0, mod(brickCell.y, 2.0)) * 0.5;
-                vec2 st = fract(vec2(brickUv.x + offset, brickUv.y));
-                float mortar = max(step(st.x, 0.06), max(step(0.94, st.x), max(step(st.y, 0.06), step(0.94, st.y))));
-                float brickShade = valueNoise((brickCell + vec2(float(faceIndex), 0.0)) * 0.37);
-                vec3 brickColor = mix(base, accent, 0.20 + brickShade * 0.35);
-                material = mix(brickColor, vec3(0.11, 0.11, 0.11), mortar * 0.95);
-            } else if (patternType < 3.5) {
-                vec2 tileUv = uvBase * 6.0;
-                vec2 tileCell = floor(tileUv);
-                vec2 st = fract(tileUv);
-                float grout = max(step(st.x, 0.05), max(step(0.95, st.x), max(step(st.y, 0.05), step(0.95, st.y))));
-                float tileShade = valueNoise(tileCell * 0.27 + vec2(float(faceIndex) * 0.2, 0.0));
-                material = mix(mix(base, accent, tileShade * 0.35), vec3(0.12, 0.12, 0.12), grout * 0.90);
-            } else if (patternType < 4.5) {
-                float rockN = valueNoise(uvFine * (9.0 * noiseScale) + vec2(float(faceIndex) * 0.33, 0.0));
-                float veinN = valueNoise((uvBase + vWorldPos.xy * 0.07) * 5.0 + vec2(float(faceIndex) * 0.17, 3.1));
-                float oreMask = step(0.78, veinN);
-                vec3 rock = mix(base, accent, rockN * 0.25);
-                material = mix(rock, accent * 1.35, oreMask * 0.80);
-            } else if (patternType < 5.5) {
-                float grain = sin((uvBase.x * 20.0 * noiseScale) + valueNoise(uvFine * 2.0) * 4.0);
-                float rings = valueNoise(vec2(uvBase.y * 6.0, uvBase.x * 1.7 + float(faceIndex) * 0.13));
-                material = mix(base, accent, 0.25 + (grain * 0.5 + 0.5) * 0.35 + rings * 0.2);
-            } else {
-                float n = valueNoise(uvFine * (6.5 * noiseScale) + vWorldPos.xz * 0.03);
-                float patch = valueNoise(floor(vWorldPos.xz * 0.5) + vec2(float(faceIndex) * 0.2, 0.0));
-                float stripe = mix(0.92, 1.08, step(1.0, mod(floor(vWorldPos.x + vWorldPos.z), 2.0)));
-                material = mix(base, accent, n * 0.5) * mix(0.95, 1.05, patch) * stripe;
+            vec3 material = sampleAtlasTile(tileIndex, tileUv).rgb;
+            if (overlayTile > 0.5) {
+                vec3 overlay = sampleAtlasTile(overlayTile, tileUv).rgb;
+                material = mix(material, overlay, 0.35);
             }
+            material = applyTint(material, tintCode);
+            float variation = 0.94 + hash31(floor(vWorldPos * 0.25)) * 0.12;
+            material *= variation;
 
             vec3 lit = material * (brightness * uAmbient);
             gl_FragColor = vec4(clamp(lit, 0.0, 1.0), alpha);
@@ -486,6 +489,7 @@ public final class GpuChunkRenderer implements AutoCloseable {
     private boolean supportsMdi; // meaning
     // 中文标注（字段）：`supportsOcclusionQuery`，含义：用于表示supports、occlusion、query。
     private boolean supportsOcclusionQuery; // meaning
+    private int occlusionQueryType = GL_SAMPLES_PASSED;
     // 中文标注（字段）：`supportsPersistentMapping`，含义：用于表示supports、persistent、mapping。
     private boolean supportsPersistentMapping; // meaning
     // 中文标注（字段）：`occlusionBoxMesh`，含义：用于表示occlusion、box、网格。
@@ -505,11 +509,20 @@ public final class GpuChunkRenderer implements AutoCloseable {
     // 中文标注（字段）：`ambientUniformLocation`，含义：用于表示环境光、uniform、location。
     private int ambientUniformLocation = -1; // meaning
     private int materialLutUniformLocation = -1; // meaning
+    private int blockAtlasUniformLocation = -1; // meaning
+    private int faceTileLutUniformLocation = -1; // meaning
+    private int atlasColsUniformLocation = -1; // meaning
+    private int atlasRowsUniformLocation = -1; // meaning
+    private int atlasTileSizeUniformLocation = -1; // meaning
     private int portalTexUniformLocation = -1; // meaning
     private int portalIdUniformLocation = -1; // meaning
     private int missileTexUniformLocation = -1; // meaning
     private int missileIdUniformLocation = -1; // meaning
     private int materialLutTextureId; // meaning
+    private int blockAtlasTextureId; // meaning
+    private int faceTileLutTextureId; // meaning
+    private int atlasColumns = 1; // meaning
+    private int atlasRows = 1; // meaning
     private int portalTextureId; // meaning
     private int missileTextureId; // meaning
     // 中文标注（字段）：`latestTitleStats`，含义：用于表示latest、title、stats。
@@ -557,7 +570,7 @@ public final class GpuChunkRenderer implements AutoCloseable {
         long renderStarted = System.nanoTime(); // meaning
         initializeCapabilitiesIfNeeded();
         ensureAmbientShaderProgram();
-        ensureMaterialLutTexture();
+        ensureBlockAtlasTextures();
         ensurePortalTexture();
         ensureMissileTexture();
         frameSequence++;
@@ -961,6 +974,377 @@ public final class GpuChunkRenderer implements AutoCloseable {
         return Math.max(0.0f, Math.min(255.0f, value * multiplier)) / 255.0f;
     }
 
+    private void ensureBlockAtlasTextures() {
+        if (blockAtlasTextureId != 0 && faceTileLutTextureId != 0) {
+            return;
+        }
+        AtlasBuildResult atlasBuild = buildBlockAtlasTextures(); // meaning
+        atlasColumns = Math.max(1, atlasBuild.atlasColumns());
+        atlasRows = Math.max(1, atlasBuild.atlasRows());
+
+        blockAtlasTextureId = glGenTextures();
+        glBindTexture(GL_TEXTURE_2D, blockAtlasTextureId);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glTexImage2D(
+            GL_TEXTURE_2D,
+            0,
+            GL_RGBA8,
+            atlasBuild.atlasWidth(),
+            atlasBuild.atlasHeight(),
+            0,
+            GL_RGBA,
+            GL_UNSIGNED_BYTE,
+            atlasBuild.atlasPixels()
+        );
+
+        faceTileLutTextureId = glGenTextures();
+        glBindTexture(GL_TEXTURE_2D, faceTileLutTextureId);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glTexImage2D(
+            GL_TEXTURE_2D,
+            0,
+            GL_RGBA8,
+            BLOCK_ATLAS_META_WIDTH,
+            6,
+            0,
+            GL_RGBA,
+            GL_UNSIGNED_BYTE,
+            atlasBuild.metaPixels()
+        );
+        glBindTexture(GL_TEXTURE_2D, 0);
+        System.out.printf(
+            "[gpu-atlas] tiles=%d atlas=%dx%d grid=%dx%d lut=%dx6%n",
+            atlasBuild.tileCount(),
+            atlasBuild.atlasWidth(),
+            atlasBuild.atlasHeight(),
+            atlasColumns,
+            atlasRows,
+            BLOCK_ATLAS_META_WIDTH
+        );
+    }
+
+    private AtlasBuildResult buildBlockAtlasTextures() {
+        Map<String, Integer> tileIndexByName = new HashMap<>(); // meaning
+        Map<Integer, BlockFaceMeta> blockMetaById = new HashMap<>(); // meaning
+        tileIndexByName.put("stone", 0);
+        for (BlockDef def : Blocks.definitions().all()) {
+            int blockId = def.id().asUnsignedInt(); // meaning
+            if (blockId < 0 || blockId >= BLOCK_ATLAS_META_WIDTH) {
+                continue;
+            }
+            int top = resolveTileIndex(tileIndexByName, def.atlasTop());
+            int side = resolveTileIndex(tileIndexByName, def.atlasSide());
+            int bottom = resolveTileIndex(tileIndexByName, def.atlasBottom());
+            int overlay = resolveTileIndex(tileIndexByName, def.atlasOverlay());
+            int tintCode = tintModeCode(def.tintMode());
+            blockMetaById.put(blockId, new BlockFaceMeta(top, side, bottom, overlay, tintCode));
+        }
+
+        int tileCount = Math.max(1, tileIndexByName.size()); // meaning
+        int columns = Math.max(1, (int) Math.ceil(Math.sqrt(tileCount))); // meaning
+        int rows = Math.max(1, (int) Math.ceil((double) tileCount / (double) columns)); // meaning
+        int atlasWidth = columns * BLOCK_ATLAS_TILE_SIZE; // meaning
+        int atlasHeight = rows * BLOCK_ATLAS_TILE_SIZE; // meaning
+        BufferedImage atlasImage = new BufferedImage(atlasWidth, atlasHeight, BufferedImage.TYPE_INT_ARGB); // meaning
+
+        for (Map.Entry<String, Integer> entry : tileIndexByName.entrySet()) {
+            String tileName = entry.getKey(); // meaning
+            int tileIndex = entry.getValue(); // meaning
+            BufferedImage tile = loadOrGenerateAtlasTile(tileName, BLOCK_ATLAS_TILE_SIZE); // meaning
+            int dstX = (tileIndex % columns) * BLOCK_ATLAS_TILE_SIZE; // meaning
+            int dstY = (tileIndex / columns) * BLOCK_ATLAS_TILE_SIZE; // meaning
+            blitTile(tile, atlasImage, dstX, dstY);
+        }
+
+        ByteBuffer atlasPixels = convertImageToRgba(atlasImage); // meaning
+        ByteBuffer metaPixels = buildFaceTileLutTexture(blockMetaById); // meaning
+        return new AtlasBuildResult(atlasPixels, atlasWidth, atlasHeight, columns, rows, tileCount, metaPixels);
+    }
+
+    // 6-row LUT: row = faceIndex (0=UP/top, 1=DOWN/bottom, 2-5=sides), col = blockId
+    // Each texel: R=tileIndexLo, G=tileIndexHi, B=tintCode, A=overlayLo
+    private static ByteBuffer buildFaceTileLutTexture(Map<Integer, BlockFaceMeta> blockMetaById) {
+        ByteBuffer bytes = ByteBuffer.allocateDirect(BLOCK_ATLAS_META_WIDTH * 6 * 4);
+        for (int faceIdx = 0; faceIdx < 6; faceIdx++) {
+            for (int blockId = 0; blockId < BLOCK_ATLAS_META_WIDTH; blockId++) {
+                BlockFaceMeta meta = blockMetaById.get(blockId);
+                if (meta == null) {
+                    meta = new BlockFaceMeta(0, 0, 0, 0, 0);
+                }
+                int tileIndex = switch (faceIdx) {
+                    case 0 -> meta.topTileIndex();
+                    case 1 -> meta.bottomTileIndex();
+                    default -> meta.sideTileIndex();
+                };
+                int offset = (faceIdx * BLOCK_ATLAS_META_WIDTH + blockId) * 4;
+                bytes.put(offset,     (byte) (tileIndex & 0xFF));
+                bytes.put(offset + 1, (byte) ((tileIndex >>> 8) & 0xFF));
+                bytes.put(offset + 2, (byte) (meta.tintCode() & 0xFF));
+                bytes.put(offset + 3, (byte) (meta.overlayTileIndex() & 0xFF));
+            }
+        }
+        return bytes;
+    }
+
+    private static void putMetaPixel(ByteBuffer bytes, int row, int x, int r, int g, int b, int a) {
+        int offset = ((row * BLOCK_ATLAS_META_WIDTH) + x) * 4; // meaning
+        bytes.put(offset, (byte) r);
+        bytes.put(offset + 1, (byte) g);
+        bytes.put(offset + 2, (byte) b);
+        bytes.put(offset + 3, (byte) a);
+    }
+
+    private static int resolveTileIndex(Map<String, Integer> tileIndexByName, String tileName) {
+        String normalized = normalizeTileName(tileName); // meaning
+        if (normalized.isEmpty()) {
+            return 0;
+        }
+        Integer existing = tileIndexByName.get(normalized); // meaning
+        if (existing != null) {
+            return existing;
+        }
+        if (tileIndexByName.size() >= MAX_ATLAS_TILE_COUNT) {
+            return 0;
+        }
+        int nextIndex = tileIndexByName.size(); // meaning
+        tileIndexByName.put(normalized, nextIndex);
+        return nextIndex;
+    }
+
+    private static String normalizeTileName(String raw) {
+        if (raw == null) {
+            return "";
+        }
+        String normalized = raw.trim()
+            .toLowerCase(Locale.ROOT)
+            .replace(' ', '_')
+            .replace('-', '_')
+            .replace(':', '_')
+            .replace('/', '_'); // meaning
+        if (normalized.isEmpty()) {
+            return "";
+        }
+        StringBuilder out = new StringBuilder(normalized.length()); // meaning
+        for (int i = 0; i < normalized.length(); i++) { // meaning
+            char ch = normalized.charAt(i);
+            if ((ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9') || ch == '_') {
+                out.append(ch);
+            }
+        }
+        return out.isEmpty() ? "" : out.toString();
+    }
+
+    private static BufferedImage loadOrGenerateAtlasTile(String tileName, int tileSize) {
+        BufferedImage loaded = loadAtlasTileFromResources(tileName); // meaning
+        if (loaded != null) {
+            return scaleTileImageNearest(loaded, tileSize);
+        }
+        return generateProceduralTile(tileName, tileSize);
+    }
+
+    private static BufferedImage loadAtlasTileFromResources(String tileName) {
+        String resourcePath = TILE_TEXTURE_RESOURCE_PREFIX + tileName + ".png"; // meaning
+        try (InputStream stream = GpuChunkRenderer.class.getResourceAsStream(resourcePath)) {
+            if (stream == null) {
+                return null;
+            }
+            return ImageIO.read(stream);
+        } catch (IOException ignored) {
+            return null;
+        }
+    }
+
+    private static BufferedImage scaleTileImageNearest(BufferedImage source, int tileSize) {
+        if (source.getWidth() == tileSize && source.getHeight() == tileSize) {
+            return source;
+        }
+        BufferedImage scaled = new BufferedImage(tileSize, tileSize, BufferedImage.TYPE_INT_ARGB); // meaning
+        Graphics2D graphics = scaled.createGraphics(); // meaning
+        try {
+            graphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
+            graphics.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_SPEED);
+            graphics.drawImage(source, 0, 0, tileSize, tileSize, null);
+        } finally {
+            graphics.dispose();
+        }
+        return scaled;
+    }
+
+    private static void blitTile(BufferedImage tile, BufferedImage atlas, int dstX, int dstY) {
+        int tileWidth = tile.getWidth(); // meaning
+        int tileHeight = tile.getHeight(); // meaning
+        for (int y = 0; y < tileHeight; y++) { // meaning
+            for (int x = 0; x < tileWidth; x++) { // meaning
+                atlas.setRGB(dstX + x, dstY + y, tile.getRGB(x, y));
+            }
+        }
+    }
+
+    private static BufferedImage generateProceduralTile(String tileName, int size) {
+        BufferedImage image = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB); // meaning
+        String name = tileName == null ? "stone" : tileName; // meaning
+        String lower = name.toLowerCase(Locale.ROOT); // meaning
+        int seed = hashMaterial(name.hashCode(), 0x2AF3D15B, 0x9E3779B9, 0x51ED2705); // meaning
+        int[] base = baseTileColorForName(lower); // meaning
+
+        for (int y = 0; y < size; y++) { // meaning
+            for (int x = 0; x < size; x++) { // meaning
+                int noise = hashMaterial(seed, x * 977 + y * 131, x * 23 - y * 19, 0x7F4A7C15); // meaning
+                int r = base[0];
+                int g = base[1];
+                int b = base[2];
+
+                if (containsToken(lower, "grass_side")) {
+                    if (y < size / 4) {
+                        int grassNoise = ((noise >>> 4) & 31) - 15; // meaning
+                        r = clampByte(84 + grassNoise / 2);
+                        g = clampByte(158 + grassNoise);
+                        b = clampByte(78 + grassNoise / 3);
+                    } else {
+                        int dirtNoise = ((noise >>> 7) & 31) - 15; // meaning
+                        r = clampByte(126 + dirtNoise);
+                        g = clampByte(95 + dirtNoise / 2);
+                        b = clampByte(67 + dirtNoise / 2);
+                    }
+                } else if (containsToken(lower, "grass_top", "leaves", "organic", "moss")) {
+                    int grassNoise = ((noise >>> 5) & 31) - 15; // meaning
+                    r = clampByte(base[0] + grassNoise / 2);
+                    g = clampByte(base[1] + grassNoise);
+                    b = clampByte(base[2] + grassNoise / 3);
+                } else if (containsToken(lower, "log_side", "bark", "wood")) {
+                    int stripe = ((x + ((seed >>> 3) & 3)) / 2) & 1; // meaning
+                    int woodNoise = ((noise >>> 9) & 15) - 7; // meaning
+                    int shade = stripe == 0 ? -12 : 10; // meaning
+                    r = clampByte(base[0] + shade + woodNoise);
+                    g = clampByte(base[1] + shade / 2 + woodNoise / 2);
+                    b = clampByte(base[2] + shade / 3 + woodNoise / 2);
+                } else if (containsToken(lower, "log_top", "wood_top")) {
+                    float dx = (x + 0.5f) - (size * 0.5f);
+                    float dy = (y + 0.5f) - (size * 0.5f);
+                    float dist = (float) Math.sqrt(dx * dx + dy * dy);
+                    int ring = ((int) Math.floor(dist * 1.35f + ((seed >>> 4) & 3))) & 1; // meaning
+                    int shade = ring == 0 ? -10 : 12; // meaning
+                    r = clampByte(base[0] + shade);
+                    g = clampByte(base[1] + shade / 2);
+                    b = clampByte(base[2] + shade / 3);
+                } else if (containsToken(lower, "bricks")) {
+                    int cellX = x / 8; // meaning
+                    int cellY = y / 4; // meaning
+                    int mortar = (x % 8 == 0 || y % 4 == 0) ? 1 : 0; // meaning
+                    int shade = (((cellX + cellY) & 1) == 0) ? -10 : 6; // meaning
+                    if (mortar == 1) {
+                        r = 42;
+                        g = 42;
+                        b = 42;
+                    } else {
+                        r = clampByte(base[0] + shade);
+                        g = clampByte(base[1] + shade / 2);
+                        b = clampByte(base[2] + shade / 2);
+                    }
+                } else if (containsToken(lower, "tiles")) {
+                    boolean grout = x % 4 == 0 || y % 4 == 0; // meaning
+                    int shade = (((x / 4) + (y / 4)) & 1) == 0 ? -8 : 8; // meaning
+                    if (grout) {
+                        r = 36;
+                        g = 36;
+                        b = 36;
+                    } else {
+                        r = clampByte(base[0] + shade);
+                        g = clampByte(base[1] + shade);
+                        b = clampByte(base[2] + shade);
+                    }
+                } else if (containsToken(lower, "ore")) {
+                    int rockNoise = ((noise >>> 6) & 31) - 15; // meaning
+                    r = clampByte(130 + rockNoise);
+                    g = clampByte(136 + rockNoise / 2);
+                    b = clampByte(143 + rockNoise / 2);
+                    if ((noise & 0xFF) > 230) {
+                        r = clampByte(220 + ((noise >>> 8) & 15));
+                        g = clampByte(170 + ((noise >>> 12) & 31));
+                        b = clampByte(80 + ((noise >>> 16) & 23));
+                    }
+                } else if (containsToken(lower, "water")) {
+                    int wave = ((x * 3 + y * 5 + (seed & 31)) & 15) - 7; // meaning
+                    r = clampByte(45 + wave / 3);
+                    g = clampByte(86 + wave / 2);
+                    b = clampByte(182 + wave);
+                } else {
+                    int jitter = ((noise >>> 8) & 31) - 15; // meaning
+                    r = clampByte(base[0] + jitter);
+                    g = clampByte(base[1] + jitter / 2);
+                    b = clampByte(base[2] + jitter / 2);
+                }
+
+                int argb = (0xFF << 24) | (r << 16) | (g << 8) | b; // meaning
+                image.setRGB(x, y, argb);
+            }
+        }
+        return image;
+    }
+
+    private static int[] baseTileColorForName(String lower) {
+        if (containsToken(lower, "grass", "leaves", "moss", "organic")) {
+            return new int[] {88, 150, 78};
+        }
+        if (containsToken(lower, "dirt", "mud", "humus", "peat")) {
+            return new int[] {126, 95, 67};
+        }
+        if (containsToken(lower, "sand", "saline", "loess")) {
+            return new int[] {214, 198, 148};
+        }
+        if (containsToken(lower, "gravel", "clay")) {
+            return new int[] {146, 141, 136};
+        }
+        if (containsToken(lower, "log", "wood", "bark")) {
+            return new int[] {132, 94, 58};
+        }
+        if (containsToken(lower, "brick")) {
+            return new int[] {142, 76, 58};
+        }
+        if (containsToken(lower, "tile")) {
+            return new int[] {156, 157, 163};
+        }
+        if (containsToken(lower, "ore")) {
+            return new int[] {136, 138, 144};
+        }
+        if (containsToken(lower, "water")) {
+            return new int[] {56, 96, 186};
+        }
+        return new int[] {132, 136, 143};
+    }
+
+    private static int tintModeCode(String tintMode) {
+        String lower = lower(tintMode); // meaning
+        if (lower.contains("biome_grass") || lower.equals("grass")) {
+            return 1;
+        }
+        if (lower.contains("biome_foliage") || lower.equals("foliage")) {
+            return 2;
+        }
+        if (lower.contains("water")) {
+            return 3;
+        }
+        if (lower.contains("custom")) {
+            return 4;
+        }
+        return 0;
+    }
+
+    private static boolean containsToken(String value, String... needles) {
+        for (String needle : needles) {
+            if (value.contains(needle)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private void ensureMaterialLutTexture() {
         if (materialLutTextureId != 0) {
             return;
@@ -1310,6 +1694,26 @@ public final class GpuChunkRenderer implements AutoCloseable {
         return Math.max(0, Math.min(255, value));
     }
 
+    private record BlockFaceMeta(
+        int topTileIndex,
+        int sideTileIndex,
+        int bottomTileIndex,
+        int overlayTileIndex,
+        int tintCode
+    ) {
+    }
+
+    private record AtlasBuildResult(
+        ByteBuffer atlasPixels,
+        int atlasWidth,
+        int atlasHeight,
+        int atlasColumns,
+        int atlasRows,
+        int tileCount,
+        ByteBuffer metaPixels
+    ) {
+    }
+
     private record MaterialEntry(
         int baseR,
         int baseG,
@@ -1370,15 +1774,23 @@ public final class GpuChunkRenderer implements AutoCloseable {
             GL20.glDeleteProgram(ambientShaderProgramId);
             ambientShaderProgramId = 0;
             ambientUniformLocation = -1;
-            materialLutUniformLocation = -1;
+            blockAtlasUniformLocation = -1;
+            faceTileLutUniformLocation = -1;
+            atlasColsUniformLocation = -1;
+            atlasRowsUniformLocation = -1;
+            atlasTileSizeUniformLocation = -1;
             portalTexUniformLocation = -1;
             portalIdUniformLocation = -1;
             missileTexUniformLocation = -1;
             missileIdUniformLocation = -1;
         }
-        if (materialLutTextureId != 0) {
-            glDeleteTextures(materialLutTextureId);
-            materialLutTextureId = 0;
+        if (blockAtlasTextureId != 0) {
+            glDeleteTextures(blockAtlasTextureId);
+            blockAtlasTextureId = 0;
+        }
+        if (faceTileLutTextureId != 0) {
+            glDeleteTextures(faceTileLutTextureId);
+            faceTileLutTextureId = 0;
         }
         if (portalTextureId != 0) {
             glDeleteTextures(portalTextureId);
@@ -1868,26 +2280,34 @@ public final class GpuChunkRenderer implements AutoCloseable {
 
         GL20.glUseProgram(ambientShaderProgramId);
         GL20.glUniform1f(ambientUniformLocation, features.applyAmbientToBlocks() ? ambient : 1.0f);
-        GL20.glUniform1i(materialLutUniformLocation, 0);
-        GL20.glUniform1i(portalTexUniformLocation, 1);
-        GL20.glUniform1i(missileTexUniformLocation, 2);
+        GL20.glUniform1i(blockAtlasUniformLocation, 0);
+        GL20.glUniform1i(faceTileLutUniformLocation, 1); // uFaceTileLut on texture unit 1
+        GL20.glUniform1f(atlasColsUniformLocation, atlasColumns);
+        GL20.glUniform1f(atlasRowsUniformLocation, atlasRows);
+        GL20.glUniform1f(atlasTileSizeUniformLocation, BLOCK_ATLAS_TILE_SIZE);
+        GL20.glUniform1i(portalTexUniformLocation, 2);
+        GL20.glUniform1i(missileTexUniformLocation, 3);
         int portalId = Blocks.PORTAL != null ? Blocks.PORTAL.blockId().asUnsignedInt() : -1; // meaning
         int missileId = Blocks.MISSILE != null ? Blocks.MISSILE.blockId().asUnsignedInt() : -1; // meaning
         GL20.glUniform1i(portalIdUniformLocation, portalId);
         GL20.glUniform1i(missileIdUniformLocation, missileId);
         GL13.glActiveTexture(GL13.GL_TEXTURE0);
         glEnable(GL_TEXTURE_2D);
-        glBindTexture(GL_TEXTURE_2D, materialLutTextureId);
+        glBindTexture(GL_TEXTURE_2D, blockAtlasTextureId);
         GL13.glActiveTexture(GL13.GL_TEXTURE1);
         glEnable(GL_TEXTURE_2D);
-        glBindTexture(GL_TEXTURE_2D, portalTextureId);
+        glBindTexture(GL_TEXTURE_2D, faceTileLutTextureId);
         GL13.glActiveTexture(GL13.GL_TEXTURE2);
+        glEnable(GL_TEXTURE_2D);
+        glBindTexture(GL_TEXTURE_2D, portalTextureId);
+        GL13.glActiveTexture(GL13.GL_TEXTURE3);
         glEnable(GL_TEXTURE_2D);
         glBindTexture(GL_TEXTURE_2D, missileTextureId);
         GL13.glActiveTexture(GL13.GL_TEXTURE0);
-        pass.stateChanges += 11;
+        pass.stateChanges += 14;
 
         glEnableClientState(GL_VERTEX_ARRAY);
+        glEnableClientState(GL_TEXTURE_COORD_ARRAY);
         glEnableClientState(GL_COLOR_ARRAY);
         return pass;
     }
@@ -2074,6 +2494,7 @@ public final class GpuChunkRenderer implements AutoCloseable {
         long vertexBaseOffset = gpuChunk.usesSharedArena ? gpuChunk.sharedVertexOffsetBytes : 0L; // meaning
         long indexBaseOffset = gpuChunk.usesSharedArena ? gpuChunk.sharedIndexOffsetBytes : 0L; // meaning
         glVertexPointer(3, GL_FLOAT, VERTEX_STRIDE_BYTES, vertexBaseOffset + POSITION_OFFSET_BYTES);
+        glTexCoordPointer(2, GL_FLOAT, VERTEX_STRIDE_BYTES, vertexBaseOffset + UV_OFFSET_BYTES);
         glColorPointer(4, GL_UNSIGNED_BYTE, VERTEX_STRIDE_BYTES, vertexBaseOffset + COLOR_OFFSET_BYTES);
         glDrawElements(GL_TRIANGLES, gpuChunk.indexCount, GL_UNSIGNED_INT, indexBaseOffset);
         pass.drawCalls++;
@@ -2094,6 +2515,7 @@ public final class GpuChunkRenderer implements AutoCloseable {
         bindIndirectBuffer(pass, mdiIndirectBufferId);
 
         glVertexPointer(3, GL_FLOAT, VERTEX_STRIDE_BYTES, POSITION_OFFSET_BYTES);
+        glTexCoordPointer(2, GL_FLOAT, VERTEX_STRIDE_BYTES, UV_OFFSET_BYTES);
         glColorPointer(4, GL_UNSIGNED_BYTE, VERTEX_STRIDE_BYTES, COLOR_OFFSET_BYTES);
         uploadMdiCommandsAndDraw(scratchMdiChunks);
         perfMdiBatches++;
@@ -2106,6 +2528,8 @@ public final class GpuChunkRenderer implements AutoCloseable {
         bindArrayBuffer(pass, 0);
         bindElementBuffer(pass, 0);
         bindIndirectBuffer(pass, 0);
+        GL13.glActiveTexture(GL13.GL_TEXTURE3);
+        glBindTexture(GL_TEXTURE_2D, 0);
         GL13.glActiveTexture(GL13.GL_TEXTURE2);
         glBindTexture(GL_TEXTURE_2D, 0);
         GL13.glActiveTexture(GL13.GL_TEXTURE1);
@@ -2115,6 +2539,7 @@ public final class GpuChunkRenderer implements AutoCloseable {
         GL20.glUseProgram(0);
         pass.stateChanges += 4;
         glDisableClientState(GL_COLOR_ARRAY);
+        glDisableClientState(GL_TEXTURE_COORD_ARRAY);
         glDisableClientState(GL_VERTEX_ARRAY);
     }
 
@@ -2207,9 +2632,9 @@ public final class GpuChunkRenderer implements AutoCloseable {
             Math.max(1.0e-4, chunk.maxY - chunk.minY),
             Math.max(1.0e-4, chunk.maxZ - chunk.minZ)
         );
-        glBeginQuery(GL_SAMPLES_PASSED, queryId);
+        glBeginQuery(occlusionQueryType, queryId);
         glDrawElements(GL_TRIANGLES, occlusionBoxMesh.indexCount, GL_UNSIGNED_INT, 0L);
-        glEndQuery(GL_SAMPLES_PASSED);
+        glEndQuery(occlusionQueryType);
         glPopMatrix();
         chunk.markOcclusionQueryIssued(frameSequence);
         pass.issued++;
@@ -2653,6 +3078,7 @@ public final class GpuChunkRenderer implements AutoCloseable {
         supportsMdiArb = caps.GL_ARB_multi_draw_indirect;
         supportsMdi = supportsMdiCore43 || supportsMdiArb;
         supportsOcclusionQuery = caps.OpenGL15 || caps.GL_ARB_occlusion_query;
+        occlusionQueryType = (caps.OpenGL33 || caps.GL_ARB_occlusion_query2) ? GL_ANY_SAMPLES_PASSED : GL_SAMPLES_PASSED;
         supportsPersistentMapping = caps.OpenGL44 || caps.GL_ARB_buffer_storage;
 
         // 中文标注（局部变量）：`mdiEnabled`，含义：用于表示mdi、enabled。
@@ -2797,9 +3223,25 @@ public final class GpuChunkRenderer implements AutoCloseable {
             if (uniformLoc < 0) {
                 throw new IllegalStateException("Ambient shader missing uniform uAmbient");
             }
-            int materialLutLoc = GL20.glGetUniformLocation(program, "uMatLut"); // meaning
-            if (materialLutLoc < 0) {
-                throw new IllegalStateException("Ambient shader missing uniform uMatLut");
+            int blockAtlasLoc = GL20.glGetUniformLocation(program, "uBlockAtlas"); // meaning
+            if (blockAtlasLoc < 0) {
+                throw new IllegalStateException("Ambient shader missing uniform uBlockAtlas");
+            }
+            int faceTileLutLoc = GL20.glGetUniformLocation(program, "uFaceTileLut"); // meaning
+            if (faceTileLutLoc < 0) {
+                throw new IllegalStateException("Ambient shader missing uniform uFaceTileLut");
+            }
+            int atlasColsLoc = GL20.glGetUniformLocation(program, "uAtlasCols"); // meaning
+            if (atlasColsLoc < 0) {
+                throw new IllegalStateException("Ambient shader missing uniform uAtlasCols");
+            }
+            int atlasRowsLoc = GL20.glGetUniformLocation(program, "uAtlasRows"); // meaning
+            if (atlasRowsLoc < 0) {
+                throw new IllegalStateException("Ambient shader missing uniform uAtlasRows");
+            }
+            int atlasTileSizeLoc = GL20.glGetUniformLocation(program, "uAtlasTileSize"); // meaning
+            if (atlasTileSizeLoc < 0) {
+                throw new IllegalStateException("Ambient shader missing uniform uAtlasTileSize");
             }
             int portalTexLoc = GL20.glGetUniformLocation(program, "uPortalTex"); // meaning
             if (portalTexLoc < 0) {
@@ -2820,7 +3262,11 @@ public final class GpuChunkRenderer implements AutoCloseable {
 
             ambientShaderProgramId = program;
             ambientUniformLocation = uniformLoc;
-            materialLutUniformLocation = materialLutLoc;
+            blockAtlasUniformLocation = blockAtlasLoc;
+            faceTileLutUniformLocation = faceTileLutLoc;
+            atlasColsUniformLocation = atlasColsLoc;
+            atlasRowsUniformLocation = atlasRowsLoc;
+            atlasTileSizeUniformLocation = atlasTileSizeLoc;
             portalTexUniformLocation = portalTexLoc;
             portalIdUniformLocation = portalIdLoc;
             missileTexUniformLocation = missileTexLoc;
@@ -2932,20 +3378,32 @@ public final class GpuChunkRenderer implements AutoCloseable {
         int chebyshev = Math.max(dxChunks, dzChunks); // meaning
         // 中文标注（局部变量）：`threshold`，含义：用于表示threshold。
         int threshold = Math.max(1, features.lodStartChunkDistance()); // meaning
+        int farThreshold = Math.max(threshold + 1, DEFAULT_LOD_FAR_CHUNK_DISTANCE); // meaning
         // 中文标注（局部变量）：`hysteresis`，含义：用于表示hysteresis。
         int hysteresis = Math.max(0, features.lodHysteresisChunks()); // meaning
         // 中文标注（局部变量）：`previous`，含义：用于表示previous。
         Integer previous = lodSelectionCache.get(chunk.pos()); // meaning
         // 中文标注（局部变量）：`resolved`，含义：用于表示resolved。
         int resolved; // meaning
-        if (previous != null && previous > 0) {
-            // 中文标注（局部变量）：`exitThreshold`，含义：用于表示exit、threshold。
-            int exitThreshold = Math.max(0, threshold - hysteresis); // meaning
-            resolved = chebyshev > exitThreshold ? 1 : 0;
+        if (previous != null && previous >= 2) {
+            int exitFar = Math.max(0, farThreshold - hysteresis);
+            int exitNear = Math.max(0, threshold - hysteresis);
+            if (chebyshev >= exitFar) resolved = 2;
+            else if (chebyshev >= exitNear) resolved = 1;
+            else resolved = 0;
+        } else if (previous != null && previous == 1) {
+            int exitThreshold = Math.max(0, threshold - hysteresis);
+            int enterFar = farThreshold + hysteresis;
+            if (chebyshev >= enterFar) resolved = 2;
+            else if (chebyshev >= exitThreshold) resolved = 1;
+            else resolved = 0;
         } else {
             // 中文标注（局部变量）：`enterThreshold`，含义：用于表示enter、threshold。
             int enterThreshold = threshold + hysteresis; // meaning
-            resolved = chebyshev >= enterThreshold ? 1 : 0;
+            int enterFar = farThreshold + hysteresis;
+            if (chebyshev >= enterFar) resolved = 2;
+            else if (chebyshev >= enterThreshold) resolved = 1;
+            else resolved = 0;
         }
         lodSelectionCache.put(chunk.pos(), resolved);
         return resolved;
@@ -3262,7 +3720,7 @@ public final class GpuChunkRenderer implements AutoCloseable {
                 true
             );
             // 中文标注（局部变量）：`lod`，含义：用于表示细节层级。
-            ResolvedBoolean lod = flagCompat("vc.gpu.lod", "voxelcraft.gpu.lod", false); // meaning
+            ResolvedBoolean lod = flagCompat("vc.gpu.lod", "voxelcraft.gpu.lod", true); // meaning
             // 中文标注（局部变量）：`lodStartChunkDistance`，含义：用于表示细节层级、开始、区块、distance。
             int lodStartChunkDistance = intFlagCompat("vc.gpu.lodStartChunks", "voxelcraft.gpu.lodStartChunks", DEFAULT_LOD_START_CHUNK_DISTANCE); // meaning
             // 中文标注（局部变量）：`lodHysteresisChunks`，含义：用于表示细节层级、hysteresis、区块集合。

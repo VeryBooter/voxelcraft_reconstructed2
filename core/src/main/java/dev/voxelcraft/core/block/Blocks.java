@@ -104,27 +104,38 @@ public final class Blocks {
     private static int registerBuiltins() {
         int nextId = 0;
         nextId = registerBuiltin(nextId, "air", false, false, BlockDef.OcclusionMode.NONE, BlockDef.MeshProfile.CUBE,
-            BlockDef.CollisionKind.NONE, BlockDef.RenderBucket.CUTOUT, "none", "none", false, false, "none");
+            BlockDef.CollisionKind.NONE, BlockDef.RenderBucket.CUTOUT, "none", "none", false, false, "none",
+            "none", "air", "air", "air", "");
         nextId = registerBuiltin(nextId, "stone", true, true, BlockDef.OcclusionMode.FULL, BlockDef.MeshProfile.CUBE,
-            BlockDef.CollisionKind.FULL, BlockDef.RenderBucket.OPAQUE, "hard", "stone", false, false, "none");
+            BlockDef.CollisionKind.FULL, BlockDef.RenderBucket.OPAQUE, "hard", "stone", false, false, "none",
+            "stone", "stone", "stone", "stone", "");
         nextId = registerBuiltin(nextId, "dirt", true, true, BlockDef.OcclusionMode.FULL, BlockDef.MeshProfile.CUBE,
-            BlockDef.CollisionKind.FULL, BlockDef.RenderBucket.OPAQUE, "soft", "grit", false, false, "none");
+            BlockDef.CollisionKind.FULL, BlockDef.RenderBucket.OPAQUE, "soft", "grit", false, false, "none",
+            "dirt", "dirt", "dirt", "dirt", "");
         nextId = registerBuiltin(nextId, "grass", true, true, BlockDef.OcclusionMode.FULL, BlockDef.MeshProfile.CUBE,
-            BlockDef.CollisionKind.FULL, BlockDef.RenderBucket.OPAQUE, "soft", "grit", false, false, "grass");
+            BlockDef.CollisionKind.FULL, BlockDef.RenderBucket.OPAQUE, "soft", "grit", false, false, "grass",
+            "grass", "grass_top", "grass_side", "dirt", "");
         nextId = registerBuiltin(nextId, "sand", true, true, BlockDef.OcclusionMode.FULL, BlockDef.MeshProfile.CUBE,
-            BlockDef.CollisionKind.FULL, BlockDef.RenderBucket.OPAQUE, "soft", "sand", false, false, "none");
+            BlockDef.CollisionKind.FULL, BlockDef.RenderBucket.OPAQUE, "soft", "sand", false, false, "none",
+            "sand", "sand", "sand", "sand", "");
         nextId = registerBuiltin(nextId, "wood", true, true, BlockDef.OcclusionMode.FULL, BlockDef.MeshProfile.CUBE,
-            BlockDef.CollisionKind.FULL, BlockDef.RenderBucket.OPAQUE, "hard", "wood", true, false, "none");
+            BlockDef.CollisionKind.FULL, BlockDef.RenderBucket.OPAQUE, "hard", "wood", true, false, "none",
+            "wood", "log_top", "log_side", "log_top", "");
         nextId = registerBuiltin(nextId, "leaves", true, false, BlockDef.OcclusionMode.PARTIAL, BlockDef.MeshProfile.CUBE,
-            BlockDef.CollisionKind.FULL, BlockDef.RenderBucket.CUTOUT, "soft", "leaf", true, false, "foliage");
+            BlockDef.CollisionKind.FULL, BlockDef.RenderBucket.CUTOUT, "soft", "leaf", true, false, "foliage",
+            "leaves", "leaves", "leaves", "leaves", "");
         nextId = registerBuiltin(nextId, "portal", true, true, BlockDef.OcclusionMode.FULL, BlockDef.MeshProfile.CUBE,
-            BlockDef.CollisionKind.FULL, BlockDef.RenderBucket.OPAQUE, "hard", "stone", false, false, "none");
+            BlockDef.CollisionKind.FULL, BlockDef.RenderBucket.OPAQUE, "hard", "stone", false, false, "none",
+            "portal", "portal", "portal", "portal", "");
         nextId = registerBuiltin(nextId, "gun", false, false, BlockDef.OcclusionMode.NONE, BlockDef.MeshProfile.CUBE,
-            BlockDef.CollisionKind.NONE, BlockDef.RenderBucket.OPAQUE, "hard", "metal", false, false, "none");
+            BlockDef.CollisionKind.NONE, BlockDef.RenderBucket.OPAQUE, "hard", "metal", false, false, "none",
+            "metal", "gun", "gun", "gun", "");
         nextId = registerBuiltin(nextId, "missile", true, true, BlockDef.OcclusionMode.FULL, BlockDef.MeshProfile.CUBE,
-            BlockDef.CollisionKind.FULL, BlockDef.RenderBucket.OPAQUE, "hard", "metal", false, false, "none");
+            BlockDef.CollisionKind.FULL, BlockDef.RenderBucket.OPAQUE, "hard", "metal", false, false, "none",
+            "metal", "missile", "missile", "missile", "");
         nextId = registerBuiltin(nextId, "bullet", false, false, BlockDef.OcclusionMode.NONE, BlockDef.MeshProfile.CUBE,
-            BlockDef.CollisionKind.NONE, BlockDef.RenderBucket.OPAQUE, "hard", "metal", false, false, "none");
+            BlockDef.CollisionKind.NONE, BlockDef.RenderBucket.OPAQUE, "hard", "metal", false, false, "none",
+            "metal", "bullet", "bullet", "bullet", "");
         return nextId;
     }
 
@@ -141,7 +152,12 @@ public final class Blocks {
         String soundClass,
         boolean flammable,
         boolean requiresWater,
-        String tintMode
+        String tintMode,
+        String materialFamily,
+        String atlasTop,
+        String atlasSide,
+        String atlasBottom,
+        String atlasOverlay
     ) {
         BlockDef def = new BlockDef(
             BlockId.ofUnsigned(numericId),
@@ -151,6 +167,11 @@ public final class Blocks {
             key,
             "default",
             "block",
+            materialFamily,
+            atlasTop,
+            atlasSide,
+            atlasBottom,
+            atlasOverlay,
             renderBucket,
             renderBucket == BlockDef.RenderBucket.CUTOUT ? BlockDef.AlphaMode.CUTOUT : BlockDef.AlphaMode.OPAQUE,
             renderBucket == BlockDef.RenderBucket.TRANSLUCENT,

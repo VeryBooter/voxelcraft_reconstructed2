@@ -15,6 +15,11 @@ public record BlockDef(
     String material,
     String variant,
     String shape,
+    String materialFamily,
+    String atlasTop,
+    String atlasSide,
+    String atlasBottom,
+    String atlasOverlay,
     RenderBucket renderBucket,
     AlphaMode alphaMode,
     boolean needsSorting,
@@ -52,6 +57,11 @@ public record BlockDef(
         material = sanitize(material);
         variant = sanitize(variant);
         shape = sanitize(shape);
+        materialFamily = sanitize(materialFamily);
+        atlasTop = sanitize(atlasTop);
+        atlasSide = sanitize(atlasSide);
+        atlasBottom = sanitize(atlasBottom);
+        atlasOverlay = sanitize(atlasOverlay);
         aabbMin = sanitize(aabbMin);
         aabbMax = sanitize(aabbMax);
         hardnessClass = sanitize(hardnessClass);

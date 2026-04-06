@@ -112,6 +112,14 @@ public final class BlockCsvDataLoader {
             if (key.isEmpty()) {
                 continue;
             }
+            String category = value(row, "category");
+            String material = value(row, "material");
+            String variant = value(row, "variant");
+            String materialFamily = fallback(value(row, "material_family"), material);
+            String atlasTop = resolveAtlasField(row, "atlas_top", key, category, materialFamily, variant, "top");
+            String atlasSide = resolveAtlasField(row, "atlas_side", key, category, materialFamily, variant, "side");
+            String atlasBottom = resolveAtlasField(row, "atlas_bottom", key, category, materialFamily, variant, "bottom");
+            String atlasOverlay = fallback(value(row, "atlas_overlay"), "");
 
             String meshProfileRaw = value(row, "mesh_profile");
             BlockDef.MeshProfile meshProfile = BlockDef.MeshProfile.from(meshProfileRaw, BlockDef.MeshProfile.CUBE);
@@ -196,10 +204,15 @@ public final class BlockCsvDataLoader {
                 BlockId.ofUnsigned(nextId++),
                 key,
                 fallback(value(row, "display_name"), key),
-                value(row, "category"),
-                value(row, "material"),
-                value(row, "variant"),
+                category,
+                material,
+                variant,
                 value(row, "shape"),
+                materialFamily,
+                atlasTop,
+                atlasSide,
+                atlasBottom,
+                atlasOverlay,
                 renderBucket,
                 alphaMode,
                 needsSorting,
@@ -247,6 +260,111 @@ public final class BlockCsvDataLoader {
     private static String normalizeRuleId(String raw) {
         String normalized = value(raw).toUpperCase(Locale.ROOT);
         return normalized.isEmpty() ? "NONE" : normalized;
+    }
+
+    private static String resolveAtlasField(
+        Map<String, String> row,
+        String csvField,
+        String key,
+        String category,
+        String materialFamily,
+        String variant,
+        String face
+    ) {
+        String explicit = value(row, csvField); // meaning
+        if (!explicit.isEmpty()) {
+            return normalizeTileToken(explicit);
+        }
+        return inferAtlasTileName(key, category, materialFamily, variant, face);
+    }
+
+    private static String inferAtlasTileName(
+        String key,
+        String category,
+        String materialFamily,
+        String variant,
+        String face
+    ) {
+        String keyLower = value(key).toLowerCase(Locale.ROOT); // meaning
+        String categoryLower = value(category).toLowerCase(Locale.ROOT); // meaning
+        String familyLower = value(materialFamily).toLowerCase(Locale.ROOT); // meaning
+        String variantLower = value(variant).toLowerCase(Locale.ROOT); // meaning
+        String corpus = keyLower + "|" + categoryLower + "|" + familyLower + "|" + variantLower; // meaning
+
+        if (containsAny(corpus, "grass", "turf")) {
+            if ("top".equals(face)) {
+                return "grass_top";
+            }
+            if ("bottom".equals(face)) {
+                return "dirt";
+            }
+            return "grass_side";
+        }
+        if (containsAny(corpus, "wood", "log", "bark", "timber", "sapwood", "heartwood")) {
+            return ("side".equals(face)) ? "log_side" : "log_top";
+        }
+        if (containsAny(corpus, "leaf", "foliage", "canopy")) {
+            return "leaves";
+        }
+        if (containsAny(corpus, "sand", "saline", "loess", "chalk")) {
+            return "sand";
+        }
+        if (containsAny(corpus, "dirt", "soil", "mud", "humus", "peat", "loam", "clay")) {
+            return "dirt";
+        }
+        if (containsAny(corpus, "ore")) {
+            return "ore";
+        }
+        if (containsAny(corpus, "brick", "cobble")) {
+            return "bricks";
+        }
+        if (containsAny(corpus, "tile", "slab")) {
+            return "tiles";
+        }
+        if (containsAny(corpus, "water", "ice")) {
+            return "water";
+        }
+        if (containsAny(corpus, "moss", "fung", "lichen", "biofilm", "organic", "spore")) {
+            return "organic";
+        }
+        if (containsAny(corpus, "gravel")) {
+            return "gravel";
+        }
+        return containsAny(corpus, "stone", "igneous", "sediment", "metamorph")
+            ? "stone"
+            : normalizeTileToken(familyLower.isEmpty() ? keyLower : familyLower);
+    }
+
+    private static boolean containsAny(String haystack, String... needles) {
+        for (String needle : needles) {
+            if (haystack.contains(needle)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static String normalizeTileToken(String raw) {
+        String token = value(raw)
+            .toLowerCase(Locale.ROOT)
+            .replace(' ', '_')
+            .replace('-', '_')
+            .replace(':', '_')
+            .replace('/', '_'); // meaning
+        if (token.isEmpty()) {
+            return "stone";
+        }
+        StringBuilder out = new StringBuilder(token.length()); // meaning
+        for (int i = 0; i < token.length(); i++) { // meaning
+            char ch = token.charAt(i);
+            if ((ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9') || ch == '_') {
+                out.append(ch);
+            }
+        }
+        if (out.isEmpty()) {
+            return "stone";
+        }
+        return out.toString();
     }
 
     private static Map<String, MeshProfileDef> loadMeshProfiles(CsvSource source) throws IOException {

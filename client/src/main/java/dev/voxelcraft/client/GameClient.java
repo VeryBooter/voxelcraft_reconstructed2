@@ -51,7 +51,10 @@ public final class GameClient implements AutoCloseable {
     ); // meaning
     private static final long IMMEDIATE_CHUNK_SYNC_LOG_THROTTLE_NANOS = 1_000_000_000L; // meaning
     // 中文标注（字段）：`LOCAL_CHUNK_GENERATION_BUDGET_PER_TICK`，含义：用于表示局部、区块、generation、budget、per、刻。
-    private static final int LOCAL_CHUNK_GENERATION_BUDGET_PER_TICK = 2; // meaning
+    private static final int LOCAL_CHUNK_GENERATION_BUDGET_PER_TICK = Math.max(
+        1,
+        intPropertyCompat("vc.chunkGenDrainBudget", "voxelcraft.chunkGenDrainBudget", 4)
+    ); // meaning
     private static final boolean W_FEATURE_ENABLED = booleanPropertyCompat(
         "vc.w.enabled",
         "voxelcraft.w.enabled",
@@ -91,6 +94,11 @@ public final class GameClient implements AutoCloseable {
     private static final int BLOCK_PICKER_MAX_COLUMNS = 12; // meaning
     private static final int BLOCK_PICKER_MAX_ROWS = 7; // meaning
     private static final int PLAYER_MAX_HP = 4; // meaning
+    private static final boolean MISSILE_FEATURE_ENABLED = booleanPropertyCompat(
+        "vc.missile.enabled",
+        "voxelcraft.missile.enabled",
+        false
+    ); // meaning
     private static final int MISSILE_MAX_HP = 8; // meaning
     private static final int BULLET_HIT_DAMAGE = 4; // meaning
     private static final int PLAYER_HIT_DAMAGE = 2; // meaning
@@ -176,6 +184,9 @@ public final class GameClient implements AutoCloseable {
     // 中文标注（字段）：`lastChunkGenerationDrainNanos`，含义：用于表示last、区块、generation、drain、nanos。
     private long lastChunkGenerationDrainNanos; // meaning
     private long lastImmediateChunkSyncLogNanos; // meaning
+    private int lastImmediateChunkCenterX = Integer.MIN_VALUE; // meaning
+    private int lastImmediateChunkCenterZ = Integer.MIN_VALUE; // meaning
+    private int wCubeBuiltForW = Integer.MIN_VALUE; // meaning
     private RenderDistancePreset renderDistancePreset = RenderDistancePreset.MEDIUM; // meaning
     private int localChunkRadius = renderDistancePreset.chunkRadius(); // meaning
     private int networkChunkRadius = renderDistancePreset.chunkRadius(); // meaning
@@ -215,11 +226,15 @@ public final class GameClient implements AutoCloseable {
     private double gunCooldownSeconds; // meaning
     private double missileSpawnCooldownSeconds = MISSILE_SPAWN_MIN_SECONDS; // meaning
     private double missileStepAccumulatorSeconds; // meaning
+    private boolean missileFeatureDisabledHintShown; // meaning
 
     // 中文标注（构造方法）：`GameClient`，参数：无；用途：初始化`GameClient`实例。
     public GameClient() {
-        worldView.setGenerateMissingChunksOnPeek(true);
+        worldView.setGenerateMissingChunksOnPeek(false);
         missileSpawnCooldownSeconds = nextMissileSpawnDelaySeconds();
+        if (!MISSILE_FEATURE_ENABLED) {
+            System.out.println("[combat] missile feature disabled (set -Dvc.missile.enabled=true to enable).");
+        }
         initializeSpawn();
     }
 
@@ -270,6 +285,16 @@ public final class GameClient implements AutoCloseable {
         }
         updateCombatSystem(deltaSeconds);
 
+        int preSimChunkX = Math.floorDiv((int) Math.floor(playerController.x()), Section.SIZE); // meaning
+        int preSimChunkZ = Math.floorDiv((int) Math.floor(playerController.z()), Section.SIZE); // meaning
+        long ensureStarted = System.nanoTime(); // meaning
+        ensureLocalChunksAroundPlayer();
+        lastEnsureLocalChunksNanos = System.nanoTime() - ensureStarted;
+        long chunkDrainStarted = System.nanoTime(); // meaning
+        worldView.drainChunkGenerationBudget(LOCAL_CHUNK_GENERATION_BUDGET_PER_TICK);
+        lastChunkGenerationDrainNanos = System.nanoTime() - chunkDrainStarted;
+        requestChunksIfNeeded(false);
+
         // 物理/碰撞按固定子步推进，避免大 dt 突刺导致单帧穿透。
         double remainingSeconds = clampSimulationCatchupSeconds(deltaSeconds); // meaning
         if (remainingSeconds <= 0.0) {
@@ -280,6 +305,18 @@ public final class GameClient implements AutoCloseable {
                 runSimulationStep(input, uiOpen, stepSeconds);
                 remainingSeconds -= stepSeconds;
             }
+        }
+
+        int postSimChunkX = Math.floorDiv((int) Math.floor(playerController.x()), Section.SIZE); // meaning
+        int postSimChunkZ = Math.floorDiv((int) Math.floor(playerController.z()), Section.SIZE); // meaning
+        if (postSimChunkX != preSimChunkX || postSimChunkZ != preSimChunkZ) {
+            long postEnsureStarted = System.nanoTime(); // meaning
+            ensureLocalChunksAroundPlayer();
+            lastEnsureLocalChunksNanos += System.nanoTime() - postEnsureStarted;
+            long postChunkDrainStarted = System.nanoTime(); // meaning
+            worldView.drainChunkGenerationBudget(LOCAL_CHUNK_GENERATION_BUDGET_PER_TICK);
+            lastChunkGenerationDrainNanos += System.nanoTime() - postChunkDrainStarted;
+            requestChunksIfNeeded(false);
         }
 
         if (blockPickerOpen) {
@@ -384,7 +421,7 @@ public final class GameClient implements AutoCloseable {
     }
 
     public int activeMissileCount() {
-        return activeMissiles.size();
+        return MISSILE_FEATURE_ENABLED ? activeMissiles.size() : 0;
     }
 
     // 中文标注（方法）：`selectedBlock`，参数：无；用途：执行selected、方块相关逻辑。
@@ -511,12 +548,15 @@ public final class GameClient implements AutoCloseable {
         oldWorldView.close();
         game.switchW(newW);
         worldView = new ClientWorldView(game.world());
-        worldView.setGenerateMissingChunksOnPeek(networkClient == null || !networkClient.isConnected());
+        worldView.setGenerateMissingChunksOnPeek(false);
         renderSystem = new ChunkRenderSystem();
         lightEngine = new LightEngine();
         targetedBlock = null;
         breakButtonDownLastTick = false;
         placeButtonDownLastTick = false;
+        lastImmediateChunkCenterX = Integer.MIN_VALUE;
+        lastImmediateChunkCenterZ = Integer.MIN_VALUE;
+        wCubeBuiltForW = Integer.MIN_VALUE;
         lastRequestedChunkX = Integer.MIN_VALUE;
         lastRequestedChunkZ = Integer.MIN_VALUE;
         networkStateSendAccumulator = 0.0;
@@ -576,30 +616,35 @@ public final class GameClient implements AutoCloseable {
         int chunkX = Math.floorDiv(blockX, Section.SIZE); // meaning
         // 中文标注（局部变量）：`chunkZ`，含义：用于表示区块、Z坐标。
         int chunkZ = Math.floorDiv(blockZ, Section.SIZE); // meaning
+        boolean immediateCenterChanged = chunkX != lastImmediateChunkCenterX || chunkZ != lastImmediateChunkCenterZ; // meaning
         int immediateGenerated = 0; // meaning
-        for (int dz = -LOCAL_CHUNK_IMMEDIATE_RADIUS; dz <= LOCAL_CHUNK_IMMEDIATE_RADIUS; dz++) { // meaning
-            for (int dx = -LOCAL_CHUNK_IMMEDIATE_RADIUS; dx <= LOCAL_CHUNK_IMMEDIATE_RADIUS; dx++) { // meaning
-                int cx = chunkX + dx; // meaning
-                int cz = chunkZ + dz; // meaning
-                if (worldView.getChunk(cx, cz) != null) {
-                    continue;
+        if (immediateCenterChanged) {
+            for (int dz = -LOCAL_CHUNK_IMMEDIATE_RADIUS; dz <= LOCAL_CHUNK_IMMEDIATE_RADIUS; dz++) { // meaning
+                for (int dx = -LOCAL_CHUNK_IMMEDIATE_RADIUS; dx <= LOCAL_CHUNK_IMMEDIATE_RADIUS; dx++) { // meaning
+                    int cx = chunkX + dx; // meaning
+                    int cz = chunkZ + dz; // meaning
+                    if (worldView.getChunk(cx, cz) != null) {
+                        continue;
+                    }
+                    worldView.world().getOrGenerateChunk(cx, cz);
+                    immediateGenerated++;
                 }
-                worldView.world().getOrGenerateChunk(cx, cz);
-                immediateGenerated++;
             }
-        }
-        if (immediateGenerated > 0) {
-            long now = System.nanoTime(); // meaning
-            if (now - lastImmediateChunkSyncLogNanos >= IMMEDIATE_CHUNK_SYNC_LOG_THROTTLE_NANOS) {
-                System.out.printf(
-                    "[chunk-gen] immediate-sync center=(%d,%d) r=%d generated=%d%n",
-                    chunkX,
-                    chunkZ,
-                    LOCAL_CHUNK_IMMEDIATE_RADIUS,
-                    immediateGenerated
-                );
-                lastImmediateChunkSyncLogNanos = now;
+            if (immediateGenerated > 0) {
+                long now = System.nanoTime(); // meaning
+                if (now - lastImmediateChunkSyncLogNanos >= IMMEDIATE_CHUNK_SYNC_LOG_THROTTLE_NANOS) {
+                    System.out.printf(
+                        "[chunk-gen] immediate-sync center=(%d,%d) r=%d generated=%d%n",
+                        chunkX,
+                        chunkZ,
+                        LOCAL_CHUNK_IMMEDIATE_RADIUS,
+                        immediateGenerated
+                    );
+                    lastImmediateChunkSyncLogNanos = now;
+                }
             }
+            lastImmediateChunkCenterX = chunkX;
+            lastImmediateChunkCenterZ = chunkZ;
         }
         worldView.ensureChunkRadius(chunkX, chunkZ, localChunkRadius);
     }
@@ -703,6 +748,12 @@ public final class GameClient implements AutoCloseable {
         if (deltaSeconds <= 0.0) {
             return;
         }
+        if (!MISSILE_FEATURE_ENABLED) {
+            if (!activeMissiles.isEmpty() || !activeBullets.isEmpty()) {
+                resetCombatTracking();
+            }
+            return;
+        }
         if (combatGameOver) {
             return;
         }
@@ -730,6 +781,13 @@ public final class GameClient implements AutoCloseable {
     }
 
     private void fireGunProjectile() {
+        if (!MISSILE_FEATURE_ENABLED) {
+            if (!missileFeatureDisabledHintShown) {
+                System.out.println("[combat] missile feature disabled; gun fire is unavailable.");
+                missileFeatureDisabledHintShown = true;
+            }
+            return;
+        }
         if (networkClient != null && networkClient.isConnected()) {
             System.out.println("[combat] gun fire disabled in multiplayer.");
             return;
@@ -1117,6 +1175,9 @@ public final class GameClient implements AutoCloseable {
         if (networkClient != null && networkClient.isConnected()) {
             return;
         }
+        if (wCubeBuiltForW == game.w()) {
+            return;
+        }
         for (int y = WCUBE_SHELL_MIN_Y; y <= WCUBE_SHELL_MAX_Y; y++) { // meaning
             for (int z = WCUBE_SHELL_MIN_Z; z <= WCUBE_SHELL_MAX_Z; z++) { // meaning
                 for (int x = WCUBE_SHELL_MIN_X; x <= WCUBE_SHELL_MAX_X; x++) { // meaning
@@ -1128,6 +1189,7 @@ public final class GameClient implements AutoCloseable {
                 }
             }
         }
+        wCubeBuiltForW = game.w();
     }
 
     private boolean isPlayerInsideWCubeSwitchZone() {
@@ -1151,17 +1213,10 @@ public final class GameClient implements AutoCloseable {
     }
 
     private void runSimulationStep(InputState input, boolean uiOpen, double stepSeconds) {
-        long ensureStarted = System.nanoTime(); // meaning
-        ensureLocalChunksAroundPlayer();
-        lastEnsureLocalChunksNanos = System.nanoTime() - ensureStarted;
         if (!uiOpen && !combatGameOver && stepSeconds > 0.0) {
             playerController.tick(worldView, input, stepSeconds);
             tickWormholeIfActive(stepSeconds);
         }
-        long chunkDrainStarted = System.nanoTime(); // meaning
-        worldView.drainChunkGenerationBudget(LOCAL_CHUNK_GENERATION_BUDGET_PER_TICK);
-        lastChunkGenerationDrainNanos = System.nanoTime() - chunkDrainStarted;
-        requestChunksIfNeeded(false);
     }
 
     private void handleWormholeToggleInput(InputState input) {
@@ -1535,7 +1590,7 @@ public final class GameClient implements AutoCloseable {
         // 中文标注（局部变量）：`placeButtonDown`，含义：用于表示place、button、down。
         boolean placeButtonDown = input.isMouseDown(MouseEvent.BUTTON3); // meaning
 
-        if (selectedBlock == Blocks.GUN && placeButtonDown && !placeButtonDownLastTick) {
+        if (MISSILE_FEATURE_ENABLED && selectedBlock == Blocks.GUN && placeButtonDown && !placeButtonDownLastTick) {
             fireGunProjectile();
             breakButtonDownLastTick = breakButtonDown;
             placeButtonDownLastTick = placeButtonDown;
@@ -2000,7 +2055,11 @@ public final class GameClient implements AutoCloseable {
         }
         graphics.drawString(String.format("Held Block: %s", selectedBlock.id()), 24, y);
         y += 20;
-        graphics.drawString(String.format("HP: %d/%d | Missiles: %d", playerHp, PLAYER_MAX_HP, activeMissiles.size()), 24, y);
+        if (MISSILE_FEATURE_ENABLED) {
+            graphics.drawString(String.format("HP: %d/%d | Missiles: %d", playerHp, PLAYER_MAX_HP, activeMissiles.size()), 24, y);
+        } else {
+            graphics.drawString("Missile combat: disabled", 24, y);
+        }
         y += 20;
         if (combatGameOver) {
             graphics.setColor(new Color(255, 120, 120));

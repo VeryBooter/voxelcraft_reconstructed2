@@ -260,11 +260,13 @@ public final class GeoBioWorldGenerator implements WorldGenerator {
         if (candidates.isEmpty()) {
             return fallback;
         }
+        int paletteCellX = Math.floorDiv(worldX, 24); // meaning
+        int paletteCellZ = Math.floorDiv(worldZ, 24); // meaning
         double offsetX = ((salt >>> 8) & 0xFFFF) - 32_768.0; // meaning
         double offsetZ = ((salt >>> 24) & 0xFFFF) - 32_768.0; // meaning
         double sample = terrainNoise.fbm2d(
-            (worldX + offsetX) * frequency,
-            (worldZ + offsetZ) * frequency,
+            (paletteCellX + offsetX) * frequency,
+            (paletteCellZ + offsetZ) * frequency,
             3,
             2.0,
             0.5

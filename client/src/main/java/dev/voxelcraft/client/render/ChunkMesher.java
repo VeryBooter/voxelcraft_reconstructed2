@@ -25,11 +25,12 @@ import java.util.Map;
 // 中文标注（类）：`ChunkMesher`，职责：封装区块、mesher相关逻辑。
 public final class ChunkMesher {
     // 中文标注（字段）：`GPU_VERTEX_WORDS`，含义：用于表示GPU、顶点、字数组。
-    public static final int GPU_VERTEX_WORDS = 4; // meaning
+    public static final int GPU_VERTEX_WORDS = 6; // meaning
     // 中文标注（字段）：`GPU_VERTEX_STRIDE_BYTES`，含义：用于表示GPU、顶点、步长、字节数据。
     public static final int GPU_VERTEX_STRIDE_BYTES = GPU_VERTEX_WORDS * Integer.BYTES; // meaning
+    public static final long GPU_UV_OFFSET_BYTES = 3L * Float.BYTES; // meaning
     // 中文标注（字段）：`GPU_COLOR_OFFSET_BYTES`，含义：用于表示GPU、颜色、偏移、字节数据。
-    public static final long GPU_COLOR_OFFSET_BYTES = 3L * Float.BYTES; // meaning
+    public static final long GPU_COLOR_OFFSET_BYTES = 5L * Float.BYTES; // meaning
 
     // 中文标注（字段）：`VERTICAL_RANGE_BELOW`，含义：用于表示垂直、范围、below。
     private static final int VERTICAL_RANGE_BELOW = 96; // meaning
@@ -37,10 +38,10 @@ public final class ChunkMesher {
     private static final int VERTICAL_RANGE_ABOVE = 192; // meaning
     // 中文标注（字段）：`LOD_LEVEL_FULL`，含义：用于表示细节层级、级别、full。
     private static final int LOD_LEVEL_FULL = 0; // meaning
-    // 中文标注（字段）：`LOD_LEVEL_HEIGHTFIELD_2X2`，含义：用于表示细节层级、级别、heightfield、2、X坐标、2。
-    private static final int LOD_LEVEL_HEIGHTFIELD_2X2 = 1; // meaning
+    private static final int LOD_LEVEL_HEIGHTFIELD_4X4 = 2; // meaning
     // 中文标注（字段）：`LOD_CELL_SIZE`，含义：用于表示细节层级、cell、大小。
     private static final int LOD_CELL_SIZE = 2; // meaning
+    private static final float AO_STRENGTH = 0.20f; // meaning
     // 中文标注（字段）：`NATIVE_LITTLE_ENDIAN`，含义：用于表示native、little、endian。
     private static final boolean NATIVE_LITTLE_ENDIAN = ByteOrder.nativeOrder() == ByteOrder.LITTLE_ENDIAN; // meaning
     // 中文标注（字段）：`EMPTY_MASK`，含义：用于表示empty、掩码。
@@ -316,7 +317,8 @@ public final class ChunkMesher {
                     buildWestEastGreedy(snapshot, expandedHeight, chunkBaseX, chunkBaseZ, vertices, indices, bounds, verticalMask, true);
                     buildWestEastGreedy(snapshot, expandedHeight, chunkBaseX, chunkBaseZ, vertices, indices, bounds, verticalMask, false);
                 } else {
-                    buildHeightfieldLodMesh2x2(snapshot, expandedHeight, chunkBaseX, chunkBaseZ, vertices, indices, bounds, scratch);
+                    int cellSize = (lodLevel >= LOD_LEVEL_HEIGHTFIELD_4X4) ? 4 : LOD_CELL_SIZE;
+                    buildHeightfieldLodMesh(snapshot, expandedHeight, chunkBaseX, chunkBaseZ, vertices, indices, bounds, scratch, cellSize);
                 }
             }
 
@@ -414,24 +416,16 @@ public final class ChunkMesher {
         snapshot.releaseBlocks(snapshotBlockPool);
     }
 
-    // 中文标注（方法）：`buildHeightfieldLodMesh2x2`，参数：snapshot、expandedHeight、chunkBaseX、chunkBaseZ、vertices、indices、bounds、scratch；用途：构建或创建构建、heightfield、细节层级、网格、2、X坐标、2。
-    private static void buildHeightfieldLodMesh2x2(
-        // 中文标注（参数）：`snapshot`，含义：用于表示快照。
+    private static void buildHeightfieldLodMesh(
         ChunkSnapshot snapshot,
-        // 中文标注（参数）：`expandedHeight`，含义：用于表示expanded、高度。
         int expandedHeight,
-        // 中文标注（参数）：`chunkBaseX`，含义：用于表示区块、base、X坐标。
         int chunkBaseX,
-        // 中文标注（参数）：`chunkBaseZ`，含义：用于表示区块、base、Z坐标。
         int chunkBaseZ,
-        // 中文标注（参数）：`vertices`，含义：用于表示顶点集合。
         PackedVertexBuilder vertices,
-        // 中文标注（参数）：`indices`，含义：用于表示索引集合。
         IntArrayBuilder indices,
-        // 中文标注（参数）：`bounds`，含义：用于表示bounds。
         BoundsAccumulator bounds,
-        // 中文标注（参数）：`scratch`，含义：用于表示临时工作区。
-        MeshBuildScratch scratch
+        MeshBuildScratch scratch,
+        int cellSize
     ) {
         // LOD 高度场底部钳位：避免边缘补边从过深 y 开始拉出超长竖墙。
         final float lodFloor = Math.max(snapshot.minY(), World.DEFAULT_SOLID_BELOW_Y); // meaning
@@ -471,7 +465,7 @@ public final class ChunkMesher {
         }
 
         // 中文标注（局部变量）：`coarseWidth`，含义：用于表示coarse、宽度。
-        int coarseWidth = Math.max(1, Section.SIZE / LOD_CELL_SIZE); // meaning
+        int coarseWidth = Math.max(1, Section.SIZE / cellSize); // meaning
         // 中文标注（局部变量）：`coarseHeight`，含义：用于表示coarse、高度。
         int coarseHeight = coarseWidth; // meaning
         // 中文标注（局部变量）：`cellHeights`，含义：用于表示cell、heights。
@@ -490,13 +484,13 @@ public final class ChunkMesher {
                 // 中文标注（局部变量）：`bestBlock`，含义：用于表示best、方块。
                 Block bestBlock = null; // meaning
                 // 中文标注（局部变量）：`startX`，含义：用于表示开始、X坐标。
-                int startX = cellX * LOD_CELL_SIZE; // meaning
+                int startX = cellX * cellSize; // meaning
                 // 中文标注（局部变量）：`startZ`，含义：用于表示开始、Z坐标。
-                int startZ = cellZ * LOD_CELL_SIZE; // meaning
+                int startZ = cellZ * cellSize; // meaning
                 // 中文标注（局部变量）：`dz`，含义：用于表示dz。
-                for (int dz = 0; dz < LOD_CELL_SIZE; dz++) { // meaning
+                for (int dz = 0; dz < cellSize; dz++) { // meaning
                     // 中文标注（局部变量）：`dx`，含义：用于表示dx。
-                    for (int dx = 0; dx < LOD_CELL_SIZE; dx++) { // meaning
+                    for (int dx = 0; dx < cellSize; dx++) { // meaning
                         // 中文标注（局部变量）：`localX`，含义：用于表示局部、X坐标。
                         int localX = startX + dx; // meaning
                         // 中文标注（局部变量）：`localZ`，含义：用于表示局部、Z坐标。
@@ -536,17 +530,17 @@ public final class ChunkMesher {
                 }
 
                 // 中文标注（局部变量）：`x0`，含义：用于表示X坐标、0。
-                float x0 = chunkBaseX + (cellX * LOD_CELL_SIZE); // meaning
+                float x0 = chunkBaseX + (cellX * cellSize); // meaning
                 // 中文标注（局部变量）：`z0`，含义：用于表示Z坐标、0。
-                float z0 = chunkBaseZ + (cellZ * LOD_CELL_SIZE); // meaning
+                float z0 = chunkBaseZ + (cellZ * cellSize); // meaning
                 // 中文标注（局部变量）：`x1`，含义：用于表示X坐标、1。
-                float x1 = x0 + LOD_CELL_SIZE; // meaning
+                float x1 = x0 + cellSize; // meaning
                 // 中文标注（局部变量）：`z1`，含义：用于表示Z坐标、1。
-                float z1 = z0 + LOD_CELL_SIZE; // meaning
-                int localStartX = cellX * LOD_CELL_SIZE; // meaning
-                int localStartZ = cellZ * LOD_CELL_SIZE; // meaning
-                int localEndXExclusive = Math.min(Section.SIZE, localStartX + LOD_CELL_SIZE); // meaning
-                int localEndZExclusive = Math.min(Section.SIZE, localStartZ + LOD_CELL_SIZE); // meaning
+                float z1 = z0 + cellSize; // meaning
+                int localStartX = cellX * cellSize; // meaning
+                int localStartZ = cellZ * cellSize; // meaning
+                int localEndXExclusive = Math.min(Section.SIZE, localStartX + cellSize); // meaning
+                int localEndZExclusive = Math.min(Section.SIZE, localStartZ + cellSize); // meaning
                 // 中文标注（局部变量）：`topPlaneY`，含义：用于表示顶面、plane、Y坐标。
                 float topPlaneY = topY + 1.0f; // meaning
                 appendQuad(
@@ -795,6 +789,7 @@ public final class ChunkMesher {
 
             // 中文标注（局部变量）：`planeY`，含义：用于表示plane、Y坐标。
             int planeY = snapshot.minY() + localY + (topFace ? 1 : 0); // meaning
+            int exAoY = topFace ? localY + 2 : localY; // AO sample layer in expanded coords
             // 中文标注（Lambda参数）：`u`，含义：用于表示u。
             // 中文标注（Lambda参数）：`v`，含义：用于表示v。
             // 中文标注（Lambda参数）：`width`，含义：用于表示宽度。
@@ -812,20 +807,26 @@ public final class ChunkMesher {
                 // 中文标注（局部变量）：`z1`，含义：用于表示Z坐标、1。
                 float z1 = z0 + height; // meaning
                 if (topFace) {
-                    appendQuad(
-                        vertices, indices, bounds, packedColor,
-                        x0, y, z0,
-                        x1, y, z0,
-                        x1, y, z1,
-                        x0, y, z1
+                    // corners: v0=-X-Z, v1=+X-Z, v2=+X+Z, v3=-X+Z
+                    int ao0 = vertexAO(snapshot, expandedHeight, u+1,       exAoY, v+1,        -1,0,0, 0,0,-1);
+                    int ao1 = vertexAO(snapshot, expandedHeight, u+width+1,  exAoY, v+1,        +1,0,0, 0,0,-1);
+                    int ao2 = vertexAO(snapshot, expandedHeight, u+width+1,  exAoY, v+height+1, +1,0,0, 0,0,+1);
+                    int ao3 = vertexAO(snapshot, expandedHeight, u+1,        exAoY, v+height+1, -1,0,0, 0,0,+1);
+                    appendQuadAO(vertices, indices, bounds,
+                        applyAO(packedColor, ao0), applyAO(packedColor, ao1),
+                        applyAO(packedColor, ao2), applyAO(packedColor, ao3),
+                        x0, y, z0,  x1, y, z0,  x1, y, z1,  x0, y, z1
                     );
                 } else {
-                    appendQuad(
-                        vertices, indices, bounds, packedColor,
-                        x0, y, z1,
-                        x1, y, z1,
-                        x1, y, z0,
-                        x0, y, z0
+                    // bottom face vertex order: v0=-X+Z, v1=+X+Z, v2=+X-Z, v3=-X-Z
+                    int ao0 = vertexAO(snapshot, expandedHeight, u+1,       exAoY, v+height+1, -1,0,0, 0,0,+1);
+                    int ao1 = vertexAO(snapshot, expandedHeight, u+width+1,  exAoY, v+height+1, +1,0,0, 0,0,+1);
+                    int ao2 = vertexAO(snapshot, expandedHeight, u+width+1,  exAoY, v+1,        +1,0,0, 0,0,-1);
+                    int ao3 = vertexAO(snapshot, expandedHeight, u+1,        exAoY, v+1,        -1,0,0, 0,0,-1);
+                    appendQuadAO(vertices, indices, bounds,
+                        applyAO(packedColor, ao0), applyAO(packedColor, ao1),
+                        applyAO(packedColor, ao2), applyAO(packedColor, ao3),
+                        x0, y, z1,  x1, y, z1,  x1, y, z0,  x0, y, z0
                     );
                 }
             });
@@ -882,6 +883,7 @@ public final class ChunkMesher {
 
             // 中文标注（局部变量）：`planeZ`，含义：用于表示plane、Z坐标。
             int planeZ = chunkBaseZ + localZ + (northFace ? 0 : 1); // meaning
+            int exAoZ = northFace ? localZ : localZ + 2; // AO sample layer in expanded coords (exposed side)
             // 中文标注（Lambda参数）：`u`，含义：用于表示u。
             // 中文标注（Lambda参数）：`v`，含义：用于表示v。
             // 中文标注（Lambda参数）：`width`，含义：用于表示宽度。
@@ -899,20 +901,26 @@ public final class ChunkMesher {
                 // 中文标注（局部变量）：`y1`，含义：用于表示Y坐标、1。
                 float y1 = y0 + height; // meaning
                 if (northFace) {
-                    appendQuad(
-                        vertices, indices, bounds, packedColor,
-                        x1, y0, z,
-                        x1, y1, z,
-                        x0, y1, z,
-                        x0, y0, z
+                    // north: v0=+X-Y, v1=+X+Y, v2=-X+Y, v3=-X-Y
+                    int ao0 = vertexAO(snapshot, expandedHeight, u+width+1, v+1,        exAoZ, +1,0,0, 0,-1,0);
+                    int ao1 = vertexAO(snapshot, expandedHeight, u+width+1, v+height+1, exAoZ, +1,0,0, 0,+1,0);
+                    int ao2 = vertexAO(snapshot, expandedHeight, u+1,       v+height+1, exAoZ, -1,0,0, 0,+1,0);
+                    int ao3 = vertexAO(snapshot, expandedHeight, u+1,       v+1,        exAoZ, -1,0,0, 0,-1,0);
+                    appendQuadAO(vertices, indices, bounds,
+                        applyAO(packedColor, ao0), applyAO(packedColor, ao1),
+                        applyAO(packedColor, ao2), applyAO(packedColor, ao3),
+                        x1, y0, z,  x1, y1, z,  x0, y1, z,  x0, y0, z
                     );
                 } else {
-                    appendQuad(
-                        vertices, indices, bounds, packedColor,
-                        x0, y0, z,
-                        x0, y1, z,
-                        x1, y1, z,
-                        x1, y0, z
+                    // south: v0=-X-Y, v1=-X+Y, v2=+X+Y, v3=+X-Y
+                    int ao0 = vertexAO(snapshot, expandedHeight, u+1,       v+1,        exAoZ, -1,0,0, 0,-1,0);
+                    int ao1 = vertexAO(snapshot, expandedHeight, u+1,       v+height+1, exAoZ, -1,0,0, 0,+1,0);
+                    int ao2 = vertexAO(snapshot, expandedHeight, u+width+1, v+height+1, exAoZ, +1,0,0, 0,+1,0);
+                    int ao3 = vertexAO(snapshot, expandedHeight, u+width+1, v+1,        exAoZ, +1,0,0, 0,-1,0);
+                    appendQuadAO(vertices, indices, bounds,
+                        applyAO(packedColor, ao0), applyAO(packedColor, ao1),
+                        applyAO(packedColor, ao2), applyAO(packedColor, ao3),
+                        x0, y0, z,  x0, y1, z,  x1, y1, z,  x1, y0, z
                     );
                 }
             });
@@ -969,6 +977,7 @@ public final class ChunkMesher {
 
             // 中文标注（局部变量）：`planeX`，含义：用于表示plane、X坐标。
             int planeX = chunkBaseX + localX + (westFace ? 0 : 1); // meaning
+            int exAoX = westFace ? localX : localX + 2; // AO sample layer in expanded coords (exposed side)
             // 中文标注（Lambda参数）：`u`，含义：用于表示u。
             // 中文标注（Lambda参数）：`v`，含义：用于表示v。
             // 中文标注（Lambda参数）：`width`，含义：用于表示宽度。
@@ -986,20 +995,26 @@ public final class ChunkMesher {
                 // 中文标注（局部变量）：`z1`，含义：用于表示Z坐标、1。
                 float z1 = z0 + width; // meaning
                 if (westFace) {
-                    appendQuad(
-                        vertices, indices, bounds, packedColor,
-                        x, y0, z0,
-                        x, y1, z0,
-                        x, y1, z1,
-                        x, y0, z1
+                    // west: v0=-Y-Z, v1=+Y-Z, v2=+Y+Z, v3=-Y+Z
+                    int ao0 = vertexAO(snapshot, expandedHeight, exAoX, v+1,        u+1,       0,-1,0, 0,0,-1);
+                    int ao1 = vertexAO(snapshot, expandedHeight, exAoX, v+height+1, u+1,       0,+1,0, 0,0,-1);
+                    int ao2 = vertexAO(snapshot, expandedHeight, exAoX, v+height+1, u+width+1, 0,+1,0, 0,0,+1);
+                    int ao3 = vertexAO(snapshot, expandedHeight, exAoX, v+1,        u+width+1, 0,-1,0, 0,0,+1);
+                    appendQuadAO(vertices, indices, bounds,
+                        applyAO(packedColor, ao0), applyAO(packedColor, ao1),
+                        applyAO(packedColor, ao2), applyAO(packedColor, ao3),
+                        x, y0, z0,  x, y1, z0,  x, y1, z1,  x, y0, z1
                     );
                 } else {
-                    appendQuad(
-                        vertices, indices, bounds, packedColor,
-                        x, y0, z1,
-                        x, y1, z1,
-                        x, y1, z0,
-                        x, y0, z0
+                    // east: v0=-Y+Z, v1=+Y+Z, v2=+Y-Z, v3=-Y-Z
+                    int ao0 = vertexAO(snapshot, expandedHeight, exAoX, v+1,        u+width+1, 0,-1,0, 0,0,+1);
+                    int ao1 = vertexAO(snapshot, expandedHeight, exAoX, v+height+1, u+width+1, 0,+1,0, 0,0,+1);
+                    int ao2 = vertexAO(snapshot, expandedHeight, exAoX, v+height+1, u+1,       0,+1,0, 0,0,-1);
+                    int ao3 = vertexAO(snapshot, expandedHeight, exAoX, v+1,        u+1,       0,-1,0, 0,0,-1);
+                    appendQuadAO(vertices, indices, bounds,
+                        applyAO(packedColor, ao0), applyAO(packedColor, ao1),
+                        applyAO(packedColor, ao2), applyAO(packedColor, ao3),
+                        x, y0, z1,  x, y1, z1,  x, y1, z0,  x, y0, z0
                     );
                 }
             });
@@ -1129,6 +1144,98 @@ public final class ChunkMesher {
         return (red << 24) | (green << 16) | (blue << 8) | alpha;
     }
 
+    private static boolean isSolidAO(Block block) {
+        if (block == null || block == Blocks.AIR) return false;
+        BlockDef def = block.def();
+        return def != null ? def.isFullOccluder() : block.solid();
+    }
+
+    // Returns AO level 0..3 (3 = fully lit, 0 = darkest corner).
+    private static int vertexAO(ChunkSnapshot snapshot, int expandedHeight,
+        int exX, int exY, int exZ,
+        int dx1, int dy1, int dz1,
+        int dx2, int dy2, int dz2
+    ) {
+        boolean side1 = isSolidAO(snapshot.blockAtExpanded(exX + dx1, exY + dy1, exZ + dz1, expandedHeight));
+        boolean side2 = isSolidAO(snapshot.blockAtExpanded(exX + dx2, exY + dy2, exZ + dz2, expandedHeight));
+        boolean corner = isSolidAO(snapshot.blockAtExpanded(exX + dx1 + dx2, exY + dy1 + dy2, exZ + dz1 + dz2, expandedHeight));
+        if (side1 && side2) return 0;
+        return 3 - (side1 ? 1 : 0) - (side2 ? 1 : 0) - (corner ? 1 : 0);
+    }
+
+    private static int applyAO(int packedColor, int ao) {
+        float factor = 1.0f - (1.0f - ao / 3.0f) * AO_STRENGTH;
+        if (NATIVE_LITTLE_ENDIAN) {
+            int b = (packedColor >>> 16) & 0xFF;
+            int nb = clamp(Math.round(b * factor));
+            return (packedColor & 0xFF00FFFF) | (nb << 16);
+        } else {
+            int b = (packedColor >>> 8) & 0xFF;
+            int nb = clamp(Math.round(b * factor));
+            return (packedColor & 0xFFFF00FF) | (nb << 8);
+        }
+    }
+
+    private static int getBrightness(int packedColor) {
+        if (NATIVE_LITTLE_ENDIAN) return (packedColor >>> 16) & 0xFF;
+        return (packedColor >>> 8) & 0xFF;
+    }
+
+    // appendQuadAO: per-vertex colors with AO diagonal flip to avoid dark-stripe artifacts.
+    private static void appendQuadAO(
+        PackedVertexBuilder vertices,
+        IntArrayBuilder indices,
+        BoundsAccumulator bounds,
+        int c0, int c1, int c2, int c3,
+        float x0, float y0, float z0,
+        float x1, float y1, float z1,
+        float x2, float y2, float z2,
+        float x3, float y3, float z3
+    ) {
+        int baseVertex = vertices.vertexCount();
+        final float epsilon = 0.0001f;
+        boolean yPlane = Math.abs(y0 - y1) < epsilon && Math.abs(y0 - y2) < epsilon && Math.abs(y0 - y3) < epsilon;
+        boolean xPlane = Math.abs(x0 - x1) < epsilon && Math.abs(x0 - x2) < epsilon && Math.abs(x0 - x3) < epsilon;
+
+        float u0, v0, u1, v1, u2, v2, u3, v3;
+        if (yPlane) {
+            u0 = x0; v0 = z0; u1 = x1; v1 = z1; u2 = x2; v2 = z2; u3 = x3; v3 = z3;
+        } else if (xPlane) {
+            u0 = z0; v0 = y0; u1 = z1; v1 = y1; u2 = z2; v2 = y2; u3 = z3; v3 = y3;
+        } else {
+            u0 = x0; v0 = y0; u1 = x1; v1 = y1; u2 = x2; v2 = y2; u3 = x3; v3 = y3;
+        }
+
+        vertices.appendVertex(x0, y0, z0, u0, v0, c0);
+        vertices.appendVertex(x1, y1, z1, u1, v1, c1);
+        vertices.appendVertex(x2, y2, z2, u2, v2, c2);
+        vertices.appendVertex(x3, y3, z3, u3, v3, c3);
+
+        // Diagonal flip: swap triangle split axis if it reduces dark-stripe artifacts.
+        if (getBrightness(c0) + getBrightness(c2) < getBrightness(c1) + getBrightness(c3)) {
+            // Split along c1-c3 diagonal
+            indices.append(baseVertex);
+            indices.append(baseVertex + 3);
+            indices.append(baseVertex + 1);
+            indices.append(baseVertex + 3);
+            indices.append(baseVertex + 2);
+            indices.append(baseVertex + 1);
+        } else {
+            // Standard split along c0-c2 diagonal
+            indices.append(baseVertex);
+            indices.append(baseVertex + 2);
+            indices.append(baseVertex + 1);
+            indices.append(baseVertex + 2);
+            indices.append(baseVertex);
+            indices.append(baseVertex + 3);
+        }
+
+        bounds.include(x0, y0, z0);
+        bounds.include(x1, y1, z1);
+        bounds.include(x2, y2, z2);
+        bounds.include(x3, y3, z3);
+    }
+
     // 中文标注（方法）：`appendQuad`，参数：vertices、indices、bounds、packedColor、x0、y0、z0、x1、y1、z1、x2、y2、z2、x3、y3、z3；用途：执行append、quad相关逻辑。
     private static void appendQuad(
         // 中文标注（参数）：`vertices`，含义：用于表示顶点集合。
@@ -1166,10 +1273,51 @@ public final class ChunkMesher {
     ) {
         // 中文标注（局部变量）：`baseVertex`，含义：用于表示base、顶点。
         int baseVertex = vertices.vertexCount(); // meaning
-        vertices.appendVertex(x0, y0, z0, packedColor);
-        vertices.appendVertex(x1, y1, z1, packedColor);
-        vertices.appendVertex(x2, y2, z2, packedColor);
-        vertices.appendVertex(x3, y3, z3, packedColor);
+        final float epsilon = 0.0001f; // meaning
+        boolean yPlane = Math.abs(y0 - y1) < epsilon && Math.abs(y0 - y2) < epsilon && Math.abs(y0 - y3) < epsilon; // meaning
+        boolean xPlane = Math.abs(x0 - x1) < epsilon && Math.abs(x0 - x2) < epsilon && Math.abs(x0 - x3) < epsilon; // meaning
+
+        float u0; // meaning
+        float v0; // meaning
+        float u1; // meaning
+        float v1; // meaning
+        float u2; // meaning
+        float v2; // meaning
+        float u3; // meaning
+        float v3; // meaning
+        if (yPlane) {
+            u0 = x0;
+            v0 = z0;
+            u1 = x1;
+            v1 = z1;
+            u2 = x2;
+            v2 = z2;
+            u3 = x3;
+            v3 = z3;
+        } else if (xPlane) {
+            u0 = z0;
+            v0 = y0;
+            u1 = z1;
+            v1 = y1;
+            u2 = z2;
+            v2 = y2;
+            u3 = z3;
+            v3 = y3;
+        } else {
+            u0 = x0;
+            v0 = y0;
+            u1 = x1;
+            v1 = y1;
+            u2 = x2;
+            v2 = y2;
+            u3 = x3;
+            v3 = y3;
+        }
+
+        vertices.appendVertex(x0, y0, z0, u0, v0, packedColor);
+        vertices.appendVertex(x1, y1, z1, u1, v1, packedColor);
+        vertices.appendVertex(x2, y2, z2, u2, v2, packedColor);
+        vertices.appendVertex(x3, y3, z3, u3, v3, packedColor);
 
         // 统一 GPU 面 winding 为 CCW（世界空间外向法线）。
         // GpuChunkRenderer 在 view 变换里做了 Z 反射，并通过 glFrontFace(GL_CW) 做补偿；
@@ -2049,16 +2197,20 @@ public final class ChunkMesher {
             return size;
         }
 
-        // 中文标注（方法）：`appendVertex`，参数：x、y、z、packedColor；用途：执行append、顶点相关逻辑。
+        // 中文标注（方法）：`appendVertex`，参数：x、y、z、u、v、packedColor；用途：执行append、顶点相关逻辑。
         // 中文标注（参数）：`x`，含义：用于表示X坐标。
         // 中文标注（参数）：`y`，含义：用于表示Y坐标。
         // 中文标注（参数）：`z`，含义：用于表示Z坐标。
+        // 中文标注（参数）：`u`，含义：用于表示纹理U。
+        // 中文标注（参数）：`v`，含义：用于表示纹理V。
         // 中文标注（参数）：`packedColor`，含义：用于表示packed、颜色。
-        private void appendVertex(float x, float y, float z, int packedColor) {
+        private void appendVertex(float x, float y, float z, float u, float v, int packedColor) {
             ensureCapacity(GPU_VERTEX_WORDS);
             data[size++] = Float.floatToRawIntBits(x);
             data[size++] = Float.floatToRawIntBits(y);
             data[size++] = Float.floatToRawIntBits(z);
+            data[size++] = Float.floatToRawIntBits(u);
+            data[size++] = Float.floatToRawIntBits(v);
             data[size++] = packedColor;
         }
 

@@ -28,7 +28,7 @@ public final class ClientWorldView implements AutoCloseable {
     // 中文标注（字段）：`CHUNK_GEN_SLOW_LOG_THRESHOLD_NANOS`，含义：用于表示区块、gen、slow、log、threshold、nanos。
     private static final long CHUNK_GEN_SLOW_LOG_THRESHOLD_NANOS = 10_000_000L; // meaning
     // 中文标注（字段）：`DEFAULT_ASYNC_CHUNK_GEN_SUBMIT_BUDGET`，含义：用于表示默认、async、区块、gen、submit、budget。
-    private static final int DEFAULT_ASYNC_CHUNK_GEN_SUBMIT_BUDGET = 2; // meaning
+    private static final int DEFAULT_ASYNC_CHUNK_GEN_SUBMIT_BUDGET = 4; // meaning
     // 中文标注（字段）：`world`，含义：用于表示世界。
     private final World world; // meaning
     // 中文标注（字段）：`pendingChunkGeneration`，含义：用于表示pending、区块、generation。
@@ -83,11 +83,17 @@ public final class ClientWorldView implements AutoCloseable {
     // 中文标注（参数）：`world`，含义：用于表示世界。
     public ClientWorldView(World world) {
         this.world = world;
-        this.asyncChunkGenerationEnabled = booleanProperty("voxelcraft.chunkGenAsync", false);
-        this.asyncChunkGenerationSubmitBudgetPerTick = Math.max(1, intProperty("voxelcraft.chunkGenSubmitBudget", DEFAULT_ASYNC_CHUNK_GEN_SUBMIT_BUDGET));
+        this.asyncChunkGenerationEnabled = booleanPropertyCompat("vc.chunkGenAsync", "voxelcraft.chunkGenAsync", true);
+        this.asyncChunkGenerationSubmitBudgetPerTick = Math.max(
+            1,
+            intPropertyCompat("vc.chunkGenSubmitBudget", "voxelcraft.chunkGenSubmitBudget", DEFAULT_ASYNC_CHUNK_GEN_SUBMIT_BUDGET)
+        );
         if (asyncChunkGenerationEnabled) {
             // 中文标注（局部变量）：`workerCount`，含义：用于表示worker、数量。
-            int workerCount = Math.max(1, intProperty("voxelcraft.chunkGenWorkers", Math.max(1, Runtime.getRuntime().availableProcessors() - 1))); // meaning
+            int workerCount = Math.max(
+                1,
+                intPropertyCompat("vc.chunkGenWorkers", "voxelcraft.chunkGenWorkers", Math.max(1, Runtime.getRuntime().availableProcessors() - 1))
+            ); // meaning
             // 中文标注（Lambda参数）：`runnable`，含义：用于表示runnable。
             // 中文标注（局部变量）：`threadFactory`，含义：用于表示thread、factory。
             ThreadFactory threadFactory = runnable -> {
@@ -628,16 +634,26 @@ public final class ClientWorldView implements AutoCloseable {
         return (((long) chunkX) << 32) | (chunkZ & 0xffff_ffffL);
     }
 
-    // 中文标注（方法）：`booleanProperty`，参数：key、defaultValue；用途：执行boolean、属性相关逻辑。
-    // 中文标注（参数）：`key`，含义：用于表示键。
-    // 中文标注（参数）：`defaultValue`，含义：用于表示默认、值。
-    private static boolean booleanProperty(String key, boolean defaultValue) {
-        // 中文标注（局部变量）：`raw`，含义：用于表示raw。
+    private static boolean booleanPropertyCompat(String key, String legacyKey, boolean defaultValue) {
         String raw = System.getProperty(key); // meaning
+        if (raw == null) {
+            raw = System.getProperty(legacyKey);
+        }
+        return parseBoolean(raw, defaultValue);
+    }
+
+    private static int intPropertyCompat(String key, String legacyKey, int defaultValue) {
+        String raw = System.getProperty(key); // meaning
+        if (raw == null) {
+            raw = System.getProperty(legacyKey);
+        }
+        return parseInt(raw, defaultValue);
+    }
+
+    private static boolean parseBoolean(String raw, boolean defaultValue) {
         if (raw == null) {
             return defaultValue;
         }
-        // 中文标注（局部变量）：`normalized`，含义：用于表示normalized。
         String normalized = raw.trim().toLowerCase(); // meaning
         if (normalized.equals("1") || normalized.equals("true") || normalized.equals("yes") || normalized.equals("on")) {
             return true;
@@ -648,21 +664,29 @@ public final class ClientWorldView implements AutoCloseable {
         return defaultValue;
     }
 
-    // 中文标注（方法）：`intProperty`，参数：key、defaultValue；用途：执行int、属性相关逻辑。
-    // 中文标注（参数）：`key`，含义：用于表示键。
-    // 中文标注（参数）：`defaultValue`，含义：用于表示默认、值。
-    private static int intProperty(String key, int defaultValue) {
-        // 中文标注（局部变量）：`raw`，含义：用于表示raw。
-        String raw = System.getProperty(key); // meaning
+    private static int parseInt(String raw, int defaultValue) {
         if (raw == null) {
             return defaultValue;
         }
         try {
             return Integer.parseInt(raw.trim());
-        // 中文标注（异常参数）：`ignored`，含义：用于表示ignored。
         } catch (NumberFormatException ignored) {
             return defaultValue;
         }
+    }
+
+    // 中文标注（方法）：`booleanProperty`，参数：key、defaultValue；用途：执行boolean、属性相关逻辑。
+    // 中文标注（参数）：`key`，含义：用于表示键。
+    // 中文标注（参数）：`defaultValue`，含义：用于表示默认、值。
+    private static boolean booleanProperty(String key, boolean defaultValue) {
+        return parseBoolean(System.getProperty(key), defaultValue);
+    }
+
+    // 中文标注（方法）：`intProperty`，参数：key、defaultValue；用途：执行int、属性相关逻辑。
+    // 中文标注（参数）：`key`，含义：用于表示键。
+    // 中文标注（参数）：`defaultValue`，含义：用于表示默认、值。
+    private static int intProperty(String key, int defaultValue) {
+        return parseInt(System.getProperty(key), defaultValue);
     }
 
     // 中文标注（记录类）：`GeneratedChunk`，职责：封装generated、区块相关逻辑。

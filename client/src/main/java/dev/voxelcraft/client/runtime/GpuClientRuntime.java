@@ -6,6 +6,7 @@ import dev.voxelcraft.client.render.ChunkRenderSystem.RenderStats;
 import dev.voxelcraft.client.render.GpuChunkRenderer;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseEvent;
+import java.util.Locale;
 import org.lwjgl.glfw.GLFWErrorCallback;
 import org.lwjgl.opengl.GL;
 import org.lwjgl.system.MemoryStack;
@@ -86,6 +87,11 @@ public final class GpuClientRuntime implements AutoCloseable {
     private static final double MIN_FRAME_SECONDS = 1.0 / TARGET_FPS; // meaning
     // 中文标注（字段）：`HITCH_FRAME_MS`，含义：用于表示hitch、帧、ms。
     private static final double HITCH_FRAME_MS = 50.0; // meaning
+    private static final boolean DIAG_TITLE_ENABLED = booleanPropertyCompat(
+        "vc.gpu.diagTitle",
+        "voxelcraft.gpu.diagTitle",
+        true
+    ); // meaning
 
     // 中文标注（字段）：`title`，含义：用于表示title。
     private final String title; // meaning
@@ -287,6 +293,21 @@ public final class GpuClientRuntime implements AutoCloseable {
                     + gameClient.readyGeneratedChunkCount() + "/"
                     + gameClient.chunkGenerationJobsInFlight()
             );
+            if (DIAG_TITLE_ENABLED) {
+                out.append(
+                    String.format(
+                        Locale.US,
+                        " | diag e/d/s/i %.1f/%.1f/%.1f/%.1fms gpu m/u/d %.1f/%.1f/%.1fms",
+                        gameClient.lastEnsureLocalChunksNanos() / 1_000_000.0,
+                        gameClient.lastChunkGenerationDrainNanos() / 1_000_000.0,
+                        gameClient.lastChunkGenSubmitNanos() / 1_000_000.0,
+                        gameClient.lastChunkInstallNanos() / 1_000_000.0,
+                        renderer.lastMeshingSubmitNanos() / 1_000_000.0,
+                        renderer.lastUploadQueueDrainNanos() / 1_000_000.0,
+                        renderer.lastDrawLoopNanos() / 1_000_000.0
+                    )
+                );
+            }
             out.append(" | ").append(renderer.latestTitleStats());
         }
         out.append(" | HP ").append(gameClient.playerHp()).append("/").append(gameClient.playerMaxHp());
@@ -559,5 +580,23 @@ public final class GpuClientRuntime implements AutoCloseable {
             case GLFW_KEY_KP_7 -> KeyEvent.VK_NUMPAD7;
             default -> -1;
         };
+    }
+
+    private static boolean booleanPropertyCompat(String key, String legacyKey, boolean defaultValue) {
+        String raw = System.getProperty(key); // meaning
+        if (raw == null) {
+            raw = System.getProperty(legacyKey);
+        }
+        if (raw == null) {
+            return defaultValue;
+        }
+        String normalized = raw.trim().toLowerCase(Locale.ROOT); // meaning
+        if (normalized.equals("1") || normalized.equals("true") || normalized.equals("yes") || normalized.equals("on")) {
+            return true;
+        }
+        if (normalized.equals("0") || normalized.equals("false") || normalized.equals("no") || normalized.equals("off")) {
+            return false;
+        }
+        return defaultValue;
     }
 }

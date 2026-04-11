@@ -1171,9 +1171,8 @@ public final class ChunkMesher {
         vertices.appendVertex(x2, y2, z2, packedColor);
         vertices.appendVertex(x3, y3, z3, packedColor);
 
-        // 统一 GPU 面 winding 为 CCW（世界空间外向法线）。
-        // GpuChunkRenderer 在 view 变换里做了 Z 反射，并通过 glFrontFace(GL_CW) 做补偿；
-        // 因此这里必须保持一致的外向 CCW，不能混用/反向，否则会出现地面等面被背面裁剪误删。
+        // 统一面 winding 为 CCW（世界空间外向法线），并保持与当前图形后端一致。
+        // 若这里改反，背面裁剪会误删地面/墙面，出现明显的缺面闪烁。
         indices.append(baseVertex);
         indices.append(baseVertex + 2);
         indices.append(baseVertex + 1);
@@ -2009,7 +2008,7 @@ public final class ChunkMesher {
     // 中文标注（参数）：`minY`，含义：用于表示最小、Y坐标。
     // 中文标注（参数）：`maxY`，含义：用于表示最大、Y坐标。
     private static int bandKey(int minY, int maxY) {
-        // 与 GpuChunkRenderer.meshBandKey(...) 保持一致；否则上传阶段会把新 mesh 误判为 stale。
+        // 保持 bandKey 规则稳定；否则上传阶段会把新 mesh 误判为 stale。
         int worldSpan = World.MAX_Y - World.MIN_Y + 1; // meaning
         if (worldSpan <= 4096) {
             int minOffset = minY - World.MIN_Y; // meaning

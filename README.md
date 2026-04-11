@@ -7,7 +7,7 @@ Voxelcraft 重构仓库（Java 多模块：`core` / `client` / `server`）。
 - 阶段 A：工程骨架完成（含可自举 `gradlew`）
 - 阶段 B：`core` 世界/区块/生成/注册表 + 测试完成
 - 阶段 C：客户端外壳（窗口、输入、主循环）完成
-- 阶段 D：可见世界 + 可交互完成（软件渲染 + GPU 渲染）
+- 阶段 D：可见世界 + 可交互完成（软件渲染 + Vulkan 渲染）
 - 阶段 E：服务端 + 联机同步 + 文档完成
 
 ## 关键能力
@@ -16,8 +16,9 @@ Voxelcraft 重构仓库（Java 多模块：`core` / `client` / `server`）。
 - 联机：客户端连接服务端，支持区块流送与方块更新同步
 - 渲染：
   - `software`：Java2D 软件渲染（默认可回退）
-  - `gpu`：LWJGL + GLFW + OpenGL 实时渲染
-  - `accelerated`：GPU 优先启动路径（推荐）
+  - `gpu`：兼容别名（现已转发到 Vulkan）
+  - `vulkan`：LWJGL + GLFW + Vulkan 运行时（实验中，默认使用软件帧上传显示；可用 `-Dvc.vulkan.projectedWorld=true` 或 `runVulkanProjected` 开启直接面片投影绘制）
+  - `accelerated`：Vulkan 启动路径（默认关闭 vsync，用于性能测试）
 
 ## Gradle 使用
 
@@ -42,10 +43,19 @@ Voxelcraft 重构仓库（Java 多模块：`core` / `client` / `server`）。
 # 启动服务端（自定义端口）
 ./gradlew :server:runLocal -Pport=25566
 
-# 启动客户端（GPU + 联机）
+# 启动客户端（GPU 兼容别名 -> Vulkan + 联机）
 ./gradlew :client:runGpu -Pconnect=127.0.0.1:25565
 
-# 启动客户端（GPU 加速本地直连，推荐）
+# 启动客户端（Vulkan + 联机）
+./gradlew :client:runVulkan -Pconnect=127.0.0.1:25565
+
+# 启动客户端（Vulkan 软件帧上传路径 + 联机）
+./gradlew :client:runVulkanSoftware -Pconnect=127.0.0.1:25565
+
+# 启动客户端（Vulkan 直接面片投影 + 联机）
+./gradlew :client:runVulkanProjected -Pconnect=127.0.0.1:25565
+
+# 启动客户端（Vulkan 加速本地直连，关闭 vsync）
 ./gradlew :client:runAcceleratedLocal
 
 # 启动客户端（软件渲染，最稳）
@@ -54,13 +64,22 @@ Voxelcraft 重构仓库（Java 多模块：`core` / `client` / `server`）。
 # 启动客户端（本地直连，最稳）
 ./gradlew :client:runSoftwareLocal
 
+# 启动客户端（Vulkan 本地直连）
+./gradlew :client:runVulkanLocal
+
+# 启动客户端（Vulkan 软件帧上传路径 + 本地直连）
+./gradlew :client:runVulkanSoftwareLocal
+
+# 启动客户端（Vulkan 直接面片投影 + 本地直连）
+./gradlew :client:runVulkanProjectedLocal
+
 # 无图形环境验证
 ./gradlew :client:runHeadless
 ```
 
 ## 客户端参数
 
-- `--render auto|software|gpu`
+- `--render auto|software|vulkan`（兼容接受 `gpu`，会自动映射到 `vulkan`）
 - `--connect host:port`
 
 示例：
@@ -84,7 +103,36 @@ Voxelcraft 重构仓库（Java 多模块：`core` / `client` / `server`）。
 ./gradlew :client:runSoftware -Pconnect=127.0.0.1:25565
 ```
 
-如果 `runGpu` 失败，先用 `runSoftware` 验证玩法与联机链路，再排查显卡/驱动/OpenGL 环境。
+如果 `runGpu` 或 `runVulkan` 失败，先用 `runSoftware` 验证玩法与联机链路，再排查显卡/驱动/Vulkan 环境。
+
+### macOS Vulkan 依赖（MoltenVK）
+
+如果是 macOS，建议先安装：
+
+```bash
+brew install vulkan-loader molten-vk vulkan-tools
+```
+
+若仍出现 `vkCreateInstance failed with Vulkan error code -9`，通常表示当前运行环境无法提供 Metal（常见于无图形上下文/远程无显示环境）。
+
+如果你希望在 `--render vulkan` 失败时立刻退出（不自动回退到 software），可加：
+
+```bash
+./gradlew -Dvc.vulkan.strict=true :client:runVulkan
+```
+
+如果 Vulkan 画面明显卡住/像冻住，可先降低软件帧上传分辨率再试：
+
+```bash
+./gradlew -Dvc.vulkan.softwareMaxWidth=960 -Dvc.vulkan.softwareMaxHeight=540 :client:runVulkan
+```
+
+macOS 下 `runVulkan` 默认会启用 AWT headless workaround（`-Djava.awt.headless=true` + `-Dvc.vulkan.allowHeadless=true`）来规避 GLFW 事件循环卡死；如需关闭可加：
+
+```bash
+./gradlew -Dvc.vulkan.headlessAwt=false :client:runVulkan
+```
+
 
 ## 交互按键
 
@@ -100,7 +148,7 @@ Voxelcraft 重构仓库（Java 多模块：`core` / `client` / `server`）。
 
 - `core/src/main/java/dev/voxelcraft/core/world/World.java`
 - `client/src/main/java/dev/voxelcraft/client/GameClient.java`
-- `client/src/main/java/dev/voxelcraft/client/runtime/GpuClientRuntime.java`
+- `client/src/main/java/dev/voxelcraft/client/runtime/VulkanClientRuntime.java`
 - `client/src/main/java/dev/voxelcraft/client/network/NetworkClient.java`
 - `server/src/main/java/dev/voxelcraft/server/net/VoxelcraftServer.java`
 
@@ -129,7 +177,7 @@ Voxelcraft reconstructed repository (Java multi-module: `core` / `client` / `ser
 - Stage A: project skeleton completed (including bootstrap-ready `gradlew`)
 - Stage B: `core` world/chunk/generation/registry + tests completed
 - Stage C: client shell completed (window/input/main loop)
-- Stage D: visible and interactive world completed (software + GPU render)
+- Stage D: visible and interactive world completed (software + Vulkan render)
 - Stage E: server + multiplayer sync + docs completed
 
 ### Key Features
@@ -138,8 +186,9 @@ Voxelcraft reconstructed repository (Java multi-module: `core` / `client` / `ser
 - Multiplayer: client-server chunk streaming + block update sync
 - Rendering:
   - `software`: Java2D fallback renderer
-  - `gpu`: LWJGL + GLFW + OpenGL renderer
-  - `accelerated`: GPU-first startup path
+  - `gpu`: compatibility alias (now forwarded to Vulkan)
+  - `vulkan`: LWJGL + GLFW + Vulkan runtime (experimental; defaults to software-frame-upload mode, and supports projected-world mode via `-Dvc.vulkan.projectedWorld=true` or `runVulkanProjected`)
+  - `accelerated`: Vulkan path with vsync disabled for performance testing
 
 ### Gradle
 
@@ -164,10 +213,19 @@ The repository `gradlew` can bootstrap Gradle automatically.
 # server (custom port)
 ./gradlew :server:runLocal -Pport=25566
 
-# client (GPU + multiplayer)
+# client (GPU compatibility alias -> Vulkan + multiplayer)
 ./gradlew :client:runGpu -Pconnect=127.0.0.1:25565
 
-# client (GPU accelerated local connect)
+# client (Vulkan + multiplayer)
+./gradlew :client:runVulkan -Pconnect=127.0.0.1:25565
+
+# client (Vulkan software-frame upload path + multiplayer)
+./gradlew :client:runVulkanSoftware -Pconnect=127.0.0.1:25565
+
+# client (Vulkan projected world + multiplayer)
+./gradlew :client:runVulkanProjected -Pconnect=127.0.0.1:25565
+
+# client (Vulkan accelerated local connect, vsync disabled)
 ./gradlew :client:runAcceleratedLocal
 
 # client (software, stable)
@@ -176,13 +234,22 @@ The repository `gradlew` can bootstrap Gradle automatically.
 # client (software + local connect)
 ./gradlew :client:runSoftwareLocal
 
+# client (Vulkan + local connect)
+./gradlew :client:runVulkanLocal
+
+# client (Vulkan software-frame upload path + local connect)
+./gradlew :client:runVulkanSoftwareLocal
+
+# client (Vulkan projected world + local connect)
+./gradlew :client:runVulkanProjectedLocal
+
 # headless validation
 ./gradlew :client:runHeadless
 ```
 
 ### Client Args
 
-- `--render auto|software|gpu`
+- `--render auto|software|vulkan` (`gpu` is still accepted as a legacy alias and maps to `vulkan`)
 - `--connect host:port`
 
 Example:
@@ -206,7 +273,36 @@ Example:
 ./gradlew :client:runSoftware -Pconnect=127.0.0.1:25565
 ```
 
-If `runGpu` fails, verify gameplay/network on `runSoftware` first, then debug GPU/driver/OpenGL.
+If `runGpu` or `runVulkan` fails, verify gameplay/network on `runSoftware` first, then debug GPU/driver/Vulkan.
+
+### macOS Vulkan Prerequisites (MoltenVK)
+
+On macOS, install Vulkan loader + MoltenVK first:
+
+```bash
+brew install vulkan-loader molten-vk vulkan-tools
+```
+
+If you still see `vkCreateInstance failed with Vulkan error code -9`, the current runtime likely has no usable Metal context (common in headless/remote sessions).
+
+To force hard failure instead of software fallback when `--render vulkan` fails:
+
+```bash
+./gradlew -Dvc.vulkan.strict=true :client:runVulkan
+```
+
+If Vulkan appears frozen/stuck, try lowering software-frame upload resolution:
+
+```bash
+./gradlew -Dvc.vulkan.softwareMaxWidth=960 -Dvc.vulkan.softwareMaxHeight=540 :client:runVulkan
+```
+
+On macOS, `runVulkan` now enables a headless-AWT workaround by default (`-Djava.awt.headless=true` + `-Dvc.vulkan.allowHeadless=true`) to avoid GLFW event-loop hangs. To disable it:
+
+```bash
+./gradlew -Dvc.vulkan.headlessAwt=false :client:runVulkan
+```
+
 
 ### Controls
 
@@ -222,6 +318,6 @@ If `runGpu` fails, verify gameplay/network on `runSoftware` first, then debug GP
 
 - `core/src/main/java/dev/voxelcraft/core/world/World.java`
 - `client/src/main/java/dev/voxelcraft/client/GameClient.java`
-- `client/src/main/java/dev/voxelcraft/client/runtime/GpuClientRuntime.java`
+- `client/src/main/java/dev/voxelcraft/client/runtime/VulkanClientRuntime.java`
 - `client/src/main/java/dev/voxelcraft/client/network/NetworkClient.java`
 - `server/src/main/java/dev/voxelcraft/server/net/VoxelcraftServer.java`

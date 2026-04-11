@@ -79,15 +79,10 @@
   - `LightEngine`
 - Resets chunk request cache and forces fresh requests/generation.
 
-## GPU Anti-Stale-Mesh Protection
-- `GpuChunkRenderer` detects world changes via `worldView.world().seed()`.
-- On world switch:
-  - clears GPU chunk/VBO state
-  - clears upload queue and releases queued buffers
-  - clears `inFlightVersion` / visibility caches
-  - increments `worldEpoch`
-- Mesh jobs capture submit-time `worldEpoch`; mismatched epochs drop mesh results before enqueue/upload.
-- Goal: no old-slice mesh uploads after switching to a new slice.
+## Vulkan / Mesh Staleness Protection
+- `GameClient.switchSlice(int)` rebuilds `ClientWorldView` + `ChunkRenderSystem` + `LightEngine`, so stale slice data is not reused.
+- Vulkan runtime always pulls world/player state from current client objects each frame.
+- Goal: after switching to a new slice, old-slice mesh snapshots are not rendered in the new slice.
 
 ## Non-Goals (Current Scope)
 - No multiplayer `w` synchronization protocol

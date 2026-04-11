@@ -1,6 +1,7 @@
 package dev.voxelcraft.client.render;
 
 import dev.voxelcraft.client.player.PlayerController;
+import dev.voxelcraft.client.world.BlockHitResult;
 import dev.voxelcraft.client.world.ClientWorldView;
 import dev.voxelcraft.core.block.BlockDef;
 import dev.voxelcraft.core.world.BlockPos;
@@ -144,6 +145,31 @@ public final class ChunkRenderSystem {
     // 中文标注（参数）：`player`，含义：用于表示玩家。
     // 中文标注（参数）：`blockPos`，含义：用于表示方块、位置。
     public void drawSelectionBox(Graphics2D graphics, int width, int height, PlayerController player, BlockPos blockPos) {
+        drawSelectionBox(graphics, width, height, player, blockPos, null);
+    }
+
+    public void drawSelectionBox(Graphics2D graphics, int width, int height, PlayerController player, BlockHitResult hitResult) {
+        if (hitResult == null) {
+            return;
+        }
+        drawSelectionBox(
+            graphics,
+            width,
+            height,
+            player,
+            hitResult.targetBlock(),
+            hitResult.placementBlock()
+        );
+    }
+
+    private void drawSelectionBox(
+        Graphics2D graphics,
+        int width,
+        int height,
+        PlayerController player,
+        BlockPos blockPos,
+        BlockPos placementPos
+    ) {
         updateCamera(player, width, height);
 
         // 中文标注（局部变量）：`x`，含义：用于表示X坐标。
@@ -174,6 +200,7 @@ public final class ChunkRenderSystem {
                 return;
             }
         }
+        drawHitFaceOverlay(graphics, points, resolveSelectionFace(blockPos, placementPos));
 
         // 中文标注（局部变量）：`edges`，含义：用于表示edges。
         int[][] edges = {
@@ -195,6 +222,56 @@ public final class ChunkRenderSystem {
             graphics.drawLine(a.screenX(), a.screenY(), b.screenX(), b.screenY());
         }
         graphics.setStroke(previousStroke);
+    }
+
+    private void drawHitFaceOverlay(Graphics2D graphics, ScreenPoint[] points, SelectionFace hitFace) {
+        if (hitFace == null) {
+            return;
+        }
+        int[] cornerIndices = hitFace.cornerIndices();
+        int[] xPoints = new int[4];
+        int[] yPoints = new int[4];
+        for (int i = 0; i < cornerIndices.length; i++) {
+            ScreenPoint point = points[cornerIndices[i]];
+            xPoints[i] = point.screenX();
+            yPoints[i] = point.screenY();
+        }
+
+        java.awt.Stroke previousStroke = graphics.getStroke();
+        graphics.setColor(hitFace.fillColor());
+        graphics.fillPolygon(xPoints, yPoints, 4);
+        graphics.setStroke(new BasicStroke(1.25f));
+        graphics.setColor(hitFace.outlineColor());
+        graphics.drawPolygon(xPoints, yPoints, 4);
+        graphics.setStroke(previousStroke);
+    }
+
+    private static SelectionFace resolveSelectionFace(BlockPos targetPos, BlockPos placementPos) {
+        if (targetPos == null || placementPos == null) {
+            return null;
+        }
+        int dx = placementPos.x() - targetPos.x();
+        int dy = placementPos.y() - targetPos.y();
+        int dz = placementPos.z() - targetPos.z();
+        if (dx == -1 && dy == 0 && dz == 0) {
+            return SelectionFace.WEST;
+        }
+        if (dx == 1 && dy == 0 && dz == 0) {
+            return SelectionFace.EAST;
+        }
+        if (dx == 0 && dy == -1 && dz == 0) {
+            return SelectionFace.DOWN;
+        }
+        if (dx == 0 && dy == 1 && dz == 0) {
+            return SelectionFace.UP;
+        }
+        if (dx == 0 && dy == 0 && dz == -1) {
+            return SelectionFace.NORTH;
+        }
+        if (dx == 0 && dy == 0 && dz == 1) {
+            return SelectionFace.SOUTH;
+        }
+        return null;
     }
 
     // 中文标注（方法）：`updateCamera`，参数：player、width、height；用途：更新更新、相机相关状态。
@@ -388,6 +465,37 @@ public final class ChunkRenderSystem {
         private int screenY; // meaning
         // 中文标注（字段）：`depth`，含义：用于表示深度。
         private double depth; // meaning
+    }
+
+    private enum SelectionFace {
+        DOWN(new int[] {0, 1, 5, 4}, new Color(255, 140, 80, 72), new Color(255, 180, 128, 190)),
+        UP(new int[] {3, 2, 6, 7}, new Color(255, 214, 96, 72), new Color(255, 236, 178, 210)),
+        NORTH(new int[] {0, 1, 2, 3}, new Color(92, 220, 255, 72), new Color(164, 243, 255, 210)),
+        SOUTH(new int[] {4, 5, 6, 7}, new Color(84, 130, 255, 72), new Color(162, 188, 255, 210)),
+        WEST(new int[] {0, 3, 7, 4}, new Color(120, 255, 138, 72), new Color(181, 255, 193, 210)),
+        EAST(new int[] {1, 2, 6, 5}, new Color(255, 120, 220, 72), new Color(255, 187, 235, 210));
+
+        private final int[] cornerIndices;
+        private final Color fillColor;
+        private final Color outlineColor;
+
+        SelectionFace(int[] cornerIndices, Color fillColor, Color outlineColor) {
+            this.cornerIndices = cornerIndices;
+            this.fillColor = fillColor;
+            this.outlineColor = outlineColor;
+        }
+
+        private int[] cornerIndices() {
+            return cornerIndices;
+        }
+
+        private Color fillColor() {
+            return fillColor;
+        }
+
+        private Color outlineColor() {
+            return outlineColor;
+        }
     }
 
     // 中文标注（类）：`ProjectedFace`，职责：封装projected、面相关逻辑。

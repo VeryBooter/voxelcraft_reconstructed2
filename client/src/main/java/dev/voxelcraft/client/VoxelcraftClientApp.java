@@ -17,6 +17,16 @@ public final class VoxelcraftClientApp {
     private static final int TARGET_FPS = 60; // meaning
     // 中文标注（字段）：`MIN_FRAME_SECONDS`，含义：用于表示最小、帧、seconds。
     private static final double MIN_FRAME_SECONDS = 1.0 / TARGET_FPS; // meaning
+    private static final boolean STRICT_VULKAN_MODE = booleanPropertyCompat(
+        "vc.vulkan.strict",
+        "voxelcraft.vulkan.strict",
+        false
+    );
+    private static final boolean ALLOW_VULKAN_WHEN_HEADLESS = booleanPropertyCompat(
+        "vc.vulkan.allowHeadless",
+        "voxelcraft.vulkan.allowHeadless",
+        false
+    );
 
     // 中文标注（字段）：`config`，含义：用于表示config。
     private final LaunchConfig config; // meaning
@@ -34,23 +44,47 @@ public final class VoxelcraftClientApp {
 
     // 中文标注（方法）：`run`，参数：无；用途：执行run相关逻辑。
     public void run() {
-        if (GraphicsEnvironment.isHeadless()) {
+        boolean headless = GraphicsEnvironment.isHeadless();
+        if (headless && !canRunVulkanInHeadlessMode()) {
             runHeadlessFallback();
             return;
+        }
+        if (headless && canRunVulkanInHeadlessMode()) {
+            System.out.println("[client] headless AWT enabled; attempting Vulkan runtime with offscreen Java2D.");
         }
 
         // 中文标注（局部变量）：`gameClient`，含义：用于表示game、客户端。
         try (GameClient gameClient = createGameClient()) {
-            // 中文标注（局部变量）：`launchedGpu`，含义：用于表示launched、GPU。
-            boolean launchedGpu = false; // meaning
-            if (config.renderMode != RenderMode.SOFTWARE) {
-                launchedGpu = tryRunGpuRuntime(gameClient);
-                if (!launchedGpu && config.renderMode == RenderMode.GPU) {
-                    throw new IllegalStateException("GPU mode requested but OpenGL runtime failed to start");
+            // 中文标注（局部变量）：`launchedRenderer`，含义：用于表示launched、渲染器。
+            boolean launchedRenderer = false; // meaning
+            switch (config.renderMode) {
+                case SOFTWARE -> {
+                }
+                case VULKAN -> {
+                    launchedRenderer = tryRunVulkanRuntime(gameClient);
+                    if (!launchedRenderer) {
+                        if (STRICT_VULKAN_MODE) {
+                            throw new IllegalStateException("Vulkan mode requested but Vulkan runtime failed to start");
+                        }
+                        System.err.println(
+                            "[client] Vulkan mode requested but runtime failed; falling back to software "
+                                + "(set -Dvc.vulkan.strict=true to fail fast)."
+                        );
+                    }
+                }
+                case AUTO -> {
+                    launchedRenderer = tryRunVulkanRuntime(gameClient);
                 }
             }
 
-            if (!launchedGpu) {
+            if (!launchedRenderer) {
+                if (headless) {
+                    System.err.println(
+                        "[client] Vulkan runtime unavailable in headless AWT mode; running logic-only headless fallback."
+                    );
+                    runHeadlessFallback(gameClient);
+                    return;
+                }
                 runSoftwareRuntime(gameClient);
             }
         // 中文标注（异常参数）：`exception`，含义：用于表示exception。
@@ -83,12 +117,12 @@ public final class VoxelcraftClientApp {
         return gameClient;
     }
 
-    // 中文标注（方法）：`tryRunGpuRuntime`，参数：gameClient；用途：执行try、run、GPU、运行时相关逻辑。
+    // 中文标注（方法）：`tryRunVulkanRuntime`，参数：gameClient；用途：执行try、run、Vulkan、运行时相关逻辑。
     // 中文标注（参数）：`gameClient`，含义：用于表示game、客户端。
-    private boolean tryRunGpuRuntime(GameClient gameClient) {
+    private boolean tryRunVulkanRuntime(GameClient gameClient) {
         try {
             // 中文标注（局部变量）：`runtimeClass`，含义：用于表示运行时、class。
-            Class<?> runtimeClass = Class.forName("dev.voxelcraft.client.runtime.GpuClientRuntime"); // meaning
+            Class<?> runtimeClass = Class.forName("dev.voxelcraft.client.runtime.VulkanClientRuntime"); // meaning
             // 中文标注（局部变量）：`runtime`，含义：用于表示运行时。
             Object runtime = runtimeClass.getConstructor(String.class).newInstance("Voxelcraft"); // meaning
             try {
@@ -102,17 +136,17 @@ public final class VoxelcraftClientApp {
             return true;
         // 中文标注（异常参数）：`throwable`，含义：用于表示throwable。
         } catch (ClassNotFoundException | NoClassDefFoundError throwable) {
-            System.err.println("[client] GPU runtime unavailable, falling back to software: " + throwable.getMessage());
+            System.err.println("[client] Vulkan runtime unavailable, falling back: " + throwable.getMessage());
             return false;
         // 中文标注（异常参数）：`invocationTargetException`，含义：用于表示invocation、target、exception。
         } catch (InvocationTargetException invocationTargetException) {
             // 中文标注（局部变量）：`cause`，含义：用于表示cause。
             Throwable cause = invocationTargetException.getCause(); // meaning
-            System.err.println("[client] GPU runtime failed: " + (cause == null ? invocationTargetException.getMessage() : cause.getMessage()));
+            System.err.println("[client] Vulkan runtime failed: " + (cause == null ? invocationTargetException.getMessage() : cause.getMessage()));
             return false;
         // 中文标注（异常参数）：`exception`，含义：用于表示exception。
         } catch (Exception exception) {
-            System.err.println("[client] GPU runtime failed: " + exception.getMessage());
+            System.err.println("[client] Vulkan runtime failed: " + exception.getMessage());
             return false;
         }
     }
@@ -174,20 +208,27 @@ public final class VoxelcraftClientApp {
 
     // 中文标注（方法）：`runHeadlessFallback`，参数：无；用途：执行run、headless、fallback相关逻辑。
     private void runHeadlessFallback() {
-        // 中文标注（局部变量）：`gameClient`，含义：用于表示game、客户端。
         try (GameClient gameClient = createGameClient()) {
-            // 中文标注（局部变量）：`input`，含义：用于表示输入。
-            InputState input = new InputState(); // meaning
-            // 中文标注（局部变量）：`i`，含义：用于表示i。
-            for (int i = 0; i < 240; i++) { // meaning
-                gameClient.tick(input, MIN_FRAME_SECONDS);
-                input.endFrame();
-            }
-            System.out.println("Headless environment detected: simulated 240 client ticks.");
+            runHeadlessFallback(gameClient);
         // 中文标注（异常参数）：`exception`，含义：用于表示exception。
         } catch (IOException exception) {
             System.err.println("[client] headless setup failed: " + exception.getMessage());
         }
+    }
+
+    private void runHeadlessFallback(GameClient gameClient) {
+        // 中文标注（局部变量）：`input`，含义：用于表示输入。
+        InputState input = new InputState(); // meaning
+        // 中文标注（局部变量）：`i`，含义：用于表示i。
+        for (int i = 0; i < 240; i++) { // meaning
+            gameClient.tick(input, MIN_FRAME_SECONDS);
+            input.endFrame();
+        }
+        System.out.println("Headless environment detected: simulated 240 client ticks.");
+    }
+
+    private boolean canRunVulkanInHeadlessMode() {
+        return ALLOW_VULKAN_WHEN_HEADLESS && (config.renderMode == RenderMode.VULKAN || config.renderMode == RenderMode.AUTO);
     }
 
     // 中文标注（方法）：`sleepBriefly`，参数：无；用途：执行sleep、briefly相关逻辑。
@@ -198,6 +239,24 @@ public final class VoxelcraftClientApp {
         } catch (InterruptedException interrupted) {
             Thread.currentThread().interrupt();
         }
+    }
+
+    private static boolean booleanPropertyCompat(String key, String legacyKey, boolean defaultValue) {
+        String raw = System.getProperty(key);
+        if (raw == null) {
+            raw = System.getProperty(legacyKey);
+        }
+        if (raw == null) {
+            return defaultValue;
+        }
+        String normalized = raw.trim().toLowerCase();
+        if (normalized.equals("1") || normalized.equals("true") || normalized.equals("yes") || normalized.equals("on")) {
+            return true;
+        }
+        if (normalized.equals("0") || normalized.equals("false") || normalized.equals("no") || normalized.equals("off")) {
+            return false;
+        }
+        return defaultValue;
     }
 
     private static String buildSoftwareWindowTitle(GameClient gameClient, int fps) {
@@ -301,8 +360,8 @@ public final class VoxelcraftClientApp {
         AUTO,
         // 中文标注（字段）：`SOFTWARE`，含义：用于表示software。
         SOFTWARE,
-        // 中文标注（字段）：`GPU`，含义：用于表示GPU。
-        GPU; // meaning
+        // 中文标注（字段）：`VULKAN`，含义：用于表示Vulkan。
+        VULKAN; // meaning
 
         // 中文标注（方法）：`parse`，参数：raw；用途：执行parse相关逻辑。
         // 中文标注（参数）：`raw`，含义：用于表示raw。
@@ -312,7 +371,8 @@ public final class VoxelcraftClientApp {
             }
 
             return switch (raw.trim().toLowerCase()) {
-                case "gpu", "opengl", "gl" -> GPU;
+                case "vulkan", "vk" -> VULKAN;
+                case "gpu" -> VULKAN;
                 case "software", "sw", "cpu" -> SOFTWARE;
                 default -> AUTO;
             };

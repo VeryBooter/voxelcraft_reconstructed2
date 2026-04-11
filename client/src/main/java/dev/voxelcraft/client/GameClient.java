@@ -46,8 +46,13 @@ public final class GameClient implements AutoCloseable {
     private static final int RENDER_DISTANCE_MEDIUM_RADIUS = 27; // meaning
     // 中文标注（字段）：`RENDER_DISTANCE_FAR_RADIUS`，含义：用于表示渲染、距离、远、半径。
     private static final int RENDER_DISTANCE_FAR_RADIUS = 50; // meaning
+    private static final boolean GENERATE_MISSING_CHUNKS_ON_PEEK = booleanPropertyCompat(
+        "vc.chunkPeekGenerateMissing",
+        "voxelcraft.chunkPeekGenerateMissing",
+        false
+    );
     private static final int LOCAL_CHUNK_IMMEDIATE_RADIUS = clampImmediateChunkRadius(
-        intPropertyCompat("vc.chunkImmediateRadius", "voxelcraft.chunkImmediateRadius", 2)
+        intPropertyCompat("vc.chunkImmediateRadius", "voxelcraft.chunkImmediateRadius", 1)
     ); // meaning
     private static final long IMMEDIATE_CHUNK_SYNC_LOG_THROTTLE_NANOS = 1_000_000_000L; // meaning
     // 中文标注（字段）：`LOCAL_CHUNK_GENERATION_BUDGET_PER_TICK`，含义：用于表示局部、区块、generation、budget、per、刻。
@@ -176,7 +181,7 @@ public final class GameClient implements AutoCloseable {
     // 中文标注（字段）：`lastChunkGenerationDrainNanos`，含义：用于表示last、区块、generation、drain、nanos。
     private long lastChunkGenerationDrainNanos; // meaning
     private long lastImmediateChunkSyncLogNanos; // meaning
-    private RenderDistancePreset renderDistancePreset = RenderDistancePreset.MEDIUM; // meaning
+    private RenderDistancePreset renderDistancePreset = RenderDistancePreset.NEAR; // meaning
     private int localChunkRadius = renderDistancePreset.chunkRadius(); // meaning
     private int networkChunkRadius = renderDistancePreset.chunkRadius(); // meaning
     private boolean showFps = true; // meaning
@@ -218,7 +223,7 @@ public final class GameClient implements AutoCloseable {
 
     // 中文标注（构造方法）：`GameClient`，参数：无；用途：初始化`GameClient`实例。
     public GameClient() {
-        worldView.setGenerateMissingChunksOnPeek(true);
+        applyChunkPeekGenerationPolicy();
         missileSpawnCooldownSeconds = nextMissileSpawnDelaySeconds();
         initializeSpawn();
     }
@@ -227,7 +232,7 @@ public final class GameClient implements AutoCloseable {
     // 中文标注（参数）：`networkClient`，含义：用于表示网络、客户端。
     public void attachNetwork(NetworkClient networkClient) {
         this.networkClient = networkClient;
-        worldView.setGenerateMissingChunksOnPeek(false);
+        applyChunkPeekGenerationPolicy();
         this.networkStatusLine = networkClient.statusLine();
         requestChunksIfNeeded(true);
     }
@@ -330,7 +335,7 @@ public final class GameClient implements AutoCloseable {
         // 中文标注（局部变量）：`stats`，含义：用于表示stats。
         RenderStats stats = renderSystem.draw(graphics, width, height, worldView, playerController, ambientLight()); // meaning
         if (targetedBlock != null && !isAnyUiOpen()) {
-            renderSystem.drawSelectionBox(graphics, width, height, playerController, targetedBlock.targetBlock());
+            renderSystem.drawSelectionBox(graphics, width, height, playerController, targetedBlock);
         }
 
         if (!isAnyUiOpen()) {
@@ -338,6 +343,32 @@ public final class GameClient implements AutoCloseable {
         }
         drawHotbar(graphics, width, height);
         drawHud(graphics, stats);
+        if (blockPickerOpen) {
+            drawBlockPicker(graphics, width, height);
+        }
+        if (settingsOpen) {
+            drawSettingsPanel(graphics, width, height);
+        }
+    }
+
+    /**
+     * 渲染 UI 叠加层（不绘制世界背景与方块面），供 Vulkan projected 路径复用。
+     */
+    public void renderUiOverlay(Graphics2D graphics, int width, int height, int totalFaces, int frustumCandidates, int drawnFaces) {
+        lastRenderWidth = width;
+        lastRenderHeight = height;
+        if (blockPickerOpen) {
+            refreshBlockPickerView(width, height);
+        }
+
+        if (targetedBlock != null && !isAnyUiOpen()) {
+            renderSystem.drawSelectionBox(graphics, width, height, playerController, targetedBlock);
+        }
+        if (!isAnyUiOpen()) {
+            drawCrosshair(graphics, width, height);
+        }
+        drawHotbar(graphics, width, height);
+        drawHud(graphics, new RenderStats(totalFaces, frustumCandidates, drawnFaces));
         if (blockPickerOpen) {
             drawBlockPicker(graphics, width, height);
         }
@@ -511,7 +542,7 @@ public final class GameClient implements AutoCloseable {
         oldWorldView.close();
         game.switchW(newW);
         worldView = new ClientWorldView(game.world());
-        worldView.setGenerateMissingChunksOnPeek(networkClient == null || !networkClient.isConnected());
+        applyChunkPeekGenerationPolicy();
         renderSystem = new ChunkRenderSystem();
         lightEngine = new LightEngine();
         targetedBlock = null;
@@ -523,6 +554,12 @@ public final class GameClient implements AutoCloseable {
         lightEngine.tick(worldView);
         requestChunksIfNeeded(true);
         resetCombatTracking();
+    }
+
+    private void applyChunkPeekGenerationPolicy() {
+        boolean connected = networkClient != null && networkClient.isConnected();
+        boolean enabled = !connected && GENERATE_MISSING_CHUNKS_ON_PEEK;
+        worldView.setGenerateMissingChunksOnPeek(enabled);
     }
 
     // 中文标注（方法）：`close`，参数：无；用途：执行close相关逻辑。

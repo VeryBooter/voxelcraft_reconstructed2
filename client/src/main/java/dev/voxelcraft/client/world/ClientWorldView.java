@@ -2,6 +2,7 @@ package dev.voxelcraft.client.world;
 
 import dev.voxelcraft.core.block.Block;
 import dev.voxelcraft.core.block.Blocks;
+import dev.voxelcraft.core.util.SystemProperties;
 import dev.voxelcraft.core.world.BlockPos;
 import dev.voxelcraft.core.world.Chunk;
 import dev.voxelcraft.core.world.ChunkPos;
@@ -83,16 +84,16 @@ public final class ClientWorldView implements AutoCloseable {
     // 中文标注（参数）：`world`，含义：用于表示世界。
     public ClientWorldView(World world) {
         this.world = world;
-        this.asyncChunkGenerationEnabled = booleanPropertyCompat("vc.chunkGenAsync", "voxelcraft.chunkGenAsync", true);
+        this.asyncChunkGenerationEnabled = SystemProperties.getBoolean("vc.chunkGenAsync", "voxelcraft.chunkGenAsync", true);
         this.asyncChunkGenerationSubmitBudgetPerTick = Math.max(
             1,
-            intPropertyCompat("vc.chunkGenSubmitBudget", "voxelcraft.chunkGenSubmitBudget", DEFAULT_ASYNC_CHUNK_GEN_SUBMIT_BUDGET)
+            SystemProperties.getInt("vc.chunkGenSubmitBudget", "voxelcraft.chunkGenSubmitBudget", DEFAULT_ASYNC_CHUNK_GEN_SUBMIT_BUDGET)
         );
         if (asyncChunkGenerationEnabled) {
             // 中文标注（局部变量）：`workerCount`，含义：用于表示worker、数量。
             int workerCount = Math.max(
                 1,
-                intPropertyCompat("vc.chunkGenWorkers", "voxelcraft.chunkGenWorkers", Math.max(1, Runtime.getRuntime().availableProcessors() - 1))
+                SystemProperties.getInt("vc.chunkGenWorkers", "voxelcraft.chunkGenWorkers", Math.max(1, Runtime.getRuntime().availableProcessors() - 1))
             ); // meaning
             // 中文标注（Lambda参数）：`runnable`，含义：用于表示runnable。
             // 中文标注（局部变量）：`threadFactory`，含义：用于表示thread、factory。
@@ -632,61 +633,6 @@ public final class ClientWorldView implements AutoCloseable {
     // 中文标注（参数）：`chunkZ`，含义：用于表示区块、Z坐标。
     private static long chunkKey(int chunkX, int chunkZ) {
         return (((long) chunkX) << 32) | (chunkZ & 0xffff_ffffL);
-    }
-
-    private static boolean booleanPropertyCompat(String key, String legacyKey, boolean defaultValue) {
-        String raw = System.getProperty(key); // meaning
-        if (raw == null) {
-            raw = System.getProperty(legacyKey);
-        }
-        return parseBoolean(raw, defaultValue);
-    }
-
-    private static int intPropertyCompat(String key, String legacyKey, int defaultValue) {
-        String raw = System.getProperty(key); // meaning
-        if (raw == null) {
-            raw = System.getProperty(legacyKey);
-        }
-        return parseInt(raw, defaultValue);
-    }
-
-    private static boolean parseBoolean(String raw, boolean defaultValue) {
-        if (raw == null) {
-            return defaultValue;
-        }
-        String normalized = raw.trim().toLowerCase(); // meaning
-        if (normalized.equals("1") || normalized.equals("true") || normalized.equals("yes") || normalized.equals("on")) {
-            return true;
-        }
-        if (normalized.equals("0") || normalized.equals("false") || normalized.equals("no") || normalized.equals("off")) {
-            return false;
-        }
-        return defaultValue;
-    }
-
-    private static int parseInt(String raw, int defaultValue) {
-        if (raw == null) {
-            return defaultValue;
-        }
-        try {
-            return Integer.parseInt(raw.trim());
-        } catch (NumberFormatException ignored) {
-            return defaultValue;
-        }
-    }
-
-    // 中文标注（方法）：`booleanProperty`，参数：key、defaultValue；用途：执行boolean、属性相关逻辑。
-    // 中文标注（参数）：`key`，含义：用于表示键。
-    // 中文标注（参数）：`defaultValue`，含义：用于表示默认、值。
-    private static boolean booleanProperty(String key, boolean defaultValue) {
-        return parseBoolean(System.getProperty(key), defaultValue);
-    }
-
-    // 中文标注（方法）：`intProperty`，参数：key、defaultValue；用途：执行int、属性相关逻辑。
-    // 中文标注（参数）：`key`，含义：用于表示键。
-    // 中文标注（参数）：`defaultValue`，含义：用于表示默认、值。
-    private static int intProperty(String key, int defaultValue) {
-        return parseInt(System.getProperty(key), defaultValue);
     }
 
     // 中文标注（记录类）：`GeneratedChunk`，职责：封装generated、区块相关逻辑。

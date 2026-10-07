@@ -3,6 +3,7 @@ package dev.voxelcraft.client.player;
 import dev.voxelcraft.client.physics.AABB;
 import dev.voxelcraft.client.platform.InputState;
 import dev.voxelcraft.client.world.ClientWorldView;
+import dev.voxelcraft.core.util.SystemProperties;
 import dev.voxelcraft.core.world.World;
 import java.awt.event.KeyEvent;
 /**
@@ -28,7 +29,7 @@ public final class PlayerController {
     private static final double JUMP_VELOCITY = 8.7; // meaning
     // 中文标注（字段）：`COLLISION_STEP`，含义：用于表示collision、step。
     private static final double COLLISION_STEP = 0.05; // meaning
-    private static final boolean FORCE_SOLID_BELOW_DEFAULT_Y = booleanPropertyCompat(
+    private static final boolean FORCE_SOLID_BELOW_DEFAULT_Y = SystemProperties.getBoolean(
         "vc.collision.forceSolidBelowDefaultY",
         "voxelcraft.collision.forceSolidBelowDefaultY",
         true
@@ -365,24 +366,6 @@ public final class PlayerController {
         // 中文标注（局部变量）：`halfWidth`，含义：用于表示half、宽度。
         double halfWidth = PLAYER_WIDTH * 0.5; // meaning
         return new AABB(x - halfWidth, y, z - halfWidth, x + halfWidth, y + PLAYER_HEIGHT, z + halfWidth);
-    }
-
-    private static boolean booleanPropertyCompat(String key, String legacyKey, boolean defaultValue) {
-        String raw = System.getProperty(key); // meaning
-        if (raw == null) {
-            raw = System.getProperty(legacyKey);
-        }
-        if (raw == null) {
-            return defaultValue;
-        }
-        String normalized = raw.trim().toLowerCase(); // meaning
-        if (normalized.equals("1") || normalized.equals("true") || normalized.equals("yes") || normalized.equals("on")) {
-            return true;
-        }
-        if (normalized.equals("0") || normalized.equals("false") || normalized.equals("no") || normalized.equals("off")) {
-            return false;
-        }
-        return defaultValue;
     }
 
     // 中文标注（方法）：`x`，参数：无；用途：执行X坐标相关逻辑。

@@ -15,6 +15,7 @@ import dev.voxelcraft.core.Game;
 import dev.voxelcraft.core.block.Block;
 import dev.voxelcraft.core.block.BlockDef;
 import dev.voxelcraft.core.block.Blocks;
+import dev.voxelcraft.core.util.SystemProperties;
 import dev.voxelcraft.core.world.BlockPos;
 import dev.voxelcraft.core.world.Section;
 import dev.voxelcraft.core.world.World;
@@ -47,15 +48,15 @@ public final class GameClient implements AutoCloseable {
     // 中文标注（字段）：`RENDER_DISTANCE_FAR_RADIUS`，含义：用于表示渲染、距离、远、半径。
     private static final int RENDER_DISTANCE_FAR_RADIUS = 50; // meaning
     private static final int LOCAL_CHUNK_IMMEDIATE_RADIUS = clampImmediateChunkRadius(
-        intPropertyCompat("vc.chunkImmediateRadius", "voxelcraft.chunkImmediateRadius", 2)
+        SystemProperties.getInt("vc.chunkImmediateRadius", "voxelcraft.chunkImmediateRadius", 2)
     ); // meaning
     private static final long IMMEDIATE_CHUNK_SYNC_LOG_THROTTLE_NANOS = 1_000_000_000L; // meaning
     // 中文标注（字段）：`LOCAL_CHUNK_GENERATION_BUDGET_PER_TICK`，含义：用于表示局部、区块、generation、budget、per、刻。
     private static final int LOCAL_CHUNK_GENERATION_BUDGET_PER_TICK = Math.max(
         1,
-        intPropertyCompat("vc.chunkGenDrainBudget", "voxelcraft.chunkGenDrainBudget", 4)
+        SystemProperties.getInt("vc.chunkGenDrainBudget", "voxelcraft.chunkGenDrainBudget", 4)
     ); // meaning
-    private static final boolean W_FEATURE_ENABLED = booleanPropertyCompat(
+    private static final boolean W_FEATURE_ENABLED = SystemProperties.getBoolean(
         "vc.w.enabled",
         "voxelcraft.w.enabled",
         false
@@ -75,7 +76,7 @@ public final class GameClient implements AutoCloseable {
     private static final int WCUBE_SHELL_MIN_Z = WCUBE_CAVITY_MIN_Z - 1; // meaning
     private static final int WCUBE_SHELL_MAX_Z = WCUBE_CAVITY_MAX_Z + 1; // meaning
     private static final int WCUBE_TARGET_PRELOAD_RADIUS = 1; // meaning
-    private static final boolean WORMHOLE_FEATURE_ENABLED = booleanPropertyCompat(
+    private static final boolean WORMHOLE_FEATURE_ENABLED = SystemProperties.getBoolean(
         "vc.wormhole.enabled",
         "voxelcraft.wormhole.enabled",
         false
@@ -94,7 +95,7 @@ public final class GameClient implements AutoCloseable {
     private static final int BLOCK_PICKER_MAX_COLUMNS = 12; // meaning
     private static final int BLOCK_PICKER_MAX_ROWS = 7; // meaning
     private static final int PLAYER_MAX_HP = 4; // meaning
-    private static final boolean MISSILE_FEATURE_ENABLED = booleanPropertyCompat(
+    private static final boolean MISSILE_FEATURE_ENABLED = SystemProperties.getBoolean(
         "vc.missile.enabled",
         "voxelcraft.missile.enabled",
         false
@@ -113,7 +114,7 @@ public final class GameClient implements AutoCloseable {
     private static final double BULLET_LIFE_SECONDS = 2.0; // meaning
     private static final double BULLET_STEP_MAX_DISTANCE = 0.45; // meaning
     private static final double GUN_COOLDOWN_SECONDS = 0.12; // meaning
-    private static final boolean DEBUG_FALL_HUD = booleanPropertyCompat(
+    private static final boolean DEBUG_FALL_HUD = SystemProperties.getBoolean(
         "vc.debugFall",
         "voxelcraft.debugFall",
         false
@@ -2444,21 +2445,6 @@ public final class GameClient implements AutoCloseable {
         }
     }
 
-    private static int intPropertyCompat(String key, String legacyKey, int defaultValue) {
-        String raw = System.getProperty(key); // meaning
-        if (raw == null) {
-            raw = System.getProperty(legacyKey);
-        }
-        if (raw == null) {
-            return defaultValue;
-        }
-        try {
-            return Integer.parseInt(raw.trim());
-        } catch (NumberFormatException ignored) {
-            return defaultValue;
-        }
-    }
-
     private static int clampImmediateChunkRadius(int value) {
         return Math.max(1, Math.min(2, value));
     }
@@ -2468,23 +2454,5 @@ public final class GameClient implements AutoCloseable {
             return 0.0;
         }
         return Math.min(deltaSeconds, MAX_SIMULATION_CATCHUP_SECONDS);
-    }
-
-    private static boolean booleanPropertyCompat(String key, String legacyKey, boolean defaultValue) {
-        String raw = System.getProperty(key); // meaning
-        if (raw == null) {
-            raw = System.getProperty(legacyKey);
-        }
-        if (raw == null) {
-            return defaultValue;
-        }
-        String normalized = raw.trim().toLowerCase(); // meaning
-        if (normalized.equals("1") || normalized.equals("true") || normalized.equals("yes") || normalized.equals("on")) {
-            return true;
-        }
-        if (normalized.equals("0") || normalized.equals("false") || normalized.equals("no") || normalized.equals("off")) {
-            return false;
-        }
-        return defaultValue;
     }
 }

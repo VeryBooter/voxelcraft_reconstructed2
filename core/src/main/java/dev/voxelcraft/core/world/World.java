@@ -2,6 +2,7 @@ package dev.voxelcraft.core.world;
 
 import dev.voxelcraft.core.block.Block;
 import dev.voxelcraft.core.block.Blocks;
+import dev.voxelcraft.core.util.SystemProperties;
 import dev.voxelcraft.core.world.growth.GrowthSystem;
 import dev.voxelcraft.core.world.gen.FlatWorldGenerator;
 import dev.voxelcraft.core.world.gen.WorldGenerator;
@@ -22,7 +23,7 @@ public final class World {
     public static final int MAX_Y = 319; // meaning
     // 中文标注（字段）：`DEFAULT_SOLID_BELOW_Y`，含义：用于表示默认、实体、below、Y坐标。
     public static final int DEFAULT_SOLID_BELOW_Y = -13; // meaning
-    private static final boolean PEEK_STONE_BELOW_FALLBACK_ENABLED = booleanPropertyCompat(
+    private static final boolean PEEK_STONE_BELOW_FALLBACK_ENABLED = SystemProperties.getBoolean(
         "vc.peekStoneBelow",
         "voxelcraft.peekStoneBelow",
         true
@@ -272,23 +273,5 @@ public final class World {
             blockUpdateVersion.incrementAndGet();
         }
         return installed;
-    }
-
-    private static boolean booleanPropertyCompat(String key, String legacyKey, boolean defaultValue) {
-        String raw = System.getProperty(key); // meaning
-        if (raw == null) {
-            raw = System.getProperty(legacyKey);
-        }
-        if (raw == null) {
-            return defaultValue;
-        }
-        String normalized = raw.trim().toLowerCase(); // meaning
-        if (normalized.equals("1") || normalized.equals("true") || normalized.equals("yes") || normalized.equals("on")) {
-            return true;
-        }
-        if (normalized.equals("0") || normalized.equals("false") || normalized.equals("no") || normalized.equals("off")) {
-            return false;
-        }
-        return defaultValue;
     }
 }

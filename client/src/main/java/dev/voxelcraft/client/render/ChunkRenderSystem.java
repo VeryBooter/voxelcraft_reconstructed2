@@ -3,6 +3,7 @@ package dev.voxelcraft.client.render;
 import dev.voxelcraft.client.player.PlayerController;
 import dev.voxelcraft.client.world.ClientWorldView;
 import dev.voxelcraft.core.block.BlockDef;
+import dev.voxelcraft.core.util.SystemProperties;
 import dev.voxelcraft.core.world.BlockPos;
 import java.awt.BasicStroke;
 import java.awt.Color;
@@ -21,7 +22,7 @@ public final class ChunkRenderSystem {
     public static final boolean USE_TEXTURE_ATLAS = false; // meaning
     // 中文标注（字段）：`DRAW_FACE_OUTLINES`，含义：用于表示绘制、面、outlines。
     private static final boolean DRAW_FACE_OUTLINES = false; // meaning
-    private static final boolean APPLY_AMBIENT_TO_BLOCKS = lightingFlagCompat(
+    private static final boolean APPLY_AMBIENT_TO_BLOCKS = SystemProperties.getBoolean(
         "vc.lighting.applyAmbientToBlocks",
         "voxelcraft.lighting.applyAmbientToBlocks",
         true
@@ -346,24 +347,6 @@ public final class ChunkRenderSystem {
     // 中文标注（参数）：`value`，含义：用于表示值。
     private static int clamp(int value) {
         return Math.max(0, Math.min(255, value));
-    }
-
-    private static boolean lightingFlagCompat(String key, String legacyKey, boolean defaultValue) {
-        String raw = System.getProperty(key); // meaning
-        if (raw == null) {
-            raw = System.getProperty(legacyKey);
-        }
-        if (raw == null) {
-            return defaultValue;
-        }
-        String normalized = raw.trim().toLowerCase(); // meaning
-        if (normalized.equals("1") || normalized.equals("true") || normalized.equals("yes") || normalized.equals("on")) {
-            return true;
-        }
-        if (normalized.equals("0") || normalized.equals("false") || normalized.equals("no") || normalized.equals("off")) {
-            return false;
-        }
-        return defaultValue;
     }
 
     // 中文标注（记录类）：`RenderStats`，职责：封装渲染、stats相关逻辑。

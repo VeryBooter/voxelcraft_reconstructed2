@@ -4,6 +4,7 @@ import dev.voxelcraft.client.GameClient;
 import dev.voxelcraft.client.platform.InputState;
 import dev.voxelcraft.client.render.ChunkRenderSystem.RenderStats;
 import dev.voxelcraft.client.render.GpuChunkRenderer;
+import dev.voxelcraft.core.util.SystemProperties;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseEvent;
 import java.util.Locale;
@@ -87,7 +88,7 @@ public final class GpuClientRuntime implements AutoCloseable {
     private static final double MIN_FRAME_SECONDS = 1.0 / TARGET_FPS; // meaning
     // 中文标注（字段）：`HITCH_FRAME_MS`，含义：用于表示hitch、帧、ms。
     private static final double HITCH_FRAME_MS = 50.0; // meaning
-    private static final boolean DIAG_TITLE_ENABLED = booleanPropertyCompat(
+    private static final boolean DIAG_TITLE_ENABLED = SystemProperties.getBoolean(
         "vc.gpu.diagTitle",
         "voxelcraft.gpu.diagTitle",
         true
@@ -580,23 +581,5 @@ public final class GpuClientRuntime implements AutoCloseable {
             case GLFW_KEY_KP_7 -> KeyEvent.VK_NUMPAD7;
             default -> -1;
         };
-    }
-
-    private static boolean booleanPropertyCompat(String key, String legacyKey, boolean defaultValue) {
-        String raw = System.getProperty(key); // meaning
-        if (raw == null) {
-            raw = System.getProperty(legacyKey);
-        }
-        if (raw == null) {
-            return defaultValue;
-        }
-        String normalized = raw.trim().toLowerCase(Locale.ROOT); // meaning
-        if (normalized.equals("1") || normalized.equals("true") || normalized.equals("yes") || normalized.equals("on")) {
-            return true;
-        }
-        if (normalized.equals("0") || normalized.equals("false") || normalized.equals("no") || normalized.equals("off")) {
-            return false;
-        }
-        return defaultValue;
     }
 }

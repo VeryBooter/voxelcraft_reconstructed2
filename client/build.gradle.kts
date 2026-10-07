@@ -47,31 +47,38 @@ fun JavaExec.configureOptionalDiagnosticsJvmArgs() {
     }
 }
 
-fun registerClientRunTask(name: String, renderMode: String, headless: Boolean = false) {
-    tasks.register<JavaExec>(name) {
-        group = "application"
-        description = "Runs client in $renderMode mode"
-        classpath = sourceSets.main.get().runtimeClasspath
-        mainClass.set(application.mainClass)
-        forwardVoxelcraftSystemProperties()
-        configureOptionalDiagnosticsJvmArgs()
-        if (headless) {
-            jvmArgs("-Djava.awt.headless=true")
-        } else {
-            if (isMac && (renderMode == "gpu" || renderMode == "auto")) {
-                jvmArgs("-XstartOnFirstThread")
-            }
-            if (renderMode == "software") {
-                // Hint Java2D to prefer GPU-backed pipelines when available.
-                jvmArgs("-Dsun.java2d.opengl=true", "-Dsun.java2d.metal=true")
-            }
-        }
-        args("--render", renderMode)
+fun registerClientRunTask(
+    name: String,
+    renderMode: String,
+    headless: Boolean = false,
+    local: Boolean = false
+) = tasks.register<JavaExec>(name) {
+    val connectAddress = if (local) "127.0.0.1:25565" else providers.gradleProperty("connect").orNull
 
-        val connectAddress = providers.gradleProperty("connect").orNull
-        if (!connectAddress.isNullOrBlank()) {
-            args("--connect", connectAddress)
+    group = "application"
+    description = if (local) {
+        "Runs $renderMode client and connects to local server $connectAddress"
+    } else {
+        "Runs client in $renderMode mode"
+    }
+    classpath = sourceSets.main.get().runtimeClasspath
+    mainClass.set(application.mainClass)
+    forwardVoxelcraftSystemProperties()
+    configureOptionalDiagnosticsJvmArgs()
+    if (headless) {
+        jvmArgs("-Djava.awt.headless=true")
+    } else {
+        if (isMac && (renderMode == "gpu" || renderMode == "auto")) {
+            jvmArgs("-XstartOnFirstThread")
         }
+        if (renderMode == "software") {
+            // Hint Java2D to prefer GPU-backed pipelines when available.
+            jvmArgs("-Dsun.java2d.opengl=true", "-Dsun.java2d.metal=true")
+        }
+    }
+    args("--render", renderMode)
+    if (!connectAddress.isNullOrBlank()) {
+        args("--connect", connectAddress)
     }
 }
 
@@ -79,59 +86,17 @@ registerClientRunTask("runAuto", "auto")
 registerClientRunTask("runSoftware", "software")
 registerClientRunTask("runGpu", "gpu")
 registerClientRunTask("runHeadless", "software", headless = true)
-tasks.register<JavaExec>("runAccelerated") {
-    group = "application"
+registerClientRunTask("runAccelerated", "gpu").configure {
     description = "Runs GPU client with vsync disabled for performance testing"
-    classpath = sourceSets.main.get().runtimeClasspath
-    mainClass.set(application.mainClass)
-    forwardVoxelcraftSystemProperties()
-    configureOptionalDiagnosticsJvmArgs()
-    if (isMac) {
-        jvmArgs("-XstartOnFirstThread")
-    }
     jvmArgs("-Dvoxelcraft.vsync=0")
-    args("--render", "gpu")
-
-    val connectAddress = providers.gradleProperty("connect").orNull
-    if (!connectAddress.isNullOrBlank()) {
-        args("--connect", connectAddress)
-    }
 }
 
-tasks.register<JavaExec>("runSoftwareLocal") {
-    group = "application"
-    description = "Runs software client and connects to local server 127.0.0.1:25565"
-    classpath = sourceSets.main.get().runtimeClasspath
-    mainClass.set(application.mainClass)
-    forwardVoxelcraftSystemProperties()
-    configureOptionalDiagnosticsJvmArgs()
-    jvmArgs("-Dsun.java2d.opengl=true", "-Dsun.java2d.metal=true")
-    args("--render", "software", "--connect", "127.0.0.1:25565")
-}
-
-tasks.register<JavaExec>("runGpuLocal") {
-    group = "application"
+registerClientRunTask("runSoftwareLocal", "software", local = true)
+registerClientRunTask("runGpuLocal", "gpu", local = true).configure {
     description = "Runs GPU client and connects to local server 127.0.0.1:25565"
-    classpath = sourceSets.main.get().runtimeClasspath
-    mainClass.set(application.mainClass)
-    forwardVoxelcraftSystemProperties()
-    configureOptionalDiagnosticsJvmArgs()
-    if (isMac) {
-        jvmArgs("-XstartOnFirstThread")
-    }
-    args("--render", "gpu", "--connect", "127.0.0.1:25565")
 }
 
-tasks.register<JavaExec>("runAcceleratedLocal") {
-    group = "application"
+registerClientRunTask("runAcceleratedLocal", "gpu", local = true).configure {
     description = "Runs accelerated GPU client and connects to local server 127.0.0.1:25565"
-    classpath = sourceSets.main.get().runtimeClasspath
-    mainClass.set(application.mainClass)
-    forwardVoxelcraftSystemProperties()
-    configureOptionalDiagnosticsJvmArgs()
-    if (isMac) {
-        jvmArgs("-XstartOnFirstThread")
-    }
     jvmArgs("-Dvoxelcraft.vsync=0")
-    args("--render", "gpu", "--connect", "127.0.0.1:25565")
 }

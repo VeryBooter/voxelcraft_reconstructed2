@@ -53,6 +53,8 @@ npm --prefix web run check
 
 The initial browser client has its own deterministic terrain generator and save format. Desktop multiplayer, the full block registry, and W-axis/portal gameplay are not yet ported. See [browser client documentation (中文)](docs/WEB_CLIENT_CN.md).
 
+Phone, desktop, and iPad controls include an analog touch joystick, simultaneous look/action gestures, and a manual touch/keyboard/mouse mode selector. GitHub Pages publishing is configured in `.github/workflows/pages.yml`: push the changes to `main`, select **Settings → Pages → Source → GitHub Actions**, then run **Publish Voxelcraft Web** from Actions. The workflow tests and publishes only `web/dist/`; no Java build is required.
+
 ## Common Commands
 
 ```bash

@@ -26,6 +26,7 @@
       <div class="menu-settings">
         <label>视野距离 <select id="distance" aria-label="视野距离"><option value="3">轻盈 · 48m</option><option value="4" selected>标准 · 64m</option><option value="6">开阔 · 96m</option></select></label>
         <button id="time-button" class="text-button">切换黄昏 <span>◐</span></button>
+        <label>操作方式 <select id="input-mode" aria-label="操作方式"><option value="auto">自动识别</option><option value="touch">触屏 · 手机 / iPad</option><option value="mouse">键盘与鼠标</option></select></label>
       </div>
       <details class="more"><summary>世界与存档 <span>＋</span></summary><div class="save-actions"><button id="export">导出存档</button><button id="import">导入存档</button><button id="new-world">新的世界</button></div><p>更改会自动保存在当前浏览器，也可以导出备份。</p></details>
       <input id="import-file" type="file" accept="application/json,.json" hidden>
@@ -38,8 +39,8 @@
     <div class="inventory"><div class="selected-name" id="selected-name">草方块</div><div id="hotbar" class="hotbar" aria-label="选择方块"></div></div>
     <div class="performance"><span id="fps">— FPS</span><span id="render-stats">WEBGL 2</span></div>
   </section>
-  <footer class="controls"><span><kbd>W A S D</kbd> 移动</span><span><kbd>鼠标</kbd> 环顾</span><span><kbd>空格</kbd> 跳跃</span><span><kbd>左 / 右键</kbd> 挖掘 / 放置</span><span><kbd>1 — 7</kbd> 方块</span><span><kbd>Esc</kbd> 菜单</span></footer>
-  <div id="touch-controls" class="touch-controls" aria-label="触屏操作"><div class="dpad"><button data-key="KeyW" aria-label="前进">↑</button><button data-key="KeyA" aria-label="左移">←</button><button data-key="KeyS" aria-label="后退">↓</button><button data-key="KeyD" aria-label="右移">→</button></div><div class="touch-actions"><button id="touch-break">挖掘</button><button id="touch-place">放置</button><button data-key="Space">跳跃</button></div></div>
+  <footer id="control-help" class="controls"><span><kbd>W A S D</kbd> 移动</span><span><kbd>鼠标</kbd> 环顾</span><span><kbd>空格</kbd> 跳跃</span><span><kbd>左 / 右键</kbd> 挖掘 / 放置</span><span><kbd>1 — 7</kbd> 方块</span><span><kbd>Esc</kbd> 菜单</span></footer>
+  <div id="touch-controls" class="touch-controls" aria-label="触屏操作"><div id="joystick" class="joystick" role="group" aria-label="移动摇杆：拖动可向任意方向移动"><span class="stick-guides" aria-hidden="true">＋</span><span id="stick-thumb" class="stick-thumb" aria-hidden="true"></span></div><div class="touch-actions"><button id="touch-break" aria-label="按住挖掘方块">挖掘</button><button id="touch-place" aria-label="按住放置方块">放置</button><button data-key="Space" aria-label="跳跃">跳跃</button></div></div>
   <div id="toast" class="toast" role="status" hidden></div>
   <script type="module" src="./game.js"></script>
 </body>

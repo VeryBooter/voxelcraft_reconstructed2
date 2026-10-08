@@ -1,17 +1,23 @@
 import * as THREE from './vendor/three.module.min.js';
 import { VoxelWorld, SIZE, MIN_Y, MAX_Y, BLOCKS, chunkKey, buildMesh, hash, intersectsPlayer, playerCollides, movePlayerAxis } from './world.js';
+import { touchControlsEnabled, prefersTouchStart, stickVector, LookGesture } from './input.js';
 
 const $ = id => document.getElementById(id);
 const STORAGE_KEY = 'voxelcraft.browser.v1';
 const canvas = $('world'), menu = $('menu');
-const touch = matchMedia('(pointer: coarse)').matches;
-document.body.classList.toggle('touch', touch);
-let world = new VoxelWorld(), savedPlayer = null, selected = 1, distance = 4;
+const coarsePointer = matchMedia('(any-pointer: coarse)');
+const touchAvailable = () => navigator.maxTouchPoints > 0 || coarsePointer.matches;
+let inputMode = 'auto', touchActive = touchAvailable();
+document.body.classList.toggle('touch', touchActive);
+let world = new VoxelWorld(), savedPlayer = null, selected = 1, distance = touchActive ? 3 : 4;
 let running = false, ready = false, grounded = false, dusk = false, lastSavedRevision = -1;
 let yaw = 0, pitch = 0, velocityY = 0, player = { x: 0.5, y: 20, z: 0.5 };
 let renderer, scene, camera, material, outline, sun, ambient;
 let toastTimer, saveTimer, target = null, chunksRendered = 0, frames = 0, fpsTime = performance.now();
 const keys = new Set(), meshes = new Map(), direction = new THREE.Vector3();
+const stick = { x: 0, y: 0 }, look = new LookGesture(), holdTimers = new Set();
+let stickPointer = null;
+const desktopHelp = $('control-help').innerHTML;
 const introPosition = new THREE.Vector3(24, 31, 34), introLook = new THREE.Vector3(-8, 12, -12);
 
 function message(text) {
@@ -97,7 +103,7 @@ function createAtlas() {
 }
 function setupGraphics() {
   renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
-  renderer.setPixelRatio(Math.min(devicePixelRatio, touch ? 1.5 : 2));
+  renderer.setPixelRatio(Math.min(devicePixelRatio, touchActive ? 1.5 : 2));
   renderer.setSize(innerWidth, innerHeight);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   scene = new THREE.Scene(); scene.background = new THREE.Color('#b8d1d0');
@@ -182,10 +188,10 @@ function updatePlayer(dt) {
   if (keys.has('ArrowRight')) yaw -= dt * 1.7;
   if (keys.has('ArrowUp')) pitch = Math.min(1.5, pitch + dt * 1.3);
   if (keys.has('ArrowDown')) pitch = Math.max(-1.5, pitch - dt * 1.3);
-  let forward = Number(keys.has('KeyW')) - Number(keys.has('KeyS'));
-  let side = Number(keys.has('KeyD')) - Number(keys.has('KeyA'));
+  let forward = Number(keys.has('KeyW')) - Number(keys.has('KeyS')) - stick.y;
+  let side = Number(keys.has('KeyD')) - Number(keys.has('KeyA')) + stick.x;
   const length = Math.hypot(forward, side);
-  if (length) { forward /= length; side /= length; }
+  if (length > 1) { forward /= length; side /= length; }
   const speed = keys.has('ShiftLeft') || keys.has('ShiftRight') ? 7 : 4.3;
   moveAxis('x', (-Math.sin(yaw) * forward + Math.cos(yaw) * side) * speed * dt);
   moveAxis('z', (-Math.cos(yaw) * forward - Math.sin(yaw) * side) * speed * dt);
@@ -227,20 +233,36 @@ function makeHotbar() {
 }
 function setRunning(value) {
   running = value; keys.clear();
+  resetTouchInput();
   menu.hidden = value; document.body.classList.toggle('playing', value);
   $('play').innerHTML = '继续探索 <span>↗</span>';
   if (!value) { outline.visible = false; $('target').hidden = true; save(); }
 }
-async function start() {
+async function start(event) {
   if (!ready) return;
   $('error').hidden = true;
-  if (touch) { setRunning(true); return; }
+  if (prefersTouchStart(inputMode, touchActive, event?.pointerType)) { setRunning(true); return; }
   try {
     if (!canvas.requestPointerLock) throw new Error('鼠标锁定不可用');
     await canvas.requestPointerLock();
   } catch {
     setRunning(true); message('未能锁定鼠标；按住画面拖动环顾，方向键也可调整视角。');
   }
+}
+function resetTouchInput() {
+  stick.x = 0; stick.y = 0; stickPointer = null; look.reset();
+  $('stick-thumb').style.transform = 'translate(0px, 0px)';
+  for (const timer of holdTimers) clearInterval(timer);
+  holdTimers.clear();
+}
+function updateInputMode() {
+  touchActive = touchControlsEnabled(inputMode, touchAvailable());
+  document.body.classList.toggle('touch', touchActive);
+  $('control-help').innerHTML = touchActive
+    ? '<span>左侧摇杆移动</span><span>拖动画面环顾</span><span>右侧按钮跳跃 / 挖掘 / 放置</span><span>点击快捷栏选材</span>'
+    : desktopHelp;
+  resetTouchInput();
+  if (renderer) renderer.setPixelRatio(Math.min(devicePixelRatio, touchActive ? 1.5 : 2));
 }
 function pause() {
   if (document.pointerLockElement === canvas) document.exitPointerLock();
@@ -263,6 +285,16 @@ function resetWorld(next, nextPlayer = null) {
   introLook.set(player.x - 8, world.height(Math.floor(player.x), Math.floor(player.z)), player.z - 12);
 }
 function setupInput() {
+  $('distance').value = String(distance);
+  updateInputMode();
+  $('input-mode').addEventListener('change', e => { inputMode = e.target.value; updateInputMode(); });
+  coarsePointer.addEventListener('change', updateInputMode);
+  document.addEventListener('pointerdown', e => {
+    if (inputMode === 'auto' && !touchActive && (e.pointerType === 'touch' || e.pointerType === 'pen')) {
+      touchActive = true; document.body.classList.add('touch');
+      $('control-help').innerHTML = '<span>左侧摇杆移动</span><span>拖动画面环顾</span><span>右侧按钮跳跃 / 挖掘 / 放置</span>';
+    }
+  }, { capture: true });
   $('play').addEventListener('click', start);
   $('menu-button').addEventListener('click', () => { if (running) pause(); else $('play').focus(); });
   document.addEventListener('pointerlockchange', () => setRunning(document.pointerLockElement === canvas));
@@ -284,23 +316,23 @@ function setupInput() {
     if (!running || document.pointerLockElement !== canvas) return;
     yaw -= e.movementX * 0.0024; pitch = Math.max(-1.5, Math.min(1.5, pitch - e.movementY * 0.0024));
   });
-  let drag = null;
   canvas.addEventListener('pointerdown', e => {
     if (!running) return;
-    if (document.pointerLockElement === canvas) {
+    if (document.pointerLockElement === canvas && e.pointerType === 'mouse') {
       if (e.button === 0) editBlock(false); if (e.button === 2) editBlock(true);
-    } else { drag = { x: e.clientX, y: e.clientY, moved: 0, button: e.button }; canvas.setPointerCapture(e.pointerId); }
+    } else if (look.begin(e)) canvas.setPointerCapture(e.pointerId);
   });
   canvas.addEventListener('pointermove', e => {
-    if (!drag || !running) return;
-    yaw -= (e.clientX - drag.x) * 0.004; pitch = Math.max(-1.5, Math.min(1.5, pitch - (e.clientY - drag.y) * 0.004));
-    drag = { ...drag, x: e.clientX, y: e.clientY, moved: drag.moved + Math.abs(e.movementX) + Math.abs(e.movementY) };
+    if (!running) return;
+    const delta = look.move(e); if (!delta) return;
+    yaw -= delta.dx * 0.004; pitch = Math.max(-1.5, Math.min(1.5, pitch - delta.dy * 0.004));
   });
-  canvas.addEventListener('pointerup', () => {
-    if (drag && drag.moved < 4 && !touch) editBlock(drag.button === 2);
-    drag = null;
+  canvas.addEventListener('pointerup', e => {
+    const click = look.end(e);
+    if (click) editBlock(click.place);
   });
-  canvas.addEventListener('pointercancel', () => { drag = null; });
+  canvas.addEventListener('pointercancel', e => { if (e.pointerId === look.pointerId) look.reset(); });
+  canvas.addEventListener('lostpointercapture', e => { if (e.pointerId === look.pointerId) look.reset(); });
   canvas.addEventListener('contextmenu', e => e.preventDefault());
   canvas.addEventListener('wheel', e => {
     if (!running) return; e.preventDefault(); selectBlock(((selected - 1 + Math.sign(e.deltaY) + 7) % 7) + 1);
@@ -311,8 +343,37 @@ function setupInput() {
     button.addEventListener('pointerup', release); button.addEventListener('pointercancel', release);
     button.addEventListener('lostpointercapture', release);
   });
-  $('touch-break').addEventListener('click', () => editBlock(false));
-  $('touch-place').addEventListener('click', () => editBlock(true));
+  const joystick = $('joystick');
+  const moveStick = e => {
+    if (e.pointerId !== stickPointer) return;
+    const bounds = joystick.getBoundingClientRect(), radius = bounds.width * 0.33;
+    Object.assign(stick, stickVector(e.clientX - bounds.left - bounds.width / 2, e.clientY - bounds.top - bounds.height / 2, radius));
+    $('stick-thumb').style.transform = `translate(${stick.x * radius}px, ${stick.y * radius}px)`;
+  };
+  joystick.addEventListener('pointerdown', e => {
+    if (!running || stickPointer !== null) return;
+    e.preventDefault(); stickPointer = e.pointerId; joystick.setPointerCapture(e.pointerId); moveStick(e);
+  });
+  joystick.addEventListener('pointermove', moveStick);
+  const releaseStick = e => {
+    if (e.pointerId !== stickPointer) return;
+    stickPointer = null; stick.x = 0; stick.y = 0; $('stick-thumb').style.transform = 'translate(0px, 0px)';
+  };
+  for (const event of ['pointerup', 'pointercancel', 'lostpointercapture']) joystick.addEventListener(event, releaseStick);
+  for (const [id, place] of [['touch-break', false], ['touch-place', true]]) {
+    const button = $(id); let pointer = null, timer = null;
+    button.addEventListener('pointerdown', e => {
+      if (!running || pointer !== null) return;
+      e.preventDefault(); pointer = e.pointerId; button.setPointerCapture(pointer); editBlock(place);
+      timer = setInterval(() => editBlock(place), 220); holdTimers.add(timer);
+    });
+    const release = e => {
+      if (e.pointerId !== pointer) return;
+      clearInterval(timer); holdTimers.delete(timer); timer = null; pointer = null;
+    };
+    for (const event of ['pointerup', 'pointercancel', 'lostpointercapture']) button.addEventListener(event, release);
+    button.addEventListener('click', e => { if (e.detail === 0) editBlock(place); });
+  }
   $('distance').addEventListener('change', e => { distance = Number(e.target.value); message('视野距离已更新'); });
   $('time-button').addEventListener('click', () => {
     dusk = !dusk; const sky = dusk ? '#c3a58c' : '#b8d1d0';
@@ -344,6 +405,7 @@ function setupInput() {
     resetWorld(new VoxelWorld(crypto.getRandomValues(new Int32Array(1))[0])); message('新的世界，新的开始。');
   });
   addEventListener('resize', () => {
+    keys.clear(); resetTouchInput();
     renderer.setSize(innerWidth, innerHeight); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
   });
   addEventListener('pagehide', save);

@@ -19,6 +19,14 @@ class MetalWorldTest {
             renderer.initialize(0);
             renderUntilReady(game, renderer);
             save(renderer.readOffscreenPixels(640, 360), "world");
+            // Previously deferred chunks must become drawable after turning the camera around.
+            InputState turn = new InputState();
+            float previousYaw = game.playerController().yaw();
+            turn.onMouseDelta(643, 0);
+            game.tick(turn, 1.0 / 60.0);
+            assertTrue(game.playerController().yaw() - previousYaw > 179);
+            renderUntilReady(game, renderer);
+            save(renderer.readOffscreenPixels(640, 360), "world-after-turn");
             game.switchSlice(game.activeSliceW() + 1);
             renderUntilReady(game, renderer);
             save(renderer.readOffscreenPixels(640, 360), "world-after-switch");

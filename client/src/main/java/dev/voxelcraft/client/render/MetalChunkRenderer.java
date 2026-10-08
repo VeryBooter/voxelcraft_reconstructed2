@@ -131,6 +131,8 @@ public final class MetalChunkRenderer implements ClientGpuRenderer {
             inFlight.clear();
         }
         PlayerController player = game.playerController();
+        frustum.setCamera(player.eyeX(), player.eyeY(), player.eyeZ(), player.yaw(), player.pitch(),
+            FOV, (double)width / height, NEAR, FAR);
         view.copyLoadedChunksInto(loaded);
         int px = Math.floorDiv((int)Math.floor(player.x()), Section.SIZE);
         int pz = Math.floorDiv((int)Math.floor(player.z()), Section.SIZE);
@@ -162,6 +164,10 @@ public final class MetalChunkRenderer implements ClientGpuRenderer {
         int submitted = 0;
         for (Chunk chunk : loaded) {
             if (submitted >= 4 || outstandingJobs.get() >= workers * 2) break;
+            // Keep nearby geometry ready for turns; defer other offscreen snapshots and mesh jobs.
+            // World data and existing meshes remain cached throughout the render-distance area.
+            if (Math.max(Math.abs(chunk.pos().x() - px), Math.abs(chunk.pos().z() - pz)) > 1
+                    && !chunkInView(chunk.pos())) continue;
             BuildKey key = desired.get(chunk.pos());
             CachedMesh cached = meshes.get(chunk.pos());
             if ((cached != null && cached.key.equals(key)) || inFlight.containsKey(chunk.pos())) continue;
@@ -189,8 +195,6 @@ public final class MetalChunkRenderer implements ClientGpuRenderer {
         }
         meshSubmitNanos = System.nanoTime() - start;
         start = System.nanoTime();
-        frustum.setCamera(player.eyeX(), player.eyeY(), player.eyeZ(), player.yaw(), player.pitch(),
-            FOV, (double)width / height, NEAR, FAR);
         ArrayList<ChunkMeshData> visible = new ArrayList<>();
         int totalFaces = 0;
         int visibleFaces = 0;
@@ -281,6 +285,13 @@ public final class MetalChunkRenderer implements ClientGpuRenderer {
         double dx = chunk.pos().x() * (double)Section.SIZE + Section.SIZE * 0.5 - player.x();
         double dz = chunk.pos().z() * (double)Section.SIZE + Section.SIZE * 0.5 - player.z();
         return dx * dx + dz * dz;
+    }
+
+    private boolean chunkInView(ChunkPos pos) {
+        double x = pos.x() * (double)Section.SIZE, z = pos.z() * (double)Section.SIZE;
+        // Full chunk height is deliberately conservative: tall terrain must not disappear.
+        return frustum.classifyAabb(x, World.MIN_Y, z, x + Section.SIZE, World.MAX_Y + 1.0,
+            z + Section.SIZE).visible();
     }
 
     @Override public String latestTitleStats() {

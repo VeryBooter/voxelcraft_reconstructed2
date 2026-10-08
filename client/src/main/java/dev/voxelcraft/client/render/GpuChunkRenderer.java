@@ -9,12 +9,12 @@ import dev.voxelcraft.client.world.ClientWorldView;
 import dev.voxelcraft.core.block.Block;
 import dev.voxelcraft.core.block.BlockDef;
 import dev.voxelcraft.core.block.Blocks;
+import dev.voxelcraft.core.util.SystemProperties;
 import dev.voxelcraft.core.world.Chunk;
 import dev.voxelcraft.core.world.ChunkPos;
 import dev.voxelcraft.core.world.Section;
 import dev.voxelcraft.core.world.World;
 import java.awt.Graphics2D;
-import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.io.InputStream;
@@ -195,6 +195,8 @@ public final class GpuChunkRenderer implements ClientGpuRenderer {
     // 中文标注（字段）：`DEFAULT_SHARED_ARENA_INDEX_MB`，含义：用于表示默认、shared、arena、索引、mb。
     private static final int DEFAULT_SHARED_ARENA_INDEX_MB = 64; // meaning
     private static final int MAX_CULL_LOGS_PER_FRAME = 32; // meaning
+    private static final boolean LOG_CHUNK_CULL =
+        SystemProperties.getBoolean("vc.gpu.logChunkCull", "voxelcraft.gpu.logChunkCull", false);
     // 中文标注（字段）：`VERTEX_STRIDE_BYTES`，含义：用于表示顶点、步长、字节数据。
     private static final int VERTEX_STRIDE_BYTES = ChunkMesher.GPU_VERTEX_STRIDE_BYTES; // meaning
     // 中文标注（字段）：`POSITION_OFFSET_BYTES`，含义：用于表示位置、偏移、字节数据。
@@ -212,11 +214,8 @@ public final class GpuChunkRenderer implements ClientGpuRenderer {
     private static final float[] HOTBAR_COLOR_FALLBACK = rgb(210, 210, 210);
     private static final String PORTAL_TEXTURE_RESOURCE = "/textures/1758252625670.jpg";
     private static final String MISSILE_TEXTURE_RESOURCE = "/textures/1740065499332.jpg";
-    private static final String TILE_TEXTURE_RESOURCE_PREFIX = "/textures/tiles/";
     private static final int BLOCK_ATLAS_TILE_SIZE = 16; // meaning
     private static final int BLOCK_ATLAS_META_WIDTH = 4096; // meaning
-    private static final int BLOCK_ATLAS_META_HEIGHT = 3; // meaning
-    private static final int MAX_ATLAS_TILE_COUNT = 4096; // meaning
     private static final int MATERIAL_LUT_WIDTH = 4096; // meaning
     private static final int MATERIAL_LUT_HEIGHT = 2; // meaning
     private static final int MATERIAL_PATTERN_RAW_STONE = 0; // meaning
@@ -2095,7 +2094,7 @@ public final class GpuChunkRenderer implements ClientGpuRenderer {
         double maxZ,
         int planeIndex
     ) {
-        if (pass.cullLogsEmitted >= MAX_CULL_LOGS_PER_FRAME) {
+        if (!LOG_CHUNK_CULL || pass.cullLogsEmitted >= MAX_CULL_LOGS_PER_FRAME) {
             return;
         }
         pass.cullLogsEmitted++;

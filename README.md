@@ -27,6 +27,7 @@ Voxelcraft reconstructed repository (Java multi-module project: `core` / `client
 - Rendering:
   - `software`: Java2D software renderer, also used as the default fallback
   - `gpu`: Real-time rendering using LWJGL + GLFW + OpenGL
+  - `metal`: Apple unified-memory GPU rendering with CPU/GPU shared vertex and index buffers
   - `accelerated`: GPU-first startup path, recommended for normal use
 
 ## Gradle Usage
@@ -63,6 +64,10 @@ The repository includes a `gradlew` wrapper that automatically downloads Gradle,
 # Most stable option
 ./gradlew :client:runSoftware
 
+# Start the native Metal backend on an Apple unified-memory Mac
+# Building requires Xcode Command Line Tools and JDK 21
+./gradlew :client:runMetal
+
 # Start the client with software rendering and a local connection
 # Most stable local multiplayer option
 ./gradlew :client:runSoftwareLocal
@@ -75,7 +80,7 @@ The repository includes a `gradlew` wrapper that automatically downloads Gradle,
 
 Available client arguments:
 
-- `--render auto|software|gpu`
+- `--render auto|software|gpu|metal`
 - `--connect host:port`
 
 Example:
@@ -131,6 +136,7 @@ If `runGpu` fails, first use `runSoftware` to verify that the gameplay and netwo
 
 ## Documentation
 
+- [Metal shared memory and rendering flow (中文)](docs/METAL_SHARED_MEMORY_CN.md)
 - `reconstruction/PROJECT_RECONSTRUCTION_FILE_MAP_CN.md`
 - `docs/VOXELCRAFT_FLOW_CN.md`
 - `docs/VOXELCRAFT_CODE_ANNOTATIONS_CN.md`

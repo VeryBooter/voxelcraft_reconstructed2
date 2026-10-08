@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#e8e5d9">
+  <meta name="description" content="在浏览器里探索、挖掘、建造。Voxelcraft，一个属于你的方块世界。">
+  <title>Voxelcraft — 方块之间，自由生长</title>
+  <link rel="icon" href="./favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <canvas id="world" aria-label="Voxelcraft 三维方块世界"></canvas>
+  <header class="topbar">
+    <a class="brand" href="./" aria-label="Voxelcraft 首页"><svg viewBox="0 0 32 36" aria-hidden="true"><path d="m16 1 15 8v18l-15 8-15-8V9Z" fill="currentColor"/><path d="m1 9 15 9 15-9M16 18v17" fill="none" stroke="#efeddf" stroke-width="2"/></svg><span>voxelcraft<small>一个属于你的方块世界</small></span></a>
+    <div class="top-actions"><span class="live"><i></i>浏览器单人版</span><button id="menu-button" class="icon-button" aria-label="打开菜单" title="菜单 · Esc">☰</button></div>
+  </header>
+  <div id="crosshair" aria-hidden="true"><span></span><span></span></div>
+  <div id="target" class="target-label" hidden></div>
+  <main id="menu" class="menu" aria-label="游戏菜单">
+    <section class="intro">
+      <div class="eyebrow"><span></span> SMALL BLOCKS. ENDLESS POSSIBILITIES.</div>
+      <h1>方块之间，<br>自由生长<span>。</span></h1>
+      <p class="intro-copy">走进一片新的原野。挖下第一块泥土，<br>搭起第一间小屋，让想象有处安放。</p>
+      <div class="play-row"><button id="play" class="primary" disabled>正在准备世界… <span>↗</span></button><span class="play-note">无需安装<br>即刻开始探索</span></div>
+      <div class="menu-settings">
+        <label>视野距离 <select id="distance" aria-label="视野距离"><option value="3">轻盈 · 48m</option><option value="4" selected>标准 · 64m</option><option value="6">开阔 · 96m</option></select></label>
+        <button id="time-button" class="text-button">切换黄昏 <span>◐</span></button>
+      </div>
+      <details class="more"><summary>世界与存档 <span>＋</span></summary><div class="save-actions"><button id="export">导出存档</button><button id="import">导入存档</button><button id="new-world">新的世界</button></div><p>更改会自动保存在当前浏览器，也可以导出备份。</p></details>
+      <input id="import-file" type="file" accept="application/json,.json" hidden>
+      <p id="error" class="error" role="alert" hidden></p>
+    </section>
+    <aside class="field-note"><span class="note-number">FIELD NOTES / 001</span><div class="note-line"></div><h2>从一块方块开始。</h2><p>这里没有预设的终点。<br>往前走，或者留在这里建造。</p><span class="world-seed" id="seed-label"></span></aside>
+  </main>
+  <section class="bottom-hud" aria-label="游戏工具栏">
+    <div class="status"><span class="status-dot"></span><span id="save-status" role="status">世界准备中</span><span class="divider">/</span><span id="coordinates">0, 0, 0</span></div>
+    <div class="inventory"><div class="selected-name" id="selected-name">草方块</div><div id="hotbar" class="hotbar" aria-label="选择方块"></div></div>
+    <div class="performance"><span id="fps">— FPS</span><span id="render-stats">WEBGL 2</span></div>
+  </section>
+  <footer class="controls"><span><kbd>W A S D</kbd> 移动</span><span><kbd>鼠标</kbd> 环顾</span><span><kbd>空格</kbd> 跳跃</span><span><kbd>左 / 右键</kbd> 挖掘 / 放置</span><span><kbd>1 — 7</kbd> 方块</span><span><kbd>Esc</kbd> 菜单</span></footer>
+  <div id="touch-controls" class="touch-controls" aria-label="触屏操作"><div class="dpad"><button data-key="KeyW" aria-label="前进">↑</button><button data-key="KeyA" aria-label="左移">←</button><button data-key="KeyS" aria-label="后退">↓</button><button data-key="KeyD" aria-label="右移">→</button></div><div class="touch-actions"><button id="touch-break">挖掘</button><button id="touch-place">放置</button><button data-key="Space">跳跃</button></div></div>
+  <div id="toast" class="toast" role="status" hidden></div>
+  <script type="module" src="./game.js"></script>
+</body>
+</html>

@@ -38,6 +38,21 @@ The repository includes a `gradlew` wrapper that automatically downloads Gradle,
 ./gradlew -v
 ```
 
+## Browser Version
+
+[Play the private browser version](https://voxelcraft-browser.zesty-ape-8343.chatgpt.site) (owner access).
+
+The independent browser client in `web/` supports singleplayer exploration, collision and jumping, block breaking/placement, seven building materials, adjustable view distance, and browser-local saves with JSON import/export. It uses WebGL 2 and a bundled Three.js library; no npm installation or Java runtime is needed to play.
+
+```bash
+npm --prefix web start
+# Open http://127.0.0.1:4173
+
+npm --prefix web run check
+```
+
+The initial browser client has its own deterministic terrain generator and save format. Desktop multiplayer, the full block registry, and W-axis/portal gameplay are not yet ported. See [browser client documentation (中文)](docs/WEB_CLIENT_CN.md).
+
 ## Common Commands
 
 ```bash

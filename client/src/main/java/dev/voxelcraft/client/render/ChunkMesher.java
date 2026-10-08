@@ -272,7 +272,7 @@ public final class ChunkMesher {
     // 中文标注（方法）：`buildChunkMesh`，参数：snapshot、bufferPool；用途：构建或创建构建、区块、网格。
     // 中文标注（参数）：`snapshot`，含义：用于表示快照。
     // 中文标注（参数）：`bufferPool`，含义：用于表示缓冲区、池。
-    public ChunkMeshData buildChunkMesh(ChunkSnapshot snapshot, DirectByteBufferPool bufferPool) {
+    public ChunkMeshData buildChunkMesh(ChunkSnapshot snapshot, MeshBufferAllocator bufferPool) {
         return buildChunkMesh(snapshot, bufferPool, LOD_LEVEL_FULL);
     }
 
@@ -280,7 +280,7 @@ public final class ChunkMesher {
     // 中文标注（参数）：`snapshot`，含义：用于表示快照。
     // 中文标注（参数）：`bufferPool`，含义：用于表示缓冲区、池。
     // 中文标注（参数）：`lodLevel`，含义：用于表示细节层级、级别。
-    public ChunkMeshData buildChunkMesh(ChunkSnapshot snapshot, DirectByteBufferPool bufferPool, int lodLevel) {
+    public ChunkMeshData buildChunkMesh(ChunkSnapshot snapshot, MeshBufferAllocator bufferPool, int lodLevel) {
         try {
             // 中文标注（局部变量）：`scratch`，含义：用于表示临时工作区。
             MeshBuildScratch scratch = gpuScratch.get(); // meaning
@@ -2096,7 +2096,7 @@ public final class ChunkMesher {
 
         // 中文标注（方法）：`releaseBuffers`，参数：bufferPool；用途：执行release、buffers相关逻辑。
         // 中文标注（参数）：`bufferPool`，含义：用于表示缓冲区、池。
-        public void releaseBuffers(DirectByteBufferPool bufferPool) {
+        public void releaseBuffers(MeshBufferAllocator bufferPool) {
             bufferPool.release(vertexBytes);
             bufferPool.release(indexBytes);
         }

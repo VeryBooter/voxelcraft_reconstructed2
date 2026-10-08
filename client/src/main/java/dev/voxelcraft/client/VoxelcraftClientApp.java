@@ -34,7 +34,12 @@ public final class VoxelcraftClientApp {
 
     // 中文标注（方法）：`run`，参数：无；用途：执行run相关逻辑。
     public void run() {
-        if (GraphicsEnvironment.isHeadless()) {
+        // Metal uses GLFW/AppKit for the window. Java2D only paints an offscreen HUD;
+        // initializing AWT's macOS event loop would interfere with GLFW's first-thread loop.
+        if (config.renderMode == RenderMode.METAL) {
+            System.setProperty("java.awt.headless", "true");
+        }
+        if (GraphicsEnvironment.isHeadless() && config.renderMode != RenderMode.METAL) {
             runHeadlessFallback();
             return;
         }
@@ -45,8 +50,8 @@ public final class VoxelcraftClientApp {
             boolean launchedGpu = false; // meaning
             if (config.renderMode != RenderMode.SOFTWARE) {
                 launchedGpu = tryRunGpuRuntime(gameClient);
-                if (!launchedGpu && config.renderMode == RenderMode.GPU) {
-                    throw new IllegalStateException("GPU mode requested but OpenGL runtime failed to start");
+                if (!launchedGpu && (config.renderMode == RenderMode.GPU || config.renderMode == RenderMode.METAL)) {
+                    throw new IllegalStateException(config.renderMode + " mode requested but its GPU runtime failed to start");
                 }
             }
 
@@ -90,7 +95,8 @@ public final class VoxelcraftClientApp {
             // 中文标注（局部变量）：`runtimeClass`，含义：用于表示运行时、class。
             Class<?> runtimeClass = Class.forName("dev.voxelcraft.client.runtime.GpuClientRuntime"); // meaning
             // 中文标注（局部变量）：`runtime`，含义：用于表示运行时。
-            Object runtime = runtimeClass.getConstructor(String.class).newInstance("Voxelcraft"); // meaning
+            Object runtime = runtimeClass.getConstructor(String.class, boolean.class)
+                .newInstance("Voxelcraft", config.renderMode == RenderMode.METAL); // meaning
             try {
                 runtimeClass.getMethod("run", GameClient.class).invoke(runtime, gameClient);
             } finally {
@@ -302,7 +308,8 @@ public final class VoxelcraftClientApp {
         // 中文标注（字段）：`SOFTWARE`，含义：用于表示software。
         SOFTWARE,
         // 中文标注（字段）：`GPU`，含义：用于表示GPU。
-        GPU; // meaning
+        GPU,
+        METAL;
 
         // 中文标注（方法）：`parse`，参数：raw；用途：执行parse相关逻辑。
         // 中文标注（参数）：`raw`，含义：用于表示raw。
@@ -313,6 +320,7 @@ public final class VoxelcraftClientApp {
 
             return switch (raw.trim().toLowerCase()) {
                 case "gpu", "opengl", "gl" -> GPU;
+                case "metal" -> METAL;
                 case "software", "sw", "cpu" -> SOFTWARE;
                 default -> AUTO;
             };

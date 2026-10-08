@@ -367,6 +367,16 @@ public final class GameClient implements AutoCloseable {
 
         // 中文标注（局部变量）：`stats`，含义：用于表示stats。
         RenderStats stats = renderSystem.draw(graphics, width, height, worldView, playerController, ambientLight()); // meaning
+        renderOverlay(graphics, width, height, stats);
+    }
+
+    /** Draw the existing UI over either GPU backend. Coordinates are logical window pixels. */
+    public void renderOverlay(Graphics2D graphics, int width, int height, RenderStats stats) {
+        lastRenderWidth = width;
+        lastRenderHeight = height;
+        if (blockPickerOpen) {
+            refreshBlockPickerView(width, height);
+        }
         if (targetedBlock != null && !isAnyUiOpen()) {
             renderSystem.drawSelectionBox(graphics, width, height, playerController, targetedBlock.targetBlock());
         }

@@ -4,6 +4,8 @@ import dev.voxelcraft.client.GameClient;
 import dev.voxelcraft.client.platform.InputState;
 import dev.voxelcraft.client.render.ChunkRenderSystem.RenderStats;
 import dev.voxelcraft.client.render.GpuChunkRenderer;
+import dev.voxelcraft.client.render.ClientGpuRenderer;
+import dev.voxelcraft.client.render.MetalChunkRenderer;
 import dev.voxelcraft.core.util.SystemProperties;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseEvent;
@@ -99,7 +101,9 @@ public final class GpuClientRuntime implements AutoCloseable {
     // 中文标注（字段）：`input`，含义：用于表示输入。
     private final InputState input = new InputState(); // meaning
     // 中文标注（字段）：`renderer`，含义：用于表示渲染器。
-    private final GpuChunkRenderer renderer = new GpuChunkRenderer(); // meaning
+    private final ClientGpuRenderer renderer;
+    private final boolean metal;
+    private boolean glfwInitialized; // meaning
     // 中文标注（字段）：`frameTimeWindowMs`，含义：用于表示帧、时间、窗口、ms。
     private final double[] frameTimeWindowMs = new double[512]; // meaning
     // 中文标注（字段）：`frameTimeSortScratchMs`，含义：用于表示帧、时间、sort、临时工作区、ms。
@@ -132,7 +136,13 @@ public final class GpuClientRuntime implements AutoCloseable {
     // 中文标注（构造方法）：`GpuClientRuntime`，参数：title；用途：初始化`GpuClientRuntime`实例。
     // 中文标注（参数）：`title`，含义：用于表示title。
     public GpuClientRuntime(String title) {
+        this(title, false);
+    }
+
+    public GpuClientRuntime(String title, boolean metal) {
         this.title = title;
+        this.metal = metal;
+        this.renderer = metal ? new MetalChunkRenderer() : new GpuChunkRenderer();
     }
 
     // 中文标注（方法）：`run`，参数：gameClient；用途：执行run相关逻辑。
@@ -146,7 +156,9 @@ public final class GpuClientRuntime implements AutoCloseable {
         long fpsWindowStart = previousNanos; // meaning
         // 中文标注（局部变量）：`frames`，含义：用于表示frames。
         int frames = 0; // meaning
-        int displayedFps = 0; // meaning
+        int displayedFps = 0;
+        int renderedFrames = 0;
+        int frameLimit = Integer.getInteger("vc.smoke.frames", 0); // meaning
         framePerfWindowStartNanos = previousNanos;
         framePerfFrames = 0;
         framePerfWorstMs = 0.0;
@@ -210,7 +222,9 @@ public final class GpuClientRuntime implements AutoCloseable {
             long renderNanos = System.nanoTime() - renderStartedNanos; // meaning
             // 中文标注（局部变量）：`swapStartedNanos`，含义：用于表示swap、started、nanos。
             long swapStartedNanos = System.nanoTime(); // meaning
-            glfwSwapBuffers(windowHandle);
+            if (!metal) {
+                glfwSwapBuffers(windowHandle);
+            }
             // 中文标注（局部变量）：`swapNanos`，含义：用于表示swap、nanos。
             long swapNanos = System.nanoTime() - swapStartedNanos; // meaning
 
@@ -254,6 +268,10 @@ public final class GpuClientRuntime implements AutoCloseable {
                 fpsWindowStart = now;
             }
             glfwSetWindowTitle(windowHandle, buildGpuWindowTitle(gameClient, stats, displayedFps));
+            if (frameLimit > 0 && ++renderedFrames >= frameLimit) {
+                System.out.println("[gpu-smoke] completed " + renderedFrames + " frames: " + renderer.latestTitleStats());
+                break;
+            }
         }
     }
 
@@ -262,7 +280,7 @@ public final class GpuClientRuntime implements AutoCloseable {
             return title + " | Settings | " + gameClient.settingsSummaryText();
         }
         var player = gameClient.playerController(); // meaning
-        StringBuilder out = new StringBuilder(title).append(" | GPU"); // meaning
+        StringBuilder out = new StringBuilder(title).append(metal ? " | Metal" : " | OpenGL"); // meaning
         if (gameClient.showFpsSetting()) {
             out.append(" FPS ").append(fps);
         }
@@ -320,18 +338,20 @@ public final class GpuClientRuntime implements AutoCloseable {
     // 中文标注（方法）：`close`，参数：无；用途：执行close相关逻辑。
     @Override
     public void close() {
-        if (!initialized) {
-            return;
+        try {
+            renderer.close();
+        } finally {
+            if (windowHandle != NULL) {
+                org.lwjgl.glfw.Callbacks.glfwFreeCallbacks(windowHandle);
+                glfwDestroyWindow(windowHandle);
+                windowHandle = NULL;
+            }
+            if (glfwInitialized) {
+                glfwTerminate();
+                glfwInitialized = false;
+            }
+            initialized = false;
         }
-
-        renderer.close();
-
-        if (windowHandle != NULL) {
-            glfwDestroyWindow(windowHandle);
-            windowHandle = NULL;
-        }
-        glfwTerminate();
-        initialized = false;
     }
 
     // 中文标注（方法）：`initialize`，参数：无；用途：执行initialize相关逻辑。
@@ -345,24 +365,34 @@ public final class GpuClientRuntime implements AutoCloseable {
             throw new IllegalStateException("Failed to initialize GLFW");
         }
 
+        glfwInitialized = true;
         glfwDefaultWindowHints();
         glfwWindowHint(GLFW_VISIBLE, GLFW_TRUE);
         glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
+        if (metal) {
+            glfwWindowHint(org.lwjgl.glfw.GLFW.GLFW_CLIENT_API, org.lwjgl.glfw.GLFW.GLFW_NO_API);
+        } else {
+            glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
+            glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
+        }
 
         windowHandle = glfwCreateWindow(1280, 720, title, NULL, NULL);
         if (windowHandle == NULL) {
             throw new IllegalStateException("Failed to create GLFW window");
         }
 
-        glfwMakeContextCurrent(windowHandle);
-        glfwSwapInterval(resolveSwapInterval());
+        if (!metal) {
+            glfwMakeContextCurrent(windowHandle);
+            glfwSwapInterval(resolveSwapInterval());
+        }
         glfwShowWindow(windowHandle);
         glfwSetInputMode(windowHandle, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
         cursorCaptured = true;
 
-        GL.createCapabilities();
+        if (!metal) {
+            GL.createCapabilities();
+        }
+        renderer.initialize(windowHandle);
         firstMouseSample = true;
         installInputCallbacks();
         initialized = true;

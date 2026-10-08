@@ -26,6 +26,45 @@ dependencies {
     runtimeOnly("org.lwjgl:lwjgl::$lwjglNatives")
     runtimeOnly("org.lwjgl:lwjgl-glfw::$lwjglNatives")
     runtimeOnly("org.lwjgl:lwjgl-opengl::$lwjglNatives")
+
+    testImplementation(platform("org.junit:junit-bom:5.10.2"))
+    testImplementation("org.junit.jupiter:junit-jupiter")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+}
+
+// The JNI library is packaged with the client, so run/installDist need no manual library path.
+if (isMac) {
+    val nativeArch = if (archName.contains("aarch64") || archName.contains("arm64")) "arm64" else "x86_64"
+    val generatedResources = layout.buildDirectory.dir("generated/metal-resources")
+    val nativeLibrary = generatedResources.map { it.file("native/macos-$nativeArch/libvoxelcraft_metal.dylib") }
+    val compileMetal by tasks.registering(Exec::class) {
+        group = "build"
+        description = "Builds the Metal shared-memory JNI bridge (requires Xcode Command Line Tools)"
+        inputs.file("src/main/native/metal/MetalBridge.m")
+        inputs.property("javaHome", System.getProperty("java.home"))
+        outputs.file(nativeLibrary)
+        doFirst { nativeLibrary.get().asFile.parentFile.mkdirs() }
+        commandLine("xcrun", "clang", "-dynamiclib", "-fobjc-arc", "-fblocks", "-std=gnu11", "-O2",
+            "-Wall", "-Wextra", "-Werror", "-Wno-unused-parameter", "-mmacosx-version-min=11.0",
+            "-I${System.getProperty("java.home")}/include", "-I${System.getProperty("java.home")}/include/darwin",
+            "src/main/native/metal/MetalBridge.m", "-framework", "Cocoa", "-framework", "Metal",
+            "-framework", "QuartzCore", "-o", nativeLibrary.get().asFile.absolutePath)
+    }
+    sourceSets.main { resources.srcDir(generatedResources) }
+    tasks.processResources { dependsOn(compileMetal) }
+}
+
+tasks.test { useJUnitPlatform { excludeTags("metal-native") } }
+tasks.register<Test>("metalTest") {
+    group = "verification"
+    description = "Runs actual offscreen Metal rendering and shared-buffer lifecycle tests on a unified-memory Mac"
+    testClassesDirs = sourceSets.test.get().output.classesDirs
+    classpath = sourceSets.test.get().runtimeClasspath
+    useJUnitPlatform { includeTags("metal-native") }
+    onlyIf { isMac }
+    systemProperty("java.awt.headless", "true")
+    environment("MTL_DEBUG_LAYER", "1")
+    systemProperty("vc.metal.test.output", layout.buildDirectory.dir("metal-test").get().asFile.absolutePath)
 }
 
 application {
@@ -65,10 +104,14 @@ fun registerClientRunTask(
     mainClass.set(application.mainClass)
     forwardVoxelcraftSystemProperties()
     configureOptionalDiagnosticsJvmArgs()
+    if (renderMode == "metal") {
+        // AWT is used only for offscreen HUD images; GLFW still creates a native window.
+        jvmArgs("-Djava.awt.headless=true")
+    }
     if (headless) {
         jvmArgs("-Djava.awt.headless=true")
     } else {
-        if (isMac && (renderMode == "gpu" || renderMode == "auto")) {
+        if (isMac && (renderMode == "gpu" || renderMode == "auto" || renderMode == "metal")) {
             jvmArgs("-XstartOnFirstThread")
         }
         if (renderMode == "software") {
@@ -86,6 +129,8 @@ registerClientRunTask("runAuto", "auto")
 registerClientRunTask("runSoftware", "software")
 registerClientRunTask("runGpu", "gpu")
 registerClientRunTask("runHeadless", "software", headless = true)
+registerClientRunTask("runMetal", "metal")
+registerClientRunTask("runMetalLocal", "metal", local = true)
 registerClientRunTask("runAccelerated", "gpu").configure {
     description = "Runs GPU client with vsync disabled for performance testing"
     jvmArgs("-Dvoxelcraft.vsync=0")

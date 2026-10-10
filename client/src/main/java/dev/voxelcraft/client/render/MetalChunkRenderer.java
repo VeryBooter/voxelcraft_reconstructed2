@@ -162,8 +162,12 @@ public final class MetalChunkRenderer implements ClientGpuRenderer {
         completedDrainNanos = System.nanoTime() - start;
         start = System.nanoTime();
         int submitted = 0;
+        long snapshotBudget = Math.max(1, Integer.getInteger("vc.metal.snapshotBudgetMs", 4)) * 1_000_000L;
         for (Chunk chunk : loaded) {
             if (submitted >= 4 || outstandingJobs.get() >= workers * 2) break;
+            // Capturing snapshots runs on the game thread. Allow one job, then defer additional
+            // snapshots once the time budget is spent so loading cannot monopolize a frame.
+            if (submitted > 0 && System.nanoTime() - start >= snapshotBudget) break;
             // Keep nearby geometry ready for turns; defer other offscreen snapshots and mesh jobs.
             // World data and existing meshes remain cached throughout the render-distance area.
             if (Math.max(Math.abs(chunk.pos().x() - px), Math.abs(chunk.pos().z() - pz)) > 1
@@ -301,11 +305,17 @@ public final class MetalChunkRenderer implements ClientGpuRenderer {
     @Override public long lastUploadQueueDrainNanos() { return completedDrainNanos; }
     @Override public long lastDrawLoopNanos() { return drawNanos; }
 
-    ByteBuffer readOffscreenPixels(int width, int height) {
-        if (window != 0 || context == 0) throw new IllegalStateException("Requires an initialized offscreen renderer");
+    public ByteBuffer readOffscreenPixels(int width, int height) {
         ByteBuffer pixels = ByteBuffer.allocateDirect(Math.multiplyExact(Math.multiplyExact(width, height), 4));
-        MetalNative.readPixels(context, pixels);
+        readOffscreenPixels(pixels);
         return pixels;
+    }
+
+    /** Read the completed offscreen frame into a reusable caller-owned direct buffer. */
+    public void readOffscreenPixels(ByteBuffer pixels) {
+        if (window != 0 || context == 0) throw new IllegalStateException("Requires an initialized offscreen renderer");
+        if (!pixels.isDirect()) throw new IllegalArgumentException("Pixels must be a direct buffer");
+        MetalNative.readPixels(context, pixels);
     }
 
     @Override

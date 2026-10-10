@@ -1,11 +1,6 @@
-name: Publish Voxelcraft Web
+name: Publish Browser Transport Page (requires local Java backend)
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'web/**'
-      - '.github/workflows/pages.yml'
   workflow_dispatch:
 
 permissions:

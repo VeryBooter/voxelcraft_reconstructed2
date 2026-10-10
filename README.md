@@ -38,22 +38,19 @@ The repository includes a `gradlew` wrapper that automatically downloads Gradle,
 ./gradlew -v
 ```
 
-## Browser Version
+## Local Browser Access
 
-[Play the private browser version](https://voxelcraft-browser.zesty-ape-8343.chatgpt.site) (owner access).
-
-The independent browser client in `web/` supports singleplayer exploration, collision and jumping, block breaking/placement, seven building materials, adjustable view distance, and browser-local saves with JSON import/export. It uses WebGL 2 and a bundled Three.js library; no npm installation or Java runtime is needed to play.
+Run the existing Java game locally and display its original rendered world, HUD and menus in your browser. The browser forwards input; it does not implement another game. Apple Silicon uses the existing Metal shared-buffer renderer; other systems use the existing Java2D renderer.
 
 ```bash
-npm --prefix web start
+./gradlew :client:runBrowser
 # Open http://127.0.0.1:4173
 
-npm --prefix web run check
+# The previous convenience command starts the same Java backend:
+npm --prefix web start
 ```
 
-The initial browser client has its own deterministic terrain generator and save format. Desktop multiplayer, the full block registry, and W-axis/portal gameplay are not yet ported. See [browser client documentation (中文)](docs/WEB_CLIENT_CN.md).
-
-Phone, desktop, and iPad controls include an analog touch joystick, simultaneous look/action gestures, and a manual touch/keyboard/mouse mode selector. GitHub Pages publishing is configured in `.github/workflows/pages.yml`: push the changes to `main`, select **Settings → Pages → Source → GitHub Actions**, then run **Publish Voxelcraft Web** from Actions. The workflow tests and publishes only `web/dist/`; no Java build is required.
+For a phone or iPad on the same trusted LAN, run `./gradlew -Dvc.browser.host=0.0.0.0 :client:runBrowser` and open `http://YOUR_COMPUTER_IP:4173`. Java runs on the computer. Frame readback and JPEG encoding add latency; use `:client:runMetal` to measure native rendering performance. GitHub Pages cannot run this Java backend. See [browser access documentation (中文)](docs/WEB_CLIENT_CN.md).
 
 ## Common Commands
 

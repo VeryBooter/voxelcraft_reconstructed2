@@ -145,3 +145,22 @@ registerClientRunTask("runAcceleratedLocal", "gpu", local = true).configure {
     description = "Runs accelerated GPU client and connects to local server 127.0.0.1:25565"
     jvmArgs("-Dvoxelcraft.vsync=0")
 }
+
+// The browser transports frames/input; it does not implement a second game.
+sourceSets.main {
+    resources.srcDir("../web/dist")
+}
+tasks.processResources {
+    filesMatching(listOf("index.html", "game.js", "style.css")) {
+        path = "browser/$path"
+    }
+}
+tasks.register<JavaExec>("runBrowser") {
+    group = "application"
+    description = "Runs the existing Java game locally with a browser display and input transport"
+    classpath = sourceSets.main.get().runtimeClasspath
+    mainClass.set("dev.voxelcraft.client.browser.BrowserClientMain")
+    forwardVoxelcraftSystemProperties()
+    jvmArgs("-Djava.awt.headless=true")
+    providers.gradleProperty("connect").orNull?.let { systemProperty("vc.browser.connect", it) }
+}

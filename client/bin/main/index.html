@@ -1,0 +1,13 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Voxelcraft · 原版 Java 客户端</title><link rel="stylesheet" href="style.css"></head>
+<body>
+<img id="screen" alt="原版 Voxelcraft 游戏画面" draggable="false">
+<div id="connection" role="status">正在连接本地 Java 客户端…</div>
+<button id="capture" type="button">点击画面控制 · WASD 移动 · E 方块 · O 设置</button>
+<div id="touch" aria-label="触屏输入">
+<div class="movement"><button data-key="87">前</button><div><button data-key="65">左</button><button data-key="83">后</button><button data-key="68">右</button></div></div>
+<div class="actions"><button data-key="32">跳跃</button><button data-mouse="1">挖掘</button><button data-mouse="3">放置</button><button data-key="69">方块</button><button data-key="79">设置</button></div>
+</div>
+<script type="module" src="game.js"></script>
+</body></html>

@@ -191,9 +191,9 @@ public final class GameClient implements AutoCloseable {
     private RenderDistancePreset renderDistancePreset = RenderDistancePreset.MEDIUM; // meaning
     private int localChunkRadius = renderDistancePreset.chunkRadius(); // meaning
     private int networkChunkRadius = renderDistancePreset.chunkRadius(); // meaning
-    private boolean showFps = true; // meaning
-    private boolean showLocation = true; // meaning
-    private boolean showStats = true; // meaning
+    private boolean showFps; // meaning
+    private boolean showLocation; // meaning
+    private boolean showStats; // meaning
     private boolean settingsOpen; // meaning
     private int settingsSelectedOption; // meaning
     private boolean blockPickerOpen; // meaning
@@ -1997,6 +1997,10 @@ public final class GameClient implements AutoCloseable {
     // 中文标注（参数）：`graphics`，含义：用于表示graphics。
     // 中文标注（参数）：`stats`，含义：用于表示stats。
     private void drawHud(Graphics2D graphics, RenderStats stats) {
+        if (!showFps && !showLocation && !showStats && !DEBUG_FALL_HUD
+                && !MISSILE_FEATURE_ENABLED && !combatGameOver) {
+            return;
+        }
         graphics.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 13));
         int lineCount = 4; // meaning
         if (showLocation) {
